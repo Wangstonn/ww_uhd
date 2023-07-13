@@ -634,17 +634,72 @@ module x300_core #(
    // holds 2 bits per GPIO pin, which selects which source to use for GPIO
    // control. Currently, only daughter board 0 and daughter board 1 are
    // supported.
+
+   /*
    for (i=0; i<FP_GPIO_WIDTH; i=i+1) begin : gen_fp_gpio_mux
       always @(posedge radio_clk) begin
          fp_gpio_out[i] <= fp_gpio_r_out[fp_gpio_src[2*i +: 2] == 0 ? 0 : 1][i];
          fp_gpio_ddr[i] <= fp_gpio_r_ddr[fp_gpio_src[2*i +: 2] == 0 ? 0 : 1][i];
       end
    end
+   */
 
    // Front-panel GPIO inputs are routed to all daughter boards
    for (i=0; i<NUM_DBOARDS; i=i+1) begin : gen_fp_gpio_inputs
       assign fp_gpio_r_in[i] = fp_gpio_in;
    end
+
+   //----------------------------
+   // WW wires for modules
+   //-----------------------------
+   
+
+   // wire [15:0] scale_val;
+   // wire [31:0] noise_thres;
+   // wire [15:0] irx_bb, qrx_bb, irx_in, qrx_in;
+   // wire [31:0] rx_bb_dk;
+   
+
+   // localparam DB_IDX  = 0;
+   // assign irx_in      = rx_data_r[DB_IDX][31:16];
+   // assign qrx_in      = rx_data_r[DB_IDX][15:0];
+   // assign scale_val   = fp_gpio_r_out[DB_IDX][15:0];
+   // assign noise_thres = fp_gpio_r_ddr[DB_IDX];
+   // assign rx_bb_dk    = {irx_bb, qrx_bb};
+   // wire rx_valid, sync_sel;
+
+   // usrp_tag_chip_tag_rx_ctrl TAG_RX_CTRL(   
+   //     .clk(radio_clk),
+   //     .reset(radio_rst),
+   //     .run_rx(rx_running[DB_IDX * 2]),
+
+   //     .irx_in(irx_in), 
+   //     .qrx_in(qrx_in),
+   //     .scale_val(scale_val),
+   //     .noise_thres(noise_thres),
+
+   //     .fp_gpio_out(gpio_out_dk), 
+   //     .fp_gpio_ddr(gpio_ddr_dk),
+   //     .fp_gpio_in(gpio_in_dk),
+
+   //     .rx_valid(rx_valid),
+   //     .rx_out_mux(sync_sel),
+
+   //     .irx_out_bb(irx_bb),
+   //     .qrx_out_bb(qrx_bb));
+
+       
+
+   io_iface io_iface_DUT(
+      .clk(radio_clk),
+      .i_reg(fp_gpio_r_out),
+
+      .o_reg_r(fp_gpio_in)
+   );
+
+
+
+   //////////////////////////////////////////////////
 
    //------------------------------------
    // Radio to ADC,DAC and IO Mapping
