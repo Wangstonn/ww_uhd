@@ -39,6 +39,12 @@ include $(LIB_DIR)/rfnoc/Makefile.srcs
 include $(LIB_DIR)/axi4s_sv/Makefile.srcs
 include $(LIB_DIR)/rfnoc/xport_sv/Makefile.srcs
 
+#------------------------------------------------
+# Winston's Changes
+#------------------------------------------------
+include $(BASE_DIR)/../../../../rtl/sources/loopback/Makefile.srcs
+
+
 # For sake of convenience, we include the Makefile.srcs for DRAM FIFO, DDC, and
 # DUC, Replay, and of course the radio. Any other block needs to use the
 # RFNOC_OOT_MAKEFILE_SRCS variable (see below).
@@ -102,6 +108,10 @@ else
 DRAM_SRCS =
 endif
 
+#-------------------------------
+# Winston's Changes
+#-------------------------------
+
 DESIGN_SRCS = $(abspath $(TOP_SRCS)) $(FIFO_SRCS) \
 $(CONTROL_LIB_SRCS) $(SDR_LIB_SRCS) $(SERDES_SRCS) \
 $(SIMPLE_GEMAC_SRCS) $(TIMING_SRCS) $(COREGEN_DSP_SRCS) \
@@ -117,6 +127,9 @@ $(RFNOC_BLOCK_AXI_RAM_FIFO_SRCS) \
 $(RFNOC_BLOCK_REPLAY_SRCS) \
 $(RFNOC_OOT_SRCS) \
 $(AXI4S_SV_SRCS) $(RFNOC_XPORT_SV_SRCS) \
+
+$(WW_LB_SRCS)
+
 
 EDGE_TBL_DEF="RFNOC_EDGE_TBL_FILE=$(call RESOLVE_PATH,$(EDGE_FILE))"
 IMAGE_CORE_DEF="RFNOC_IMAGE_CORE_HDR=$(DEFAULT_RFNOC_IMAGE_CORE_FILE:.v=.vh)"

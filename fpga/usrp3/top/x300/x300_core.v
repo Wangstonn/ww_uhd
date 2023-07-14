@@ -692,7 +692,7 @@ module x300_core #(
 
    io_iface io_iface_DUT(
       .clk(radio_clk),
-      .i_reg(fp_gpio_r_out),
+      .i_reg(fp_gpio_r_out[0]),
 
       .o_reg_r(fp_gpio_in)
    );
