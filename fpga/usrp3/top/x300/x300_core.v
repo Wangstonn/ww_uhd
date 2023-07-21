@@ -690,11 +690,13 @@ module x300_core #(
 
        
 
-   io_iface io_iface_DUT(
+   (* DONT_TOUCH = "yes" *) lb_iface lb_iface_DUT(
       .clk(radio_clk),
-      .i_reg(fp_gpio_r_out[0]),
+      .i_reg(fp_gpio_r_out[0][32-1:0]),
+//	.i_reg(fp_gpio_in),
+//	.o_reg_r()
 
-      .o_reg_r(fp_gpio_in)
+     .o_reg_r(fp_gpio_r_in[0])
    );
 
 
