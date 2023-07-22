@@ -641,10 +641,12 @@ module x300_core #(
    */
 
    // Front-panel GPIO inputs are routed to all daughter boards
+   // 
+   /*
    for (i=0; i<NUM_DBOARDS; i=i+1) begin : gen_fp_gpio_inputs
       assign fp_gpio_r_in[i] = fp_gpio_in;
    end
-
+    */
    //----------------------------
    // WW wires for modules
    //-----------------------------
@@ -690,12 +692,12 @@ module x300_core #(
       .clk(radio_clk),
       .i_reg(fp_gpio_r_out[0][32-1:0]),
 //	.i_reg(fp_gpio_in),
-//	.o_reg_r()
+	.o_reg_r()
 
-     .o_reg_r(fp_gpio_r_in[0])
+     //.o_reg_r(fp_gpio_r_in[0])
    );
 
-
+   assign fp_gpio_r_in[0] = 'b1;
 
    //////////////////////////////////////////////////
 
