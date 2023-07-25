@@ -436,6 +436,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             rx_usrp->set_rx_antenna(rx_ant, channel);
     }
 
+    //WW Changes
     uint32_t bit_cmds [32] = {    
         0b10000000000000000000000000000000,
         0b00000000000000001101111010101101,
@@ -467,20 +468,24 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         0b10000011000100101100101001011001,
         0b00000011000100101101111010101101,
         0b10000000000000100000000000000001,
-        0b00000000000000101101111010101101}
+        0b00000000000000101101111010101101};
     uint32_t mask = 0xFFFFFFFF;
 
+    std::cout << "Printing digital loopback results...";
     for(int i=0; i<32; i++) {
         tx_usrp->set_gpio_attr("FP0", "CTRL", 0, mask);
         tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[i], mask);
 
-        tx_usrp->get_gpio_attr("FP0", "READBACK", output_reg, mask);
-        std::cout << output_reg;
+        output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
+        std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg;
         std::cout << std::endl;
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
-
+    std::cout << "Done printing digital loopback results...";
+   
+    //////////////////////////////////////////////////////////////////////////////////////////////////
+    
     // for the const wave, set the wave freq for small samples per period
     if (wave_freq == 0 and wave_type == "CONST") {
         wave_freq = tx_usrp->get_tx_rate() / 2;
