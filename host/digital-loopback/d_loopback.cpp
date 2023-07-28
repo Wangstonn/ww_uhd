@@ -437,7 +437,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     }
 
     //WW Changes
-    uint32_t bit_cmds [32] = {    
+    uint32_t bit_cmds [31] = {    
         0b10000000000000000000000000000000,
         0b00000000000000001101111010101101,
         0b10000000000000100000000000000010,
@@ -469,21 +469,169 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         0b00000011000100101101111010101101,
         0b10000000000000100000000000000001,
         0b00000000000000101101111010101101};
-    uint32_t mask = 0xFFFFFFFF;
 
-    std::cout << "Printing digital loopback results...";
-    for(int i=0; i<32; i++) {
-        tx_usrp->set_gpio_attr("FP0", "CTRL", 0, mask);
-        tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[i], mask);
 
-        output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
-        std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg;
-        std::cout << std::endl;
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    constexpr std::uint32_t cmdBits{0xF0000000}; 
+    constexpr std::uint32_t addrBits{0x0FFF0000};
+    constexpr std::uint32_t dataBits{0x0000FFFF};
+
+    
+
+    uint32_t write_cmds[14] = {
+        0x00000000,
+        0x80020002,
+        0x81001DED,
+        0x8120FFFF,//0x8120CE94,
+        0x8122FFFF,//0x8122E12A,
+        0x8200A000,
+        0x82020005,
+        0x82040453,
+        0x82063937,
+        0x8300030B,
+        0x83023DD1,
+        0x8310223C,
+        0x8312CA59,
+        0x80020001,
+    };
+
+    uint32_t read_cmds[16] = {
+        0x00000000,
+        0x00020000,
+        0x01000000,
+        0x01200000,
+        0x01220000,
+        0x02000000,
+        0x02020000,
+        0x02040000,
+        0x02060000,
+        0x021e0000,
+        0x02200000,
+        0x02220000,
+        0x03000000,
+        0x03020000,
+        0x03100000,
+        0x03120000
+    };
+
+
+    std::cout << "Writing to regs...\n";
+    for(int i=0; i<14; i++) {
+        tx_usrp->set_gpio_attr("FP0", "OUT", write_cmds[i]);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(1)); //Arguably no delay is necessary per https://stackoverflow.com/questions/18071664/stdthis-threadsleep-for-and-nanoseconds 
     }
 
-    std::cout << "Done printing digital loopback results...";
-   
+    bool pkt_done = 0;
+    
+    constexpr std::uint32_t isDone{0x021e8000};
+
+
+    std::cout << "Printing results\n";
+    for(int i=0; i<16; i++) {
+        tx_usrp->set_gpio_attr("FP0", "OUT", read_cmds[i]);
+
+        output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
+        std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1)); 
+    }
+
+    //Reset 
+
+    for(int i=0;i<3;i++){
+
+        tx_usrp->set_gpio_attr("FP0", "OUT", 0x80020002); std::this_thread::sleep_for(std::chrono::milliseconds(10000)); 
+
+        tx_usrp->set_gpio_attr("FP0", "OUT", 0x80020001); std::this_thread::sleep_for(std::chrono::milliseconds(10)); 
+
+        std::cout << "Reset and run again\n" << i;
+
+        tx_usrp->set_gpio_attr("FP0", "OUT", 0x021e0000); std::this_thread::sleep_for(std::chrono::milliseconds(1)); 
+        output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
+
+        tx_usrp->set_gpio_attr("FP0", "OUT", 0x02200000); std::this_thread::sleep_for(std::chrono::milliseconds(1)); 
+        output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
+
+        tx_usrp->set_gpio_attr("FP0", "OUT", 0x02220000); std::this_thread::sleep_for(std::chrono::milliseconds(1)); 
+        output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
+    }
+     
+    
+
+    
+
+    // tx_usrp->set_gpio_attr("FP0", "OUT", read_cmds[i]);
+
+    // output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
+    // std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
+    // std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+    // for(int i=1;i<18;i=i+2){
+    //     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[i], mask);
+        
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
+    //     std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
+
+
+    // }
+
+    // std::cout << "Print output\n";
+
+    // for(int i=0;i<3;i++){
+    //     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[29], mask);
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    //     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[2], mask);
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+
+	//     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[18], mask);
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
+	//     std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
+
+
+	//     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[19], mask);
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
+	//     std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
+
+        
+	//     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[20], mask);
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
+	//     std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl; 
+        
+    // }
+
+
+    // while(!pkt_done)
+    // {
+	// tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[18], mask);
+        
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
+	// std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg;
+        
+	// pkt_done = (output_reg & isDone) == isDone;
+ 
+    // }
+    
+    // std::cout << "Digital Loopback done. Reading results\n";
+
+    // for(int i=18; i<32; i++) {
+    //     tx_usrp->set_gpio_attr("FP0", "CTRL", 0, mask);
+    //     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[i], mask);
+
+    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
+    //     std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg;
+    //     std::cout << std::endl;
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    // } 
+    // std::cout << "Done printing digital loopback results...";
+  
     //////////////////////////////////////////////////////////////////////////////////////////////////
     
     // for the const wave, set the wave freq for small samples per period

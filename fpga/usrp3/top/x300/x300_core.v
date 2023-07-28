@@ -696,12 +696,12 @@ module x300_core #(
       .clk(radio_clk),
       .i_reg(fp_gpio_r_out[0][32-1:0]),
 //	.i_reg(fp_gpio_in),
-	.o_reg_r()
+	//.o_reg_r()
 
-     //.o_reg_r(fp_gpio_r_in[0])
+     .o_reg_r(fp_gpio_r_in[0])
    );
 
-   assign fp_gpio_r_in[0] = 'b1;
+  //assign fp_gpio_r_in[0] = 'b1;
 
    //////////////////////////////////////////////////
 
