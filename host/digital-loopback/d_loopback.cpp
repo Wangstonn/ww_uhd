@@ -436,7 +436,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             rx_usrp->set_rx_antenna(rx_ant, channel);
     }
 
+    //--------------------------------------------------
     //WW Changes
+    //--------------------------------------------------
     uint32_t bit_cmds [31] = {    
         0b10000000000000000000000000000000,
         0b00000000000000001101111010101101,
@@ -525,6 +527,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     
     constexpr std::uint32_t isDone{0x021e8000};
 
+    output_reg = 9;
 
     std::cout << "Printing results\n";
     for(int i=0; i<16; i++) {
@@ -543,7 +546,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
         tx_usrp->set_gpio_attr("FP0", "OUT", 0x80020001); std::this_thread::sleep_for(std::chrono::milliseconds(10)); 
 
-        std::cout << "Reset and run again\n" << i;
+        std::cout << "Reset and run again " << i << std::endl;
 
         tx_usrp->set_gpio_attr("FP0", "OUT", 0x021e0000); std::this_thread::sleep_for(std::chrono::milliseconds(1)); 
         output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(1));
