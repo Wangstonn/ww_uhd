@@ -619,7 +619,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 	// std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg;
         
 	// pkt_done = (output_reg & isDone) == isDone;
- 
+ // remember to reset
     // }
     
     // std::cout << "Digital Loopback done. Reading results\n";
