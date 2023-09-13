@@ -193,30 +193,6 @@ void recv_to_file(uhd::usrp::multi_usrp::sptr usrp,
     }
 }
 
-//-------------------------------------------------------------------
-//WW Functions
-//--------------------------------------------------------------------
-
-/*
-Write a command to gpio-in and then reads the contents of gpio-out and prints it to the console 
-*/
-void rd_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t cmd, const int ms_delay = 1)
-{
-   uint32_t output_reg;
-
-   tx_usrp->set_gpio_attr("FP0", "OUT", cmd); 
-   std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
-
-   output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); 
-   std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
-
-   std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl; 
-}
-
-
-
-//--------------------------------------------------------------------
-
 
 /***********************************************************************
  * Main function
@@ -463,59 +439,91 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //--------------------------------------------------
     //WW Changes
     //--------------------------------------------------
+    uint32_t bit_cmds [31] = {    
+        0b10000000000000000000000000000000,
+        0b00000000000000001101111010101101,
+        0b10000000000000100000000000000010,
+        0b00000000000000101101111010101101,
+        0b10000001000000000001110111101101,
+        0b00000001000000001101111010101101,
+        0b10000001001000001100111010010100,
+        0b00000001001000001101111010101101,
+        0b10000001001000101110000100101010,
+        0b00000001001000101101111010101101,
+        0b10000010000000001010000000000000,
+        0b00000010000000001101111010101101,
+        0b10000010000000100000000000000101,
+        0b00000010000000101101111010101101,
+        0b10000010000001000000010001010011,
+        0b00000010000001001101111010101101,
+        0b10000010000001100011100100110111,
+        0b00000010000001101101111010101101,
+        0b00000010000111101101111010101101,
+        0b00000010001000001101111010101101,
+        0b00000010001000101101111010101101,
+        0b10000011000000000000001100001011,
+        0b00000011000000001101111010101101,
+        0b10000011000000100011110111010001,
+        0b00000011000000101101111010101101,
+        0b10000011000100000010001000111100,
+        0b00000011000100001101111010101101,
+        0b10000011000100101100101001011001,
+        0b00000011000100101101111010101101,
+        0b10000000000000100000000000000001,
+        0b00000000000000101101111010101101};
+
+
     constexpr std::uint32_t cmdBits{0xF0000000}; 
     constexpr std::uint32_t addrBits{0x0FFF0000};
     constexpr std::uint32_t dataBits{0x0000FFFF};
 
-    constexpr int Num_Write_Cmds = 13;
+    
 
-    uint32_t write_cmds[Num_Write_Cmds] = {
-        0x80000000,
-        0x80010002,
-        0x80101DED,
-        0x8020FFFF,
-        //0x8020CE94,
-        0x8021FFFF,
-        //0x8021E12A,
-        0x8050A000,
-        0x80510005,
-        0x80520453,
-        0x80533937,
-        0x8060030B,
-        0x80613DD1,
-        0x8062223C,
-        0x8063CA59,
+    uint32_t write_cmds[13] = {
+        0x00000000,
+        0x80020002,
+        0x81001DED,
+        0x8120FFFF,
+        //0x8120CE94,
+        0x8122FFFF,
+        //0x8122E12A,
+        0x8200A000,
+        0x82020005,
+        0x82040453,
+        0x82063937,
+        0x8300030B,
+        0x83023DD1,
+        0x8310223C,
+        0x8312CA59
+        //0x80020001,
     };
 
-    uint32_t start_cmd = 0x80010001;
-    uint32_t rst_cmd = 0x80010002;
-
+    uint32_t start_cmd = 0x80020001;
 
     uint32_t read_cmds[16] = {
         0x00000000,
-        0x00010000,
-        0x00100000,
-        0x00200000,
-        0x00210000,
-        0x00500000,
-        0x00510000,
-        0x00520000,
-        0x00530000,
-        0x00600000,
-        0x00610000,
-        0x00620000,
-        0x00630000,
-        
-        0x08000000,
-        0x08100000,
-        0x08110000
+        0x00020000,
+        0x01000000,
+        0x01200000,
+        0x01220000,
+        0x02000000,
+        0x02020000,
+        0x02040000,
+        0x02060000,
+        0x021e0000,
+        0x02200000,
+        0x02220000,
+        0x03000000,
+        0x03020000,
+        0x03100000,
+        0x03120000
     };
 
-    constexpr std::uint32_t isValid{0x08000001};
+    constexpr std::uint32_t isDone{0x021e8000};
     constexpr int ms_delay{1};
     
     std::cout << "Writing to regs...\n";
-    for(int i=0; i<Num_Write_Cmds; i++) {
+    for(int i=0; i<13; i++) {
         tx_usrp->set_gpio_attr("FP0", "OUT", write_cmds[i]);
 
         std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); //Arguably no delay is necessary per https://stackoverflow.com/questions/18071664/stdthis-threadsleep-for-and-nanoseconds 
@@ -523,66 +531,116 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     bool pkt_done = 0;
     
-    // Readback ------
     std::cout << "Readback\n";
     for(int i=0; i<16; i++) {
-        rd_mem_cmd(tx_usrp, read_cmds[i]);
+        tx_usrp->set_gpio_attr("FP0", "OUT", read_cmds[i]); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+
+        output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
+        std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
+        
     }
-    ////Debug
-    rd_mem_cmd(tx_usrp, 0x08200000); //db-fb-counter
+    ////
+    tx_usrp->set_gpio_attr("FP0", "OUT", 0x02600000); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+    output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+    std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
 
-    rd_mem_cmd(tx_usrp, 0x08210000); //db-dest-rx-1
+    tx_usrp->set_gpio_attr("FP0", "OUT", 0x02620000); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+    output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+    std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
 
-    rd_mem_cmd(tx_usrp, 0x08220000); //db-src-next-pkt-idx
+    tx_usrp->set_gpio_attr("FP0", "OUT", 0x02700000); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+    output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+    std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
 
-    rd_mem_cmd(tx_usrp, 0x08300000); //db-dest-pkt-idx
+    tx_usrp->set_gpio_attr("FP0", "OUT", 0x02800000); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+    output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+    std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
 
-    // ----------
+    tx_usrp->set_gpio_attr("FP0", "OUT", 0x02820000); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+    output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+    std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
+    ////
 
-    // start
+
     tx_usrp->set_gpio_attr("FP0", "OUT", start_cmd); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
 
-    // read results ---------------
     std::cout << "Read results\n";
     for(int i=0; i<16; i++) {
-        rd_mem_cmd(tx_usrp, read_cmds[i]);
+        tx_usrp->set_gpio_attr("FP0", "OUT", read_cmds[i]);
+
+        output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+        std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
+        
     }
 
-    //debug
-    rd_mem_cmd(tx_usrp, 0x08200000); //db-fb-counter
+    tx_usrp->set_gpio_attr("FP0", "OUT", 0x02600000); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+    output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+    std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
 
-    rd_mem_cmd(tx_usrp, 0x08210000); //db-dest-rx-1
+    tx_usrp->set_gpio_attr("FP0", "OUT", 0x02620000); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+    output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+    std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
 
-    rd_mem_cmd(tx_usrp, 0x08220000); //db-src-next-pkt-idx
+    tx_usrp->set_gpio_attr("FP0", "OUT", 0x02700000); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+    output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+    std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
 
-    rd_mem_cmd(tx_usrp, 0x08300000); //db-dest-pkt-idx
+    tx_usrp->set_gpio_attr("FP0", "OUT", 0x02800000); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+    output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+    std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
 
+    tx_usrp->set_gpio_attr("FP0", "OUT", 0x02820000); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+    output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+    std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
+
+    tx_usrp->set_gpio_attr("FP0", "OUT", 0x02900000); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+    output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+    std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
 
     //Reset 
 
     for(int i=0;i<3;i++){
 
-        tx_usrp->set_gpio_attr("FP0", "OUT", rst_cmd); std::this_thread::sleep_for(std::chrono::milliseconds(10000)); 
+        tx_usrp->set_gpio_attr("FP0", "OUT", 0x80020002); std::this_thread::sleep_for(std::chrono::milliseconds(10000)); 
 
-        tx_usrp->set_gpio_attr("FP0", "OUT", start_cmd); std::this_thread::sleep_for(std::chrono::milliseconds(10)); 
+        tx_usrp->set_gpio_attr("FP0", "OUT", 0x80020001); std::this_thread::sleep_for(std::chrono::milliseconds(10)); 
 
         std::cout << "Reset and run again " << i << std::endl;
 
-        rd_mem_cmd(tx_usrp, 0x08000000); //Check done/valied 
+        tx_usrp->set_gpio_attr("FP0", "OUT", 0x021e0000); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+        output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+        std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
 
-        rd_mem_cmd(tx_usrp, 0x08100000); //Check bits 1-16
+        tx_usrp->set_gpio_attr("FP0", "OUT", 0x02200000); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+        output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+        std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
 
-        rd_mem_cmd(tx_usrp, 0x08110000); //Check bits 17-32
+        tx_usrp->set_gpio_attr("FP0", "OUT", 0x02220000); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+        output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+        std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
 
 
-        //debug
-        rd_mem_cmd(tx_usrp, 0x08200000); //db-fb-counter
+        ////
 
-        rd_mem_cmd(tx_usrp, 0x08210000); //db-dest-rx-1
+	    tx_usrp->set_gpio_attr("FP0", "OUT", 0x02600000); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+        output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+        std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
+	
+	    tx_usrp->set_gpio_attr("FP0", "OUT", 0x02620000); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+        output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+        std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
 
-        rd_mem_cmd(tx_usrp, 0x08220000); //db-src-next-pkt-idx
+        tx_usrp->set_gpio_attr("FP0", "OUT", 0x02700000); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+        output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+        std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
 
-        rd_mem_cmd(tx_usrp, 0x08300000); //db-dest-pkt-idx
+        tx_usrp->set_gpio_attr("FP0", "OUT", 0x02800000); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+        output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+        std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
+
+        tx_usrp->set_gpio_attr("FP0", "OUT", 0x02820000); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+        output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+        std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
 			 
     }
      
@@ -643,7 +701,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
 	// std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg;
         
-	// pkt_done = (output_reg & isValid) == isValid;
+	// pkt_done = (output_reg & isDone) == isDone;
  // remember to reset
     // }
     
@@ -795,4 +853,3 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << std::endl << "Done!" << std::endl << std::endl;
     return EXIT_SUCCESS;
 }
-
