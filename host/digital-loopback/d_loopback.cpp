@@ -22,6 +22,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <random>
 
 namespace po = boost::program_options;
 
@@ -200,19 +201,31 @@ void recv_to_file(uhd::usrp::multi_usrp::sptr usrp,
 /*
 Write a command to gpio-in and then reads the contents of gpio-out and prints it to the console 
 */
-void rd_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t cmd, const int ms_delay = 1)
+uint32_t rd_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t cmd, const int ms_delay = 1)
 {
-   uint32_t output_reg;
+   if(cmd >> 31) //check to make sure cmd is a read command
+        std::cout << "WARNING: Write command used where read command was expected. cmd: " << cmd << std::endl;
 
    tx_usrp->set_gpio_attr("FP0", "OUT", cmd); 
    std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
 
+   uint32_t output_reg;
    output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); 
    std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
 
-   std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl; 
+   //std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl; 
+   return output_reg;
 }
 
+
+void wr_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t cmd, const int ms_delay = 1)
+{
+    if(cmd >> 31 == 0) //check to make sure cmd is a wr command
+        std::cout << "WARNING: Read command use where write command was expected. cmd: " << cmd << std::endl;
+
+    tx_usrp->set_gpio_attr("FP0", "OUT", cmd); 
+    std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+}
 
 
 //--------------------------------------------------------------------
@@ -467,15 +480,19 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     constexpr std::uint32_t addrBits{0x0FFF0000};
     constexpr std::uint32_t dataBits{0x0000FFFF};
 
-    constexpr int Num_Write_Cmds = 13;
 
+    constexpr uint32_t start_cmd = 0x80010001;
+    constexpr uint32_t rst_cmd = 0x80010002;
+
+    //Load phases and thresholds
+    constexpr int Num_Write_Cmds = 11;
     uint32_t write_cmds[Num_Write_Cmds] = {
         0x80000000,
         0x80010002,
         0x80101DED,
-        0x8020FFFF,
+        //0x8020FFFF,
         //0x8020CE94,
-        0x8021FFFF,
+        //0x8021FFFF,
         //0x8021E12A,
         0x8050A000,
         0x80510005,
@@ -487,78 +504,160 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         0x8063CA59,
     };
 
-    uint32_t start_cmd = 0x80010001;
-    uint32_t rst_cmd = 0x80010002;
-
-
+    //Readback input bit, phase, and threshold settings, valid and done, and pkt out
     uint32_t read_cmds[16] = {
-        0x00000000,
-        0x00010000,
-        0x00100000,
-        0x00200000,
-        0x00210000,
-        0x00500000,
-        0x00510000,
-        0x00520000,
-        0x00530000,
-        0x00600000,
-        0x00610000,
-        0x00620000,
-        0x00630000,
+        0x00000000, //No OP
+        0x00010000, //rst and start
+        0x00100000, //src threshold
+        0x00200000, //input pkt
+        0x00210000, //input pkt
+        0x00500000, //dest threshold
+        0x00510000, //dest threshold
+        0x00520000, //dest ch eq re
+        0x00530000, //dest ch eq im
+        0x00600000, //fb ch eq re
+        0x00610000, //fb ch eq im
+        0x00620000, //fw ch eq re
+        0x00630000, //fw ch eq im
         
-        0x08000000,
-        0x08100000,
-        0x08110000
+        0x08000000, //valid and done
+        0x08100000, //pkt out
+        0x08110000  //pkt out
     };
 
     constexpr std::uint32_t isValid{0x08000001};
     constexpr int ms_delay{1};
-    
-    std::cout << "Writing to regs...\n";
+
+    double n_errors{0}; 
+
+    //Generate input bits ----------------------------------------------------
+    std::random_device rd;
+
+    // Create a Mersenne Twister PRNG engine
+    std::mt19937 mt(rd());
+
+    // Define a distribution for generating uint32_t values
+    std::uniform_int_distribution<uint16_t> dist;
+
+    //Threshold and angle settings
     for(int i=0; i<Num_Write_Cmds; i++) {
         tx_usrp->set_gpio_attr("FP0", "OUT", write_cmds[i]);
 
         std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); //Arguably no delay is necessary per https://stackoverflow.com/questions/18071664/stdthis-threadsleep-for-and-nanoseconds 
     }
 
-    bool pkt_done = 0;
+
+    const int n_iters = 1e4, target_n_errors = 100;
+    for (int iter = 0; iter < n_iters; iter++)
+    {
+
+        
+        //std::cout << "Writing to regs...\n";
+
+        // Generate a random uint32_t
+        const int Num16BitSlices = 2;
+        uint16_t input_pkt[Num16BitSlices] = {0};
+        uint16_t output_pkt[Num16BitSlices] = {0};
+
+        // Generate a random uint32_t
+        for(int i = 0; i < Num16BitSlices; i++)
+        {
+            uint32_t randomValue = dist(mt);
+            //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
+
+            input_pkt[i] = randomValue;
+
+            uint32_t cmd = 0;
+            cmd  = (cmd & ~addrBits) | (0x020+i<<16);
+            cmd  = (cmd & ~dataBits) | (randomValue<<0);
+            cmd  = (cmd & ~cmdBits) | (1<<31);
+        
+            wr_mem_cmd(tx_usrp, cmd);
+            //std::cout << std::hex << cmd << std::endl;
+        }
+
+        
+
+        // ------------------------------------------------------------------------
+
     
-    // Readback ------
-    std::cout << "Readback\n";
-    for(int i=0; i<16; i++) {
-        rd_mem_cmd(tx_usrp, read_cmds[i]);
-    }
-    ////Debug
-    rd_mem_cmd(tx_usrp, 0x08200000); //db-fb-counter
+        bool pkt_done = 0;
+        
+        // Readback ---------------------------------------
+        //std::cout << "Readback\n";
+        // for(int i=0; i<16; i++) {
+        //     rd_mem_cmd(tx_usrp, read_cmds[i]);
+        // }
+        // ////Debug
+        // rd_mem_cmd(tx_usrp, 0x08200000); //db-fb-counter
 
-    rd_mem_cmd(tx_usrp, 0x08210000); //db-dest-rx-1
+        // rd_mem_cmd(tx_usrp, 0x08210000); //db-dest-rx-1
 
-    rd_mem_cmd(tx_usrp, 0x08220000); //db-src-next-pkt-idx
+        // rd_mem_cmd(tx_usrp, 0x08220000); //db-src-next-pkt-idx
 
-    rd_mem_cmd(tx_usrp, 0x08300000); //db-dest-pkt-idx
+        // rd_mem_cmd(tx_usrp, 0x08300000); //db-dest-pkt-idx
 
-    // ----------
+        // --------------------------------------------------
 
-    // start
-    tx_usrp->set_gpio_attr("FP0", "OUT", start_cmd); std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+        // start
+        wr_mem_cmd(tx_usrp, rst_cmd);
+        wr_mem_cmd(tx_usrp, start_cmd);
 
-    // read results ---------------
-    std::cout << "Read results\n";
-    for(int i=0; i<16; i++) {
-        rd_mem_cmd(tx_usrp, read_cmds[i]);
-    }
 
-    //debug
-    rd_mem_cmd(tx_usrp, 0x08200000); //db-fb-counter
+        // read results ---------------------------------------------
+        // //std::cout << "Read results\n";
+        // for(int i=0; i<16; i++) {
+        //     rd_mem_cmd(tx_usrp, read_cmds[i]);
+        // }
 
-    rd_mem_cmd(tx_usrp, 0x08210000); //db-dest-rx-1
+        // //debug
+        // rd_mem_cmd(tx_usrp, 0x08200000); //db-fb-counter
 
-    rd_mem_cmd(tx_usrp, 0x08220000); //db-src-next-pkt-idx
+        // rd_mem_cmd(tx_usrp, 0x08210000); //db-dest-rx-1
 
-    rd_mem_cmd(tx_usrp, 0x08300000); //db-dest-pkt-idx
+        // rd_mem_cmd(tx_usrp, 0x08220000); //db-src-next-pkt-idx
+
+        // rd_mem_cmd(tx_usrp, 0x08300000); //db-dest-pkt-idx
+
+
+
+        //Read output bits
+        for(int i = 0; i < Num16BitSlices; i++)
+        {
+            uint32_t cmd = 0;
+            cmd  = (cmd & ~addrBits) | (0x810+i<<16);
+            cmd  = (cmd & ~dataBits) | (0<<0);
+            cmd  = (cmd & ~cmdBits) | (0<<31);
+        
+            output_pkt[i] = rd_mem_cmd(tx_usrp, cmd) & dataBits;
+            uint16_t xor_result = output_pkt[i] ^ input_pkt[i];
+            while (xor_result > 0) {
+                n_errors += xor_result & 1;
+                xor_result >>= 1;
+            }
+
+            //std::cout << std::dec << "Bit slice: " << i << std::endl;
+            //std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
+            //std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
+
+        }
+
+        if (iter % 100 == 0) {
+            std::cout << "Iters: " << std::dec << iter <<" Num errors: " << std::dec << n_errors << std::endl;
+        }
+        
+
+        if (n_errors >= target_n_errors)
+            break;
+    } 
+
+    std::cout << "Test done" << std::endl;
+    std::cout << "Num errors: " << std::dec << n_errors << std::endl;
+
 
 
     //Reset 
+    /*
 
     for(int i=0;i<3;i++){
 
@@ -586,7 +685,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 			 
     }
      
-    
+    */
 
     
 
