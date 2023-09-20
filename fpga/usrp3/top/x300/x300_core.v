@@ -566,6 +566,11 @@ module x300_core #(
    // channel 0 or 1 are in a TX/RX state, we can only say that one of them is
    // in such a state).
 
+   //WW-db control is used to control the gpio settings (in fpga/usrp3/lib/control/db_control.v)
+   // gpio_r_in is set by fpga
+   // gpio_r_out, gpio_r_ddr is set by PC
+   // fp_gpio_in, fp_gpio_out are connected to the input and output pins on the board per line 642, FP_GPIO_WIDTH = 12 implies only 12 of the register values carry data
+
    localparam [7:0] SR_DB_BASE = 8'd160;
    localparam [7:0] RB_DB_BASE = 8'd16;
 
@@ -635,6 +640,7 @@ module x300_core #(
    // control. Currently, only daughter board 0 and daughter board 1 are
    // supported.
 
+   //WW-Comment out 
    /*
    for (i=0; i<FP_GPIO_WIDTH; i=i+1) begin : gen_fp_gpio_mux
       always @(posedge radio_clk) begin
@@ -701,7 +707,7 @@ module x300_core #(
      .o_reg_r(fp_gpio_r_in[0])
    );
 
-  //assign fp_gpio_r_in[0] = 'b1;
+
 
    //////////////////////////////////////////////////
 
