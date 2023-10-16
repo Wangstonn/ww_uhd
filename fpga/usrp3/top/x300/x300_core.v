@@ -605,6 +605,7 @@ module x300_core #(
    localparam [7:0] SR_TX_FE_BASE      = SR_DB_BASE + 8'd48;
    localparam [7:0] SR_RX_FE_BASE      = SR_DB_BASE + 8'd64;
 
+   //WW-performs front end compensation on tx and rx samples (DC offset correction, magnitude/phase correction, filtering on rx)
    generate for (i = 0; i < NUM_DBOARDS; i = i + 1)
      begin
        fe_control #(
@@ -657,6 +658,7 @@ module x300_core #(
       assign fp_gpio_r_in[i] = fp_gpio_in;
    end
     */
+
    //----------------------------
    // WW wires for modules
    //-----------------------------
@@ -701,7 +703,7 @@ module x300_core #(
    (* DONT_TOUCH = "yes" *) lb_iface lb_iface_DUT(
       .clk(radio_clk),
       .radio_rst(radio_rst),
-      .i_reg(fp_gpio_r_out[0][32-1:0]),
+      .i_reg(fp_gpio_r_out[0]),
 //	.i_reg(fp_gpio_in),
 	//.o_reg_r()
      .o_reg_r(fp_gpio_r_in[0])
