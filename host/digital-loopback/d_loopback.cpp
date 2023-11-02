@@ -4,6 +4,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
+//WW-This file is a modified version of uhd/host/examples/txrx_loopback_to_file.cpp. It essentially sets up + activates the radios and writes & sends samples to file
 
 #include "wavetable.hpp"
 #include <uhd/exception.hpp>

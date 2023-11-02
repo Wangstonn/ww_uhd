@@ -294,6 +294,7 @@ module x300_core #(
       .ce_rst     (ce_rst),
 
       // Radio connections
+      //WW-rx_data and tx_data are streamed to the pc through this bus
       .radio_clk  (radio_clk),
       .radio_rst  (radio_rst),
       .radio_rx_stb     ({     rx_stb[3],     rx_stb[2],     rx_stb[1],     rx_stb[0]}),
