@@ -584,6 +584,9 @@ module x300
       .data_out({rx0_i,rx0_q_inv}),
       .checker_en(radio0_misc_out[9]), .checker_locked(radio0_misc_in[3:0]), .checker_failed(radio0_misc_in[7:4])
    );
+   // WW-This is where rx iq samples are collected from ADC. Notice that the ADC width is 14, and the signal is zero padded 
+   //  at the end to make it 16 bits. Then both are concatenated onto 1 32 bit bus and sent to the x300_core module.
+   //  This is also done separately for daughterboard 2 (rx1).
    assign rx0[31:0] = { rx0_i, 2'b00, ~rx0_q_inv, 2'b00 };
 
    capture_ddrlvds #(

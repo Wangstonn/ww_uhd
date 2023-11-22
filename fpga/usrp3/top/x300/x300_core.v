@@ -607,6 +607,10 @@ module x300_core #(
    localparam [7:0] SR_RX_FE_BASE      = SR_DB_BASE + 8'd64;
 
    //WW-performs front end compensation on tx and rx samples (DC offset correction, magnitude/phase correction, filtering on rx)
+   // ww_uhd\fpga\usrp3\lib\control\fe_control.v
+   // why is rx_data_r = {rx0,rx0}, tx_data_r = {tx0,tx0} ?
+   //  Ettus wrote this code to accomodate 2 channels per daughterboard, meaning 2 separate streams of iq samples.
+   //  we dont have 2 separate streams, so they just duplicated 1 iq stream and used it for both channels, discarding one at the end.
    generate for (i = 0; i < NUM_DBOARDS; i = i + 1)
      begin
        fe_control #(
@@ -642,7 +646,9 @@ module x300_core #(
    // control. Currently, only daughter board 0 and daughter board 1 are
    // supported.
 
-   //WW-Comment out 
+   //WW-by default fp_gpio_out (the output gpio pins) are controlled by the computer and muxed using fp_gpio_src. 
+   // similarly, we want to control fp_gpio_r_in which goes to PC, so have to disable its "normal" functionality intended by ettus. 
+   //    to manually control pins, have to comment out the 
    /*
    for (i=0; i<FP_GPIO_WIDTH; i=i+1) begin : gen_fp_gpio_mux
       always @(posedge radio_clk) begin
@@ -650,20 +656,51 @@ module x300_core #(
          fp_gpio_ddr[i] <= fp_gpio_r_ddr[fp_gpio_src[2*i +: 2] == 0 ? 0 : 1][i];
       end
    end
-   */
 
    // Front-panel GPIO inputs are routed to all daughter boards
    // 
-   /*
+   
    for (i=0; i<NUM_DBOARDS; i=i+1) begin : gen_fp_gpio_inputs
       assign fp_gpio_r_in[i] = fp_gpio_in;
    end
     */
 
    //----------------------------
-   // WW wires for modules
+   // WW Baseband processor
    //-----------------------------
-   
+   // PC interface: 
+   //    fp_gpio_r_out[0] is hijacked by WW to deliver PC commands/data to baseband module. Notice that out means "out of PC"
+   //    fp_gpio_r_in[0] is hijacked by WW to deliver baseband processor (FPGA) data to PC. Notice that in means "into PC"
+
+   // Streaming interface: To deliver large amounts of iq samples to the PC efficiently, we hijack the bus that streams iq samples to the PC and use it to stream our values instead. 
+   //    In my case, this is the sam as the IQ samples, but with a start signal replacing one of the zeros.
+   //    However, when the radio is idle, the streamed samples are used to perform a calibration check on the ADC. If we constantly stream modified samples, this will interfere with the calibration.
+   //    As a result, we only stream our modified samples when the we are actively sending i and q samples. How do we know when this is happening? The PC tells us using ATR (automatic transmit/receive) 
+   //    indicators tx_running, rx_running (https://files.ettus.com/manual/page_gpio_api.html#xgpio_fpanel_atr)
+   //       tx: There is a command at the PC that sets when this is occuring called tx_streamer->send (VERIFY)
+   //       rx: set by uhd::rx_streamer::sptr rx_stream = usrp->get_rx_stream (VERIFY)
+   //    rx_running[0/1],tx_running[0/1] corresponds to db 0 (2 channels) 
+   //    rx_running[2/3],tx_running[2/3] corresponds to db 1 (2 channels) 
+
+   // Currently, only use 1 DBoard (0)
+   wire [31:0] rx_data_bb,tx_data_bb;
+
+
+   (* DONT_TOUCH = "yes" *) bb_proc_iface bb_proc_iface_i(
+      .clk(radio_clk),
+      .radio_rst(radio_rst),
+
+      //MMIO interface
+      .i_mmio_r(fp_gpio_r_out[0]),
+      .o_mmio_r(fp_gpio_r_in[0]),
+
+      //iq samples
+      .o_rx_data(rx_data_bb),
+      .o_tx_data(tx_data_bb)
+
+   );
+
+   //
 
    // wire [15:0] scale_val;
    // wire [31:0] noise_thres;
@@ -701,26 +738,20 @@ module x300_core #(
 
        
 
-   (* DONT_TOUCH = "yes" *) lb_iface lb_iface_DUT(
-      .clk(radio_clk),
-      .radio_rst(radio_rst),
-      .i_reg(fp_gpio_r_out[0]),
-//	.i_reg(fp_gpio_in),
-	//.o_reg_r()
-     .o_reg_r(fp_gpio_r_in[0])
-   );
 
-
-
-   //////////////////////////////////////////////////
+   // WW end -----------------------------------------------------------------------------------------
 
    //------------------------------------
    // Radio to ADC,DAC and IO Mapping
    //------------------------------------
 
    // Data
-   assign tx_data_r[0][31:0]  = tx_data[0];
-   assign tx_data_r[0][63:32] = tx_data[1];
+   // WW-signal path for tx: (This is for DB0. There is a corresponding path for DB1)
+   //  I am assuming format of tx data from PC is {tx_i,tx_q}. Denote this tx0' (pre compensation). tx0 is post compensation
+   //  {tx_i,tx_q} = tx_data[0/1] -> tx_data_r[0] = {tx0',tx0'} -> (fe_control) tx_data_out_r[0] = {tx0,tx0} -> tx_data_out[0/1] = tx0 -> DAC
+   //WW- replace data from the bus from PC with baseband engine samples. tx_data is identical for both channels so drive both with tx_data_bb as well
+   assign tx_data_r[0][31:0]  = tx_running[0] ? tx_data_bb : tx_data[0]; 
+   assign tx_data_r[0][63:32] = tx_running[0] ? tx_data_bb : tx_data[1]; //WW - this should be tx_running[1] but I'm not sure thats properly set
    assign tx_data_r[1][31:0]  = tx_data[2];
    assign tx_data_r[1][63:32] = tx_data[3];
 
@@ -734,8 +765,18 @@ module x300_core #(
    assign tx_stb_r[1][0] = tx_stb[2];
    assign tx_stb_r[1][1] = tx_stb[3];
 
-   assign rx_data_in_r[0][31:0]  = rx_data_in[0];
-   assign rx_data_in_r[0][63:32] = rx_data_in[1];
+
+   // WW-signal path for rx:
+   //  rx0 -> rx_data_in[0/1] -> rx_data_in_r -> fe_control -> rx_data_r -> rx_data -> bus to PC
+   //  bus to PC ->
+   //  rx_data_in: [0] and [1] are identical copies of rx0 (which contains i and q concatenated)
+   //  rx_data_in_r: 2 64 bit arrays. Each corresponding to one dboard. The 64 bits are rx_data_in[0] and [1] concatenated
+   //     so in summary  rx_data_in_r[0] = {rx0,rx0}
+   //  rx_data[0/1] = {rx0}
+   //  rx_data[2/3] = {rx1}
+
+   assign rx_data_in_r[0][31:0]  = rx_running[0] ? rx_data_bb : rx_data_in[0];      //WW-used to stream samples from baseband when used in active mode
+   assign rx_data_in_r[0][63:32] = rx_running[0] ? rx_data_bb : rx_data_in[1];
    assign rx_data_in_r[1][31:0]  = rx_data_in[2];
    assign rx_data_in_r[1][63:32] = rx_data_in[3];
 
