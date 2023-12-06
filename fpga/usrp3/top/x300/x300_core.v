@@ -686,10 +686,17 @@ module x300_core #(
 
    // Currently, only use DBoard 0    
    wire [31:0] rx_data_bb,tx_data_bb;
+   wire [11:0] gpio_data_bb, gpio_ddr_bb;
+   
+   always @(posedge radio_clk) begin
+      fp_gpio_out[11:0] <= gpio_data_bb;
+      fp_gpio_ddr[11:0] <= gpio_ddr_bb;
+   end
+
 
 
    (* DONT_TOUCH = "yes" *) bb_core_iface #(
-      parameter FpGpioWidth = FP_GPIO_WIDTH
+      .FpGpioWidth(FP_GPIO_WIDTH)
    ) bb_core_iface_i(
       .clk(radio_clk),
       .radio_rst(radio_rst),
@@ -705,8 +712,8 @@ module x300_core #(
       
       //gpio
       .i_gpio_data(fp_gpio_in[11:0]), //https://github.com/dbkomma/uhd/blob/usrp_da/fpga/dk_hdl/fp_gpio/gpio_ctrl.v need to pin debounce
-      .o_gpio_data_r(fp_gpio_out[11:0]), 
-      .o_gpio_ddr(fp_gpio_ddr[11:0]) // controls gpio inout pin directionality. 1 = output from fpga (write), 0 = read 
+      .o_gpio_data_r(gpio_data_bb), 
+      .o_gpio_ddr(gpio_ddr_bb) // controls gpio inout pin directionality. 1 = output from fpga (write), 0 = read 
 
    );
 
