@@ -42,8 +42,10 @@ include $(LIB_DIR)/rfnoc/xport_sv/Makefile.srcs
 #------------------------------------------------
 # Winston's Changes
 #------------------------------------------------
-include $(BASE_DIR)/../../../../rtl/sources/loopback/Makefile.srcs
+# include the top level makefile of your design
+include $(BASE_DIR)/../../../../rtl/sources/bb-core/Makefile.srcs
 
+#------------------------------------------------
 
 # For sake of convenience, we include the Makefile.srcs for DRAM FIFO, DDC, and
 # DUC, Replay, and of course the radio. Any other block needs to use the
@@ -111,7 +113,9 @@ endif
 #-------------------------------
 # Winston's Changes
 #-------------------------------
-
+# List of paths to each file needed to compile. 
+# Each makefile includes relevant folders and appends the list of paths to their list of paths.
+# That is finally appended to this path
 DESIGN_SRCS = $(abspath $(TOP_SRCS)) $(FIFO_SRCS) \
 $(CONTROL_LIB_SRCS) $(SDR_LIB_SRCS) $(SERDES_SRCS) \
 $(SIMPLE_GEMAC_SRCS) $(TIMING_SRCS) $(COREGEN_DSP_SRCS) \
@@ -127,8 +131,7 @@ $(RFNOC_BLOCK_AXI_RAM_FIFO_SRCS) \
 $(RFNOC_BLOCK_REPLAY_SRCS) \
 $(RFNOC_OOT_SRCS) \
 $(AXI4S_SV_SRCS) $(RFNOC_XPORT_SV_SRCS) \
-
-$(WW_LB_SRCS)
+$(WW_BB_CORE_SRCS)
 
 
 EDGE_TBL_DEF="RFNOC_EDGE_TBL_FILE=$(call RESOLVE_PATH,$(EDGE_FILE))"
