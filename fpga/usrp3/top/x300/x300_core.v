@@ -682,21 +682,31 @@ module x300_core #(
    //    rx_running[0/1],tx_running[0/1] corresponds to db 0 (2 channels) 
    //    rx_running[2/3],tx_running[2/3] corresponds to db 1 (2 channels) 
 
-   // Currently, only use 1 DBoard (0)
+   // Side channel signalling: fp_gpio_in is an input to the fpga and is used as a low bandwidth side channel to the bb_engine_iface 
+
+   // Currently, only use DBoard 0    
    wire [31:0] rx_data_bb,tx_data_bb;
 
 
-   (* DONT_TOUCH = "yes" *) bb_proc_iface bb_proc_iface_i(
+   (* DONT_TOUCH = "yes" *) bb_core_iface #(
+      parameter FpGpioWidth = FP_GPIO_WIDTH
+   ) bb_core_iface_i(
       .clk(radio_clk),
       .radio_rst(radio_rst),
 
       //MMIO interface
-      .i_mmio_r(fp_gpio_r_out[0]),
+      .i_mmio(fp_gpio_r_out[0]),
       .o_mmio_r(fp_gpio_r_in[0]),
 
       //iq samples
+      .i_rx_data(rx_data_r[0][31:0]),
+      .o_tx_data(tx_data_bb),    //outputs must be gated w tx/rx_running
       .o_rx_data(rx_data_bb),
-      .o_tx_data(tx_data_bb)
+      
+      //gpio
+      .i_gpio_data(fp_gpio_in[11:0]), //https://github.com/dbkomma/uhd/blob/usrp_da/fpga/dk_hdl/fp_gpio/gpio_ctrl.v need to pin debounce
+      .o_gpio_data_r(fp_gpio_out[11:0]), 
+      .o_gpio_ddr(fp_gpio_ddr[11:0]) // controls gpio inout pin directionality. 1 = output from fpga (write), 0 = read 
 
    );
 
@@ -767,21 +777,20 @@ module x300_core #(
 
 
    // WW-signal path for rx:
-   //  rx0 -> rx_data_in[0/1] -> rx_data_in_r -> fe_control -> rx_data_r -> rx_data -> bus to PC
-   //  bus to PC ->
+   //  rx0 -> rx_data_in[0/1] -> rx_data_in_r ( fe_control ) rx_data_r -> rx_data -> bus to PC
    //  rx_data_in: [0] and [1] are identical copies of rx0 (which contains i and q concatenated)
    //  rx_data_in_r: 2 64 bit arrays. Each corresponding to one dboard. The 64 bits are rx_data_in[0] and [1] concatenated
    //     so in summary  rx_data_in_r[0] = {rx0,rx0}
    //  rx_data[0/1] = {rx0}
    //  rx_data[2/3] = {rx1}
 
-   assign rx_data_in_r[0][31:0]  = rx_running[0] ? rx_data_bb : rx_data_in[0];      //WW-used to stream samples from baseband when used in active mode
-   assign rx_data_in_r[0][63:32] = rx_running[0] ? rx_data_bb : rx_data_in[1];
+   assign rx_data_in_r[0][31:0]  = rx_data_in[0];      
+   assign rx_data_in_r[0][63:32] = rx_data_in[1];
    assign rx_data_in_r[1][31:0]  = rx_data_in[2];
    assign rx_data_in_r[1][63:32] = rx_data_in[3];
 
-   assign rx_data[0] = rx_data_r[0][31:0] ;
-   assign rx_data[1] = rx_data_r[0][63:32];
+   assign rx_data[0] = rx_running[0] ? rx_data_bb : rx_data_r[0][31:0]; //WW-used to stream samples from baseband when used in active mode
+   assign rx_data[1] = rx_running[0] ? rx_data_bb : rx_data_r[0][63:32]; // streaming samples inserted after fe_control because bb processes samples after fe_control
    assign rx_data[2] = rx_data_r[1][31:0] ;
    assign rx_data[3] = rx_data_r[1][63:32];
 
