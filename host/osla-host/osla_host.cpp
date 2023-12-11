@@ -201,7 +201,7 @@ void recv_to_file(uhd::usrp::multi_usrp::sptr usrp,
 /*
 Write a command to gpio-in and then reads the contents of gpio-out and prints it to the console 
 */
-uint32_t rd_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t cmd, const int ms_delay = 1)
+uint32_t rd_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t cmd, bool verbose = false, const int ms_delay = 1)
 {
    if(cmd >> 31) //check to make sure cmd is a read command
         std::cout << "WARNING: Write command used where read command was expected. cmd: " << cmd << std::endl;
@@ -213,7 +213,9 @@ uint32_t rd_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t cmd, con
    output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); 
    std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
 
-   //std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl; 
+    if(verbose)
+        std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl; 
+
    return output_reg;
 }
 
@@ -246,6 +248,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     size_t total_num_samps, spb, save_file;
     double rx_rate, rx_freq, rx_gain, rx_bw;
     double settling;
+
+    //WW - optional user defined arguments
     uint32_t input_reg, output_reg;
 
     // setup the program options
@@ -253,38 +257,51 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // clang-format off
     desc.add_options()
         ("help", "help message")
-        ("tx-args", po::value<std::string>(&tx_args)->default_value("type=x300"), "uhd transmit device address args")
-        ("rx-args", po::value<std::string>(&rx_args)->default_value("type=x300"), "uhd receive device address args")
-        ("file", po::value<std::string>(&file)->default_value("usrp_samples.dat"), "name of the file to write binary samples to")
+        //usrp selection
+        ("tx-args", po::value<std::string>(&tx_args)->default_value("type=x300,addr=192.168.110.2"), "uhd transmit device address args")
+        ("rx-args", po::value<std::string>(&rx_args)->default_value("type=x300,addr=192.168.110.2"), "uhd receive device address args")
+        ("ref", po::value<std::string>(&ref)->default_value("internal"), "clock reference (internal, external, mimo)")
+        
+        //streaming to file
+        ("file", po::value<std::string>(&file)->default_value("../usrp_samples.dat"), "name of the file to write binary samples to")
         ("save-file", po::value<size_t>(&save_file)->default_value(0), "save file option")
-        ("input reg", po::value<uint32_t>(&input_reg)->default_value(0), "input reg")
-        ("output reg", po::value<uint32_t>(&output_reg)->default_value(0), "output reg")
-
         ("type", po::value<std::string>(&type)->default_value("short"), "sample type in file: double, float, or short")
+        ("otw", po::value<std::string>(&otw)->default_value("sc16"), "specify the over-the-wire sample mode")
         ("nsamps", po::value<size_t>(&total_num_samps)->default_value(0), "total number of samples to receive")
         ("settling", po::value<double>(&settling)->default_value(double(0.2)), "settling time (seconds) before receiving")
         ("spb", po::value<size_t>(&spb)->default_value(10000), "samples per buffer, 0 for default")
         ("tx-rate", po::value<double>(&tx_rate)->default_value(6.25e6), "rate of transmit outgoing samples")
         ("rx-rate", po::value<double>(&rx_rate)->default_value(6.25e6), "rate of receive incoming samples")
+        
+        //user specified arguments
+        ("input reg", po::value<uint32_t>(&input_reg)->default_value(0), "input reg")
+        ("output reg", po::value<uint32_t>(&output_reg)->default_value(0), "output reg")
+
+        //afe params
         ("tx-freq", po::value<double>(&tx_freq)->default_value(2.4e9), "transmit RF center frequency in Hz")
         ("rx-freq", po::value<double>(&rx_freq)->default_value(2.4e9), "receive RF center frequency in Hz")
-        ("ampl", po::value<float>(&ampl)->default_value(float(0.3)), "amplitude of the waveform [0 to 0.7]")
         ("tx-gain", po::value<double>(&tx_gain)->default_value(0), "gain for the transmit RF chain")
         ("rx-gain", po::value<double>(&rx_gain)->default_value(0), "gain for the receive RF chain")
+        ("tx-bw", po::value<double>(&tx_bw)->default_value(160e6), "analog transmit filter bandwidth in Hz")
+        ("rx-bw", po::value<double>(&rx_bw)->default_value(160e6), "analog receive filter bandwidth in Hz")
+        
+        //afe selection
         ("tx-ant", po::value<std::string>(&tx_ant)->default_value("TX/RX"), "transmit antenna selection")
         ("rx-ant", po::value<std::string>(&rx_ant)->default_value("RX2"), "receive antenna selection")
         ("tx-subdev", po::value<std::string>(&tx_subdev)->default_value("A:0"), "transmit subdevice specification")
         ("rx-subdev", po::value<std::string>(&rx_subdev)->default_value("A:0"), "receive subdevice specification")
-        ("tx-bw", po::value<double>(&tx_bw)->default_value(160e6), "analog transmit filter bandwidth in Hz")
-        ("rx-bw", po::value<double>(&rx_bw)->default_value(160e6), "analog receive filter bandwidth in Hz")
-        ("wave-type", po::value<std::string>(&wave_type)->default_value("SINE"), "waveform type (CONST, SQUARE, RAMP, SINE)")
-        ("wave-freq", po::value<double>(&wave_freq)->default_value(125000), "waveform frequency in Hz")
-        ("ref", po::value<std::string>(&ref)->default_value("internal"), "clock reference (internal, external, mimo)")
-        ("otw", po::value<std::string>(&otw)->default_value("sc16"), "specify the over-the-wire sample mode")
         ("tx-channels", po::value<std::string>(&tx_channels)->default_value("0"), "which TX channel(s) to use (specify \"0\", \"1\", \"0,1\", etc)")
         ("rx-channels", po::value<std::string>(&rx_channels)->default_value("0"), "which RX channel(s) to use (specify \"0\", \"1\", \"0,1\", etc)")
         ("tx-int-n", "tune USRP TX with integer-N tuning")
         ("rx-int-n", "tune USRP RX with integer-N tuning")
+        
+        //waveform stuff (WW not used)
+        ("ampl", po::value<float>(&ampl)->default_value(float(0.3)), "amplitude of the waveform [0 to 0.7]")
+        ("wave-type", po::value<std::string>(&wave_type)->default_value("SINE"), "waveform type (CONST, SQUARE, RAMP, SINE)")
+        ("wave-freq", po::value<double>(&wave_freq)->default_value(125000), "waveform frequency in Hz")
+
+        
+
     ;
     // clang-format on
     po::variables_map vm;
@@ -471,301 +488,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             rx_usrp->set_rx_antenna(rx_ant, channel);
     }
 
-    //--------------------------------------------------
-    //WW Changes
-    //--------------------------------------------------
-    constexpr std::uint32_t cmdBits{0xF0000000}; 
-    constexpr std::uint32_t addrBits{0x0FFF0000};
-    constexpr std::uint32_t dataBits{0x0000FFFF};
 
-
-    constexpr uint32_t start_cmd = 0x80010002;
-    constexpr uint32_t rst_cmd = 0x80010001;
-
-    //Load phases and thresholds
-    constexpr int Num_Write_Cmds = 15;
-    uint32_t write_cmds[Num_Write_Cmds] = {
-        0x80000000,
-        0x80010001,
-        0x80101DED,          
-        0x80110000,
-        0x8020CE94,          //32'h8020FFFF,
-        0x8021E12A,          //32'h8021FFFF,
-        0x8050A000,
-        0x80510005,
-        0x80520453,
-        0x80533937,
-        0x80540009,
-        0x8060030B,
-        0x80613DD1,
-        0x8062223C,
-        0x8063CA59
-    };
-
-    //Readback input bit, phase, and threshold settings, valid and done, and pkt out
-    constexpr int Num_Write_Cmds = 22;
-    uint32_t read_cmds[Num_Write_Cmds] = {
-        0x00000000,
-        0x00010000,
-        0x00100000,
-        0x00110000,
-        0x00200000,
-        0x00210000,
-        0x00500000,
-        0x00510000,
-        0x00520000,
-        0x00530000,
-        0x00540000,
-        0x00600000,
-        0x00610000,
-        0x00620000,
-        0x00630000,
-        
-        0x08000000, //valid and done
-        0x08100000, //pkt out
-        0x08110000  //pkt out
-
-        0x0C000000,
-        0x0DFF0000,
-        0x0E000000,
-        0x0FFF0000
-    };
-
-    constexpr std::uint32_t isValid{0x08000001};
-    constexpr int ms_delay{1};
-
-    double n_errors{0}; 
-
-    //Generate input bits ----------------------------------------------------
-    std::random_device rd;
-
-    // Create a Mersenne Twister PRNG engine
-    std::mt19937 mt(rd());
-
-    // Define a distribution for generating uint32_t values
-    std::uniform_int_distribution<uint16_t> dist;
-
-    //Threshold and angle settings
-    for(int i=0; i<Num_Write_Cmds; i++) {
-        tx_usrp->set_gpio_attr("FP0", "OUT", write_cmds[i]);
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); //Arguably no delay is necessary per https://stackoverflow.com/questions/18071664/stdthis-threadsleep-for-and-nanoseconds 
-    }
-
-
-    const int n_iters = 1e4, target_n_errors = 100;
-    for (int iter = 0; iter < n_iters; iter++)
-    {
-
-        
-        //std::cout << "Writing to regs...\n";
-
-        // Generate a random uint32_t
-        const int Num16BitSlices = 2;
-        uint16_t input_pkt[Num16BitSlices] = {0};
-        uint16_t output_pkt[Num16BitSlices] = {0};
-
-        // Generate a random uint32_t
-        for(int i = 0; i < Num16BitSlices; i++)
-        {
-            uint32_t randomValue = dist(mt);
-            //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
-
-            input_pkt[i] = randomValue;
-
-            uint32_t cmd = 0;
-            cmd  = (cmd & ~addrBits) | (0x020+i<<16);
-            cmd  = (cmd & ~dataBits) | (randomValue<<0);
-            cmd  = (cmd & ~cmdBits) | (1<<31);
-        
-            wr_mem_cmd(tx_usrp, cmd);
-            //std::cout << std::hex << cmd << std::endl;
-        }
-
-        
-
-        // ------------------------------------------------------------------------
-
-    
-        bool pkt_done = 0;
-        
-        // Readback ---------------------------------------
-        //std::cout << "Readback\n";
-        // for(int i=0; i<16; i++) {
-        //     rd_mem_cmd(tx_usrp, read_cmds[i]);
-        // }
-        // ////Debug
-        // rd_mem_cmd(tx_usrp, 0x08200000); //db-fb-counter
-
-        // rd_mem_cmd(tx_usrp, 0x08210000); //db-dest-rx-1
-
-        // rd_mem_cmd(tx_usrp, 0x08220000); //db-src-next-pkt-idx
-
-        // rd_mem_cmd(tx_usrp, 0x08300000); //db-dest-pkt-idx
-
-        // --------------------------------------------------
-
-        // start
-        wr_mem_cmd(tx_usrp, rst_cmd);
-        wr_mem_cmd(tx_usrp, start_cmd);
-
-
-        // read results ---------------------------------------------
-        // //std::cout << "Read results\n";
-        // for(int i=0; i<16; i++) {
-        //     rd_mem_cmd(tx_usrp, read_cmds[i]);
-        // }
-
-        // //debug
-        // rd_mem_cmd(tx_usrp, 0x08200000); //db-fb-counter
-
-        // rd_mem_cmd(tx_usrp, 0x08210000); //db-dest-rx-1
-
-        // rd_mem_cmd(tx_usrp, 0x08220000); //db-src-next-pkt-idx
-
-        // rd_mem_cmd(tx_usrp, 0x08300000); //db-dest-pkt-idx
-
-
-
-        //Read output bits
-        for(int i = 0; i < Num16BitSlices; i++)
-        {
-            uint32_t cmd = 0;
-            cmd  = (cmd & ~addrBits) | (0x810+i<<16);
-            cmd  = (cmd & ~dataBits) | (0<<0);
-            cmd  = (cmd & ~cmdBits) | (0<<31);
-        
-            output_pkt[i] = rd_mem_cmd(tx_usrp, cmd) & dataBits;
-            uint16_t xor_result = output_pkt[i] ^ input_pkt[i];
-            while (xor_result > 0) {
-                n_errors += xor_result & 1;
-                xor_result >>= 1;
-            }
-
-            //std::cout << std::dec << "Bit slice: " << i << std::endl;
-            //std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
-            //std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
-
-        }
-
-        if (iter % 100 == 0) {
-            std::cout << "Iters: " << std::dec << iter <<" Num errors: " << std::dec << n_errors << std::endl;
-        }
-        
-
-        if (n_errors >= target_n_errors)
-            break;
-    } 
-
-    std::cout << "Test done" << std::endl;
-    std::cout << "Num errors: " << std::dec << n_errors << std::endl;
-
-
-
-    //Reset 
-    /*
-
-    for(int i=0;i<3;i++){
-
-        tx_usrp->set_gpio_attr("FP0", "OUT", rst_cmd); std::this_thread::sleep_for(std::chrono::milliseconds(10000)); 
-
-        tx_usrp->set_gpio_attr("FP0", "OUT", start_cmd); std::this_thread::sleep_for(std::chrono::milliseconds(10)); 
-
-        std::cout << "Reset and run again " << i << std::endl;
-
-        rd_mem_cmd(tx_usrp, 0x08000000); //Check done/valied 
-
-        rd_mem_cmd(tx_usrp, 0x08100000); //Check bits 1-16
-
-        rd_mem_cmd(tx_usrp, 0x08110000); //Check bits 17-32
-
-
-        //debug
-        rd_mem_cmd(tx_usrp, 0x08200000); //db-fb-counter
-
-        rd_mem_cmd(tx_usrp, 0x08210000); //db-dest-rx-1
-
-        rd_mem_cmd(tx_usrp, 0x08220000); //db-src-next-pkt-idx
-
-        rd_mem_cmd(tx_usrp, 0x08300000); //db-dest-pkt-idx
-			 
-    }
-     
-    */
-
-    
-
-    // tx_usrp->set_gpio_attr("FP0", "OUT", read_cmds[i]);
-
-    // output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
-    // std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
-    // std::this_thread::sleep_for(std::chrono::milliseconds(1));
-
-    // for(int i=1;i<18;i=i+2){
-    //     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[i], mask);
-        
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
-    //     std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
-
-
-    // }
-
-    // std::cout << "Print output\n";
-
-    // for(int i=0;i<3;i++){
-    //     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[29], mask);
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-    //     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[2], mask);
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(10000));
-
-	//     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[18], mask);
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
-	//     std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
-
-
-	//     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[19], mask);
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
-	//     std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
-
-        
-	//     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[20], mask);
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
-	//     std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl; 
-        
-    // }
-
-
-    // while(!pkt_done)
-    // {
-	// tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[18], mask);
-        
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
-	// std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg;
-        
-	// pkt_done = (output_reg & isValid) == isValid;
- // remember to reset
-    // }
-    
-    // std::cout << "Digital Loopback done. Reading results\n";
-
-    // for(int i=18; i<32; i++) {
-    //     tx_usrp->set_gpio_attr("FP0", "CTRL", 0, mask);
-    //     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[i], mask);
-
-    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
-    //     std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg;
-    //     std::cout << std::endl;
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    // } 
-    // std::cout << "Done printing digital loopback results...";
-  
-    //////////////////////////////////////////////////////////////////////////////////////////////////
     
     // for the const wave, set the wave freq for small samples per period
     if (wave_freq == 0 and wave_type == "CONST") {
@@ -873,6 +596,112 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         transmit_worker(buff, wave_table, tx_stream, md, step, index, num_channels);
     });
 
+    //--------------------------------------------------
+    //WW Changes
+    //--------------------------------------------------
+    //Bitmasks to help read and "assemble" commands
+    constexpr std::uint32_t cmdBits{0xF0000000}; 
+    constexpr std::uint32_t addrBits{0x0FFF0000};
+    constexpr std::uint32_t dataBits{0x0000FFFF};
+
+
+    
+    constexpr uint32_t rst_cmd = 0x80010001;
+
+    //Load phases and thresholds
+    constexpr int Num_Write_Cmds = 15;
+    uint32_t write_cmds[Num_Write_Cmds] = {
+        0x80000000,
+        0x80010001,
+        0x80101DED,          
+        0x80110000,
+        0x8020CE94,          //32'h8020FFFF,
+        0x8021E12A,          //32'h8021FFFF,
+        0x8050A000,
+        0x80510005,
+        0x80520453,
+        0x80533937,
+        0x80540009,
+        0x8060030B,
+        0x80613DD1,
+        0x8062223C,
+        0x8063CA59
+    };
+
+    //Readback input bit, phase, and threshold settings, valid and done, and pkt out
+    constexpr int Num_Read_Cmds = 22;
+    uint32_t read_cmds[Num_Read_Cmds] = {
+        0x00000000,
+        0x00010000,
+        0x00100000,
+        0x00110000,
+        0x00200000,
+        0x00210000,
+        0x00500000,
+        0x00510000,
+        0x00520000,
+        0x00530000,
+        0x00540000,
+        0x00600000,
+        0x00610000,
+        0x00620000,
+        0x00630000,
+        
+        0x08000000, //valid and done
+        0x08100000, //pkt out
+        0x08110000, //pkt out
+
+        0x0C000000,
+        0x0DFF0000,
+        0x0E000000,
+        0x0FFF0000
+    };
+
+    constexpr std::uint32_t isDone{0x08000001}; //src done tx
+    constexpr std::uint32_t isValid{0x08000002}; //dest done tx
+
+    constexpr int ms_delay{1};
+
+    //Single command test
+    // wr_mem_cmd(tx_usrp, 0x80101DED);
+    // std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    // rd_mem_cmd(tx_usrp, 0x00100000,true);
+    
+
+    std::uint32_t modeBits{0x0 << 2}; //modeBits: 2 bits [src,dest]. For each, 1->active, 0->sync. ex: mode 3 =>both active
+    
+    //2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
+    //ex: mode 0 =>both digital loopback
+    //ex: mode 1 =>dest digital loopback
+    //ex: mode 2 =>src digital loopback
+    std::uint32_t rxChSelBits{0x0 << 4}; 
+    
+    //2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
+    //ex: mode 0 =>both digital loopback
+    //ex: mode 1 =>dest afe tx
+    //ex: mode 2 =>src afe tx
+    std::uint32_t txCoreBits{0x0 << 6};
+
+    uint32_t start_cmd = 0x80010002+modeBits+rxChSelBits+txCoreBits;
+    std::cout << "mode: " << (modeBits>>2) << " rxChSel: " << (rxChSelBits>>4)<< " txCore: " << (txCoreBits>>6) << std::endl; 
+    //std::cout << std::hex << std::setw(8) << std::setfill('0') << start_cmd << std::endl;
+
+    //Initial test
+    //Threshold and angle settings
+    std::cout << "Writing to regs...\n";
+    for(int i=0; i<Num_Write_Cmds; i++) {
+        wr_mem_cmd(tx_usrp, write_cmds[i]);
+    }
+
+    std::cout << "Readback...\n";
+    for(int i=0; i<Num_Read_Cmds; i++) {
+        rd_mem_cmd(tx_usrp, read_cmds[i],true);
+    }
+
+
+    std::cout << "Start command issued...\n";
+    wr_mem_cmd(tx_usrp, start_cmd);
+
     // recv to file
     bool rx_save = save_file != 0;
     if (type == "double")
@@ -890,6 +719,262 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         transmit_thread.join();
         throw std::runtime_error("Unknown type " + type);
     }
+
+
+
+    std::cout << "Reading results...\n";
+    for(int i=Num_Write_Cmds; i<Num_Read_Cmds; i++) {
+        rd_mem_cmd(tx_usrp, read_cmds[i],true);
+    }
+    std::cout << "Done printing digital loopback results...";
+
+    //On Chip Acquisition test
+    
+
+    
+        // tx_usrp->set_gpio_attr("FP0", "OUT", read_cmds[i]);
+
+    // output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
+    // std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
+    // std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+    // for(int i=1;i<18;i=i+2){
+    //     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[i], mask);
+        
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
+    //     std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
+
+
+  // //BER test
+    // double n_errors{0}; 
+
+    // //Generate input bits ----------------------------------------------------
+    // std::random_device rd;
+
+    // // Create a Mersenne Twister PRNG engine
+    // std::mt19937 mt(rd());
+
+    // // Define a distribution for generating uint32_t values
+    // std::uniform_int_distribution<uint16_t> dist;
+
+    // //Threshold and angle settings
+    // for(int i=0; i<Num_Write_Cmds; i++) {
+    //     tx_usrp->set_gpio_attr("FP0", "OUT", write_cmds[i]);
+
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); //Arguably no delay is necessary per https://stackoverflow.com/questions/18071664/stdthis-threadsleep-for-and-nanoseconds 
+    // }
+
+    // const int n_iters = 1e4, target_n_errors = 100;
+    // for (int iter = 0; iter < n_iters; iter++)
+    // {
+
+        
+    //     //std::cout << "Writing to regs...\n";
+
+    //     // Generate a random uint32_t
+    //     const int Num16BitSlices = 2;
+    //     uint16_t input_pkt[Num16BitSlices] = {0};
+    //     uint16_t output_pkt[Num16BitSlices] = {0};
+
+    //     // Generate a random uint32_t
+    //     for(int i = 0; i < Num16BitSlices; i++)
+    //     {
+    //         uint32_t randomValue = dist(mt);
+    //         //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
+
+    //         input_pkt[i] = randomValue;
+
+    //         uint32_t cmd = 0;
+    //         cmd  = (cmd & ~addrBits) | (0x020+i<<16);
+    //         cmd  = (cmd & ~dataBits) | (randomValue<<0);
+    //         cmd  = (cmd & ~cmdBits) | (1<<31);
+        
+    //         wr_mem_cmd(tx_usrp, cmd);
+    //         //std::cout << std::hex << cmd << std::endl;
+    //     }
+ 
+        
+
+    //     // ------------------------------------------------------------------------
+
+    
+    //     bool pkt_done = 0;
+        
+    //     // Readback ---------------------------------------
+    //     //std::cout << "Readback\n";
+    //     // for(int i=0; i<16; i++) {
+    //     //     rd_mem_cmd(tx_usrp, read_cmds[i]);
+    //     // }
+    //     // ////Debug
+    //     // rd_mem_cmd(tx_usrp, 0x08200000); //db-fb-counter
+
+    //     // rd_mem_cmd(tx_usrp, 0x08210000); //db-dest-rx-1
+
+    //     // rd_mem_cmd(tx_usrp, 0x08220000); //db-src-next-pkt-idx
+
+    //     // rd_mem_cmd(tx_usrp, 0x08300000); //db-dest-pkt-idx
+
+    //     // --------------------------------------------------
+
+    //     // start
+    //     wr_mem_cmd(tx_usrp, rst_cmd);
+    //     wr_mem_cmd(tx_usrp, start_cmd);
+
+
+    //     // read results ---------------------------------------------
+    //     // //std::cout << "Read results\n";
+    //     // for(int i=0; i<16; i++) {
+    //     //     rd_mem_cmd(tx_usrp, read_cmds[i]);
+    //     // }
+
+    //     // //debug
+    //     // rd_mem_cmd(tx_usrp, 0x08200000); //db-fb-counter
+
+    //     // rd_mem_cmd(tx_usrp, 0x08210000); //db-dest-rx-1
+
+    //     // rd_mem_cmd(tx_usrp, 0x08220000); //db-src-next-pkt-idx
+
+    //     // rd_mem_cmd(tx_usrp, 0x08300000); //db-dest-pkt-idx
+
+
+
+    //     //Read output bits
+    //     for(int i = 0; i < Num16BitSlices; i++)
+    //     {
+    //         uint32_t cmd = 0;
+    //         cmd  = (cmd & ~addrBits) | (0x810+i<<16);
+    //         cmd  = (cmd & ~dataBits) | (0<<0);
+    //         cmd  = (cmd & ~cmdBits) | (0<<31);
+        
+    //         output_pkt[i] = rd_mem_cmd(tx_usrp, cmd) & dataBits;
+    //         uint16_t xor_result = output_pkt[i] ^ input_pkt[i];
+    //         while (xor_result > 0) {
+    //             n_errors += xor_result & 1;
+    //             xor_result >>= 1;
+    //         }
+
+    //         //std::cout << std::dec << "Bit slice: " << i << std::endl;
+    //         //std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
+    //         //std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
+
+    //     }
+
+    //     if (iter % 100 == 0) {
+    //         std::cout << "Iters: " << std::dec << iter <<" Num errors: " << std::dec << n_errors << std::endl;
+    //     }
+        
+
+    //     if (n_errors >= target_n_errors)
+    //         break;
+    // } 
+
+    // std::cout << "Test done" << std::endl;
+    // std::cout << "Num errors: " << std::dec << n_errors << std::endl;
+
+
+
+    //Reset 
+    /*
+
+    for(int i=0;i<3;i++){
+
+        tx_usrp->set_gpio_attr("FP0", "OUT", rst_cmd); std::this_thread::sleep_for(std::chrono::milliseconds(10000)); 
+
+        tx_usrp->set_gpio_attr("FP0", "OUT", start_cmd); std::this_thread::sleep_for(std::chrono::milliseconds(10)); 
+
+        std::cout << "Reset and run again " << i << std::endl;
+
+        rd_mem_cmd(tx_usrp, 0x08000000); //Check done/valied 
+
+        rd_mem_cmd(tx_usrp, 0x08100000); //Check bits 1-16
+
+        rd_mem_cmd(tx_usrp, 0x08110000); //Check bits 17-32
+
+
+        //debug
+        rd_mem_cmd(tx_usrp, 0x08200000); //db-fb-counter
+
+        rd_mem_cmd(tx_usrp, 0x08210000); //db-dest-rx-1
+
+        rd_mem_cmd(tx_usrp, 0x08220000); //db-src-next-pkt-idx
+
+        rd_mem_cmd(tx_usrp, 0x08300000); //db-dest-pkt-idx
+			 
+    }
+     
+    */
+
+    
+
+
+
+
+    // }
+
+    // std::cout << "Print output\n";
+
+    // for(int i=0;i<3;i++){
+    //     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[29], mask);
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    //     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[2], mask);
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+
+	//     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[18], mask);
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
+	//     std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
+
+
+	//     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[19], mask);
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
+	//     std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
+
+        
+	//     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[20], mask);
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
+	//     std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl; 
+        
+    // }
+
+
+    // while(!pkt_done)
+    // {
+	// tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[18], mask);
+        
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
+	// std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg;
+        
+	// pkt_done = (output_reg & isValid) == isValid;
+ // remember to reset
+    // }
+    
+
+  
+    //////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+    // // recv to file
+    // bool rx_save = save_file != 0;
+    // if (type == "double")
+    //     recv_to_file<std::complex<double>>(
+    //         rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
+    // else if (type == "float")
+    //     recv_to_file<std::complex<float>>(
+    //         rx_usrp, "fc32", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
+    // else if (type == "short")
+    //     recv_to_file<std::complex<short>>(
+    //         rx_usrp, "sc16", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
+    // else {
+    //     // clean up transmit worker
+    //     stop_signal_called = true;
+    //     transmit_thread.join();
+    //     throw std::runtime_error("Unknown type " + type);
+    // }
 
     // clean up transmit worker
     stop_signal_called = true;
