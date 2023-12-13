@@ -263,7 +263,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("ref", po::value<std::string>(&ref)->default_value("internal"), "clock reference (internal, external, mimo)")
         
         //streaming to file
-        ("file", po::value<std::string>(&file)->default_value("../usrp_samples.dat"), "name of the file to write binary samples to")
+        ("file", po::value<std::string>(&file)->default_value("usrp_samples.dat"), "name of the file to write binary samples to")
         ("save-file", po::value<size_t>(&save_file)->default_value(0), "save file option")
         ("type", po::value<std::string>(&type)->default_value("short"), "sample type in file: double, float, or short")
         ("otw", po::value<std::string>(&otw)->default_value("sc16"), "specify the over-the-wire sample mode")
@@ -702,23 +702,23 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << "Start command issued...\n";
     wr_mem_cmd(tx_usrp, start_cmd);
 
-    // recv to file
-    bool rx_save = save_file != 0;
-    if (type == "double")
-        recv_to_file<std::complex<double>>(
-            rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
-    else if (type == "float")
-        recv_to_file<std::complex<float>>(
-            rx_usrp, "fc32", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
-    else if (type == "short")
-        recv_to_file<std::complex<short>>(
-            rx_usrp, "sc16", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
-    else {
-        // clean up transmit worker
-        stop_signal_called = true;
-        transmit_thread.join();
-        throw std::runtime_error("Unknown type " + type);
-    }
+    // // recv to file
+    // bool rx_save = save_file != 0;
+    // if (type == "double")
+    //     recv_to_file<std::complex<double>>(
+    //         rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
+    // else if (type == "float")
+    //     recv_to_file<std::complex<float>>(
+    //         rx_usrp, "fc32", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
+    // else if (type == "short")
+    //     recv_to_file<std::complex<short>>(
+    //         rx_usrp, "sc16", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
+    // else {
+    //     // clean up transmit worker
+    //     stop_signal_called = true;
+    //     transmit_thread.join();
+    //     throw std::runtime_error("Unknown type " + type);
+    // }
 
 
 
@@ -726,12 +726,46 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     for(int i=Num_Write_Cmds; i<Num_Read_Cmds; i++) {
         rd_mem_cmd(tx_usrp, read_cmds[i],true);
     }
-    std::cout << "Done printing digital loopback results...";
+    std::cout << "Done printing digital loopback results...\n";
+
+
 
     //On Chip Acquisition test
+    //Read data and write to binary file to be parsed by matlab    
+    //For each preamble memory address
+    const int NumPrmblSamps = 512;
+    const uint16_t PrmblStartAddrI = 0xC00, PrmblStartAddrQ = 0xE00;
+    std::ofstream of_file(file, std::ios::binary | std::ios::trunc);
+
+    for(int i = 0; i < NumPrmblSamps; i++)
+    {
+        
+        uint32_t cmd = 0;
+        cmd  = (cmd & ~addrBits) | (PrmblStartAddrI+i<<16);
+        cmd  = (cmd & ~dataBits) | (0<<0);
+        cmd  = (cmd & ~cmdBits) | (0<<31);
+
+
+        uint16_t prmbl_samp = static_cast<uint16_t>(rd_mem_cmd(tx_usrp, cmd) & dataBits);
+
+
+        if (of_file.is_open()) {
+            // Write the last 16 bits to the file
+           of_file.write(reinterpret_cast<const char*>(&prmbl_samp), sizeof(prmbl_samp));
+
+            std::cout << "Last 16 bits appended to file successfully." << std::endl;
+        } else {
+            std::cerr << "Unable to open file for appending." << std::endl;
+        }
+
+    }
+    // Close the file
+    of_file.close();
     
 
-    
+
+
+
         // tx_usrp->set_gpio_attr("FP0", "OUT", read_cmds[i]);
 
     // output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
