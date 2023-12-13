@@ -740,20 +740,23 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     for(int i = 0; i < NumPrmblSamps; i++)
     {
         
-        uint32_t cmd = 0;
-        cmd  = (cmd & ~addrBits) | (PrmblStartAddrI+i<<16);
-        cmd  = (cmd & ~dataBits) | (0<<0);
-        cmd  = (cmd & ~cmdBits) | (0<<31);
-
-
-        uint16_t prmbl_samp = static_cast<uint16_t>(rd_mem_cmd(tx_usrp, cmd) & dataBits);
-
-
         if (of_file.is_open()) {
+            uint32_t cmd = 0;
+            cmd  = (cmd & ~addrBits) | (PrmblStartAddrI+i<<16);
+            cmd  = (cmd & ~dataBits) | (0<<0);
+            cmd  = (cmd & ~cmdBits) | (0<<31);
+            uint16_t prmbl_samp = static_cast<uint16_t>(rd_mem_cmd(tx_usrp, cmd) & dataBits);
             // Write the last 16 bits to the file
            of_file.write(reinterpret_cast<const char*>(&prmbl_samp), sizeof(prmbl_samp));
 
-            std::cout << "Last 16 bits appended to file successfully." << std::endl;
+            cmd = 0;
+            cmd  = (cmd & ~addrBits) | (PrmblStartAddrQ+i<<16);
+            cmd  = (cmd & ~dataBits) | (0<<0);
+            cmd  = (cmd & ~cmdBits) | (0<<31);
+            prmbl_samp = static_cast<uint16_t>(rd_mem_cmd(tx_usrp, cmd) & dataBits);
+            // Write the last 16 bits to the file
+           of_file.write(reinterpret_cast<const char*>(&prmbl_samp), sizeof(prmbl_samp));
+
         } else {
             std::cerr << "Unable to open file for appending." << std::endl;
         }
