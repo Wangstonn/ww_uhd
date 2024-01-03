@@ -648,7 +648,7 @@ module x300_core #(
 
    //WW-by default fp_gpio_out (the output gpio pins) are controlled by the computer and muxed using fp_gpio_src. 
    // similarly, we want to control fp_gpio_r_in which goes to PC, so have to disable its "normal" functionality intended by ettus. 
-   //    to manually control pins, have to comment out the 
+   //    to manually control pins, have to comment this out
    /*
    for (i=0; i<FP_GPIO_WIDTH; i=i+1) begin : gen_fp_gpio_mux
       always @(posedge radio_clk) begin

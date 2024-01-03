@@ -197,7 +197,7 @@ void recv_to_file(uhd::usrp::multi_usrp::sptr usrp,
 }
 
 //-------------------------------------------------------------------
-//WW Functions
+//WW Util Functions
 //--------------------------------------------------------------------
 
 /*
@@ -301,9 +301,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("ampl", po::value<float>(&ampl)->default_value(float(0.3)), "amplitude of the waveform [0 to 0.7]")
         ("wave-type", po::value<std::string>(&wave_type)->default_value("SINE"), "waveform type (CONST, SQUARE, RAMP, SINE)")
         ("wave-freq", po::value<double>(&wave_freq)->default_value(125000), "waveform frequency in Hz")
-
-        
-
     ;
     // clang-format on
     po::variables_map vm;
@@ -668,21 +665,21 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // rd_mem_cmd(tx_usrp, 0x00100000,true);
     
     //bb-engine mode: active (pkt tx), sync 
-    std::uint32_t modeBits{0x0 << 2}; //modeBits: 2 bits [src,dest]. For each, 1->active, 0->sync. ex: mode 3 =>both active
+    std::uint32_t modeBits{0x3 << 2}; //modeBits: 2 bits [src,dest]. For each, 1->active, 0->sync. ex: mode 3 =>both active
     
     //rxChSel: controls whther the src/dest are listening to the ch-emu or afe
     //2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
     //ex: mode 0 =>both digital loopback
     //ex: mode 1 =>dest rx to afe
     //ex: mode 2 =>src rx to afe
-    std::uint32_t rxChSelBits{0x1 << 4}; 
+    std::uint32_t rxChSelBits{0x2 << 4}; 
     
     //txCoreBits: controls which engine transmits through the afe
     //2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
     //ex: mode 0 =>both digital loopback
     //ex: mode 1 =>dest afe tx
     //ex: mode 2 =>src afe tx
-    std::uint32_t txCoreBits{0x2 << 6};
+    std::uint32_t txCoreBits{0x0 << 6};
 
     uint32_t start_cmd = 0x80010002+modeBits+rxChSelBits+txCoreBits;
     std::cout << "mode: " << (modeBits>>2) << " rxChSel: " << (rxChSelBits>>4)<< " txCore: " << (txCoreBits>>6) << std::endl; 
