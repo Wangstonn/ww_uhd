@@ -672,14 +672,14 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //ex: mode 0 =>both digital loopback
     //ex: mode 1 =>dest rx to afe
     //ex: mode 2 =>src rx to afe
-    std::uint32_t rxChSelBits{0x2 << 4}; 
+    std::uint32_t rxChSelBits{0x1 << 4}; 
     
     //txCoreBits: controls which engine transmits through the afe
     //2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
     //ex: mode 0 =>both digital loopback
     //ex: mode 1 =>dest afe tx
     //ex: mode 2 =>src afe tx
-    std::uint32_t txCoreBits{0x0 << 6};
+    std::uint32_t txCoreBits{0x2 << 6};
 
     uint32_t start_cmd = 0x80010002+modeBits+rxChSelBits+txCoreBits;
     std::cout << "mode: " << (modeBits>>2) << " rxChSel: " << (rxChSelBits>>4)<< " txCore: " << (txCoreBits>>6) << std::endl; 
