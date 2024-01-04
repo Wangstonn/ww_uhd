@@ -707,7 +707,7 @@ module x300_core #(
 
       //iq samples
       .i_rx_data(rx_data_r[0][31:0]),
-      .o_tx_data(tx_data_bb),    //outputs must be gated w tx/rx_running
+      .o_tx_data(tx_data_bb),    //outputs must be gated w tx/rx_running 
       .o_rx_data(rx_data_bb),
       
       //gpio
