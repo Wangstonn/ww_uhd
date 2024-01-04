@@ -42,6 +42,7 @@ set(UHD_BOOST_REQUIRED_COMPONENTS
     chrono
 )
 set(BOOST_MIN_VERSION 1.58)
+#folder in cmake
 include(UHDBoost)
 
 # need these include and link directories for the build
@@ -53,6 +54,10 @@ link_directories(${Boost_LIBRARY_DIRS})
 
 ### Make the executable #######################################################
 add_executable(osla_host osla_host.cpp)
+
+# WW - add c++ functions
+add_subdirectory(src/xcorr_slow)
+target_link_libraries(osla_host xcorr_slow)
 
 set(CMAKE_BUILD_TYPE "Release")
 message(STATUS "******************************************************************************")
