@@ -57,7 +57,8 @@ add_executable(osla_host osla_host.cpp)
 
 # WW - add c++ functions
 add_subdirectory(src/xcorr_slow)
-target_link_libraries(osla_host xcorr_slow)
+add_subdirectory(src/mmio)
+target_link_libraries(osla_host xcorr_slow mmio)
 
 set(CMAKE_BUILD_TYPE "Release")
 message(STATUS "******************************************************************************")
