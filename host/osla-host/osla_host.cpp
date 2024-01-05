@@ -109,7 +109,7 @@ void recv_to_file(uhd::usrp::multi_usrp::sptr usrp,
     // create a receive streamer
     uhd::stream_args_t stream_args(cpu_format, wire_format);
     stream_args.channels             = rx_channel_nums;
-    uhd::rx_streamer::sptr rx_stream = usrp->get_rx_stream(stream_args);
+    uhd::rx_streamer::sptr rx_stream = usrp->get_rx_stream(stream_args); //sets data format reg
 
     // Prepare buffers for received samples and metadata
     uhd::rx_metadata_t md;
@@ -144,7 +144,7 @@ void recv_to_file(uhd::usrp::multi_usrp::sptr usrp,
     stream_cmd.num_samps  = num_requested_samples;
     stream_cmd.stream_now = false;
     stream_cmd.time_spec  = usrp->get_time_now() + uhd::time_spec_t(settling_time);
-    rx_stream->issue_stream_cmd(stream_cmd);
+    rx_stream->issue_stream_cmd(stream_cmd); //no regs set
 
     while (not stop_signal_called
            and (num_requested_samples > num_total_samps or num_requested_samples == 0)) {
@@ -590,10 +590,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << boost::format("Setting device timestamp to 0...") << std::endl;
     tx_usrp->set_time_now(uhd::time_spec_t(0.0));
 
-    // start transmit worker thread
-    std::thread transmit_thread([&]() {
-        transmit_worker(buff, wave_table, tx_stream, md, step, index, num_channels);
-    });
 
     //--------------------------------------------------
     //WW Changes
@@ -612,14 +608,14 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         0x80000000,
         0x80010001,
         0x80101DED,          
-        0x80110000,
+        //0x80110000,
         0x8020CE94,          //32'h8020FFFF,
         0x8021E12A,          //32'h8021FFFF,
         0x8050A000,
         0x80510005,
         0x80520453,
         0x80533937,
-        0x80540009,
+        //0x80540000, //dest delay, should be 0x80540009
         0x8060030B,
         0x80613DD1,
         0x8062223C,
@@ -658,208 +654,270 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     constexpr std::uint32_t isValid{0x08000002}; //dest done tx
 
     constexpr int ms_delay{1};
-
-    //Single command test
-    // wr_mem_cmd(tx_usrp, 0x80101DED);
-    // std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    // rd_mem_cmd(tx_usrp, 0x00100000,true);
     
-    //bb-engine mode: active (pkt tx), sync 
-    std::uint32_t modeBits{0x3 << 2}; //modeBits: 2 bits [src,dest]. For each, 1->active, 0->sync. ex: mode 3 =>both active
+    //Start tx and streaming
+    // start transmit worker thread
+    std::thread transmit_thread([&]() {
+        transmit_worker(buff, wave_table, tx_stream, md, step, index, num_channels); //this sets tx_streamer which gates tx
+    });
+
+    // recv to file - supposedly sets registers on adc but I cant find anything about that. 
+    // However, given how transmit_worker sets the tx settings (tx_running), its very possible that rx settings need to be set for proper operation
+    // Ordinary operation of recv_to_file will lock out the rest of the c++ code, so try putting it in a thread so that it can execute indefinitely just like transmit_worker
+    // This will block streaming though. If you want to record samples you that will have to modify recv_to_file to write to file for only part of the time recv to file is active.
+    std::thread recv_thread([&]() {
+        recv_to_file<std::complex<double>>(
+            rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, 0); //save_rx = 0 so that we dont create a huge file
+    });
+
+
+    //PN acquisition test
+    //Because our window is small, need to sweep multiple time intervals by adjusting source and dest delay. Assumes channel coherence is quite long
+    int N_sweep_intervals = 0; //50
+    std::vector<int> D_hat_sweep, D_test_sweep;
+    std::vector<std::complex<double>> h_hat_sweep;
     
-    //rxChSel: controls whther the src/dest are listening to the ch-emu or afe
-    //2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
-    //ex: mode 0 =>both digital loopback
-    //ex: mode 1 =>dest rx to afe
-    //ex: mode 2 =>src rx to afe
-    std::uint32_t rxChSelBits{0x1 << 4}; 
-    
-    //txCoreBits: controls which engine transmits through the afe
-    //2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
-    //ex: mode 0 =>both digital loopback
-    //ex: mode 1 =>dest afe tx
-    //ex: mode 2 =>src afe tx
-    std::uint32_t txCoreBits{0x2 << 6};
+    const int DelaySweepInterval = 128;
 
-    uint32_t start_cmd = 0x80010002+modeBits+rxChSelBits+txCoreBits;
-    std::cout << "mode: " << (modeBits>>2) << " rxChSel: " << (rxChSelBits>>4)<< " txCore: " << (txCoreBits>>6) << std::endl; 
-    //std::cout << std::hex << std::setw(8) << std::setfill('0') << start_cmd << std::endl;
+    for(int interval_idx = -N_sweep_intervals/2; interval_idx <= N_sweep_intervals/2; interval_idx++) {
 
-    //Initial test
-    //Threshold and angle settings
-    std::cout << "Writing to regs...\n";
-    for(const auto& cmd : write_cmds) {
-        wr_mem_cmd(tx_usrp, cmd);
-    }
-
-    std::cout << "Readback...\n";
-    for(const auto& cmd : read_cmds) {
-        rd_mem_cmd(tx_usrp, cmd,true);
-    }
-
-
-    std::cout << "Start command issued...\n";
-    wr_mem_cmd(tx_usrp, start_cmd);
-
-    // // recv to file
-    // bool rx_save = save_file != 0;
-    // if (type == "double")
-    //     recv_to_file<std::complex<double>>(
-    //         rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
-    // else if (type == "float")
-    //     recv_to_file<std::complex<float>>(
-    //         rx_usrp, "fc32", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
-    // else if (type == "short")
-    //     recv_to_file<std::complex<short>>(
-    //         rx_usrp, "sc16", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
-    // else {
-    //     // clean up transmit worker
-    //     stop_signal_called = true;
-    //     transmit_thread.join();
-    //     throw std::runtime_error("Unknown type " + type);
-    // }
-
-
-
-    std::cout << "Reading results...\n";
-    for(const auto& cmd : read_cmds) {
-        rd_mem_cmd(tx_usrp, cmd,true);
-    }
-    std::cout << "Done printing digital loopback results...\n";
-
-
-
-    //On Chip Acquisition test
-    //Read data and write to binary file to be parsed by matlab    
-    //For each preamble memory address
-    const int NumPrmblSamps = 512;
-    const uint16_t PrmblStartAddrI = 0xC00, PrmblStartAddrQ = 0xE00;
-    std::vector<std::complex<double>> cap_samps;
-
-    std::ofstream of_file(file, std::ios::binary | std::ios::trunc);
-    //speed test result: 10 mil samps -> 16 hrs
-    for(int i = 0; i < NumPrmblSamps; i++)
-    {
+        int D_test = interval_idx * DelaySweepInterval; //D_test is the delay between src and dest we set. This is the opposite of D_comp's logic
         
-        if (of_file.is_open()) {
-            uint32_t cmd = 0;
-            cmd  = (cmd & ~addrBits) | (PrmblStartAddrI+i<<16);
-            cmd  = (cmd & ~dataBits) | (0<<0);
-            cmd  = (cmd & ~cmdBits) | (0<<31);
-            int16_t prmbl_samp_I = static_cast<int16_t>(rd_mem_cmd(tx_usrp, cmd) & dataBits);
-
-            // Write the last 16 bits to the file
-           of_file.write(reinterpret_cast<const char*>(&prmbl_samp_I), sizeof(prmbl_samp_I));
-
-            cmd = 0;
-            cmd  = (cmd & ~addrBits) | (PrmblStartAddrQ+i<<16);
-            cmd  = (cmd & ~dataBits) | (0<<0);
-            cmd  = (cmd & ~cmdBits) | (0<<31);
-            int16_t prmbl_samp_Q = static_cast<int16_t>(rd_mem_cmd(tx_usrp, cmd) & dataBits);
-            // Write the last 16 bits to the file
-           of_file.write(reinterpret_cast<const char*>(&prmbl_samp_Q), sizeof(prmbl_samp_Q));
-           
-           // Write sample to vector
-           std::complex<double> samp = {static_cast<double>(prmbl_samp_I),static_cast<double>(prmbl_samp_Q)};
-           samp *= static_cast<std::complex<double>>(pow(2, -8));
-           cap_samps.push_back(samp);
-           //std::cout << std::dec << i << " " << samp << std::endl;
-
-        } else {
-            std::cerr << "Unable to open file for appending." << std::endl;
+        
+        uint16_t dest_delay_test, src_delay_test;
+        if (D_test < 0) { //estimated D is negative->dest starts first since preamble is early
+            dest_delay_test = 0;
+            src_delay_test = -D_test;
+        }
+        else { 
+            dest_delay_test = D_test;
+            src_delay_test = 0;
         }
 
+        std::cout << std::dec << "D_test= " << D_test << std::endl;
+        std::cout << std::dec << "src_delay_test= " << src_delay_test << std::endl;
+        std::cout << std::dec << "dest_delay_test= " << dest_delay_test << std::endl;
+
+        //set test delay
+        //std::cout << ((0x80110000 & ~dataBits) | src_delay_test) << std::endl;
+        //std::cout << ((0x80540000 & ~dataBits) | dest_delay_test) << std::endl;
+        wr_mem_cmd(tx_usrp, (0x80110000 & ~dataBits) | src_delay_test);
+        wr_mem_cmd(tx_usrp, (0x80540000 & ~dataBits) | dest_delay_test);
+
+        //rd_mem_cmd(tx_usrp, 0x00110000,true);
+        //rd_mem_cmd(tx_usrp, 0x00540000,true);
+
+        //Configure runtime mode-------------------------------------------------------------------------------------------
+
+        //bb-engine mode: active (pkt tx), sync 
+        std::uint32_t modeBits{0x0 << 2}; //modeBits: 2 bits [src,dest]. For each, 1->active, 0->sync. ex: mode 3 =>both active
+        
+        //rxChSel: controls whther the src/dest are listening to the ch-emu or afe
+        //2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
+        //ex: mode 0 =>both digital loopback
+        //ex: mode 1 =>dest rx to afe
+        //ex: mode 2 =>src rx to afe
+        std::uint32_t rxChSelBits{0x1 << 4}; //1->fwd analog loopback
+        
+        //txCoreBits: controls which engine transmits through the afe
+        //2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
+        //ex: mode 0 =>both digital loopback
+        //ex: mode 1 =>dest afe tx
+        //ex: mode 2 =>src afe tx
+        std::uint32_t txCoreBits{0x0 << 6}; //2->fwd analog loopback
+
+        file = "usrp_samples.wired.noise.dat";
+
+        uint32_t start_cmd = 0x80010002+modeBits+rxChSelBits+txCoreBits;
+        std::cout << "mode: " << (modeBits>>2) << " rxChSel: " << (rxChSelBits>>4)<< " txCore: " << (txCoreBits>>6) << std::endl; 
+        //std::cout << std::hex << std::setw(8) << std::setfill('0') << start_cmd << std::endl;
+
+        //Threshold and angle settings
+        //std::cout << "Writing to regs...\n";
+        for(const auto& cmd : write_cmds) {
+            wr_mem_cmd(tx_usrp, cmd);
+        }
+
+        // std::cout << "Readback...\n";
+        // for(const auto& cmd : read_cmds) {
+        //     rd_mem_cmd(tx_usrp, cmd,true);
+        // }
+
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(480)); //Need to sleep for at least 480 ms before tx is active
+        //std::cout << "Start command issued...\n";
+        wr_mem_cmd(tx_usrp, start_cmd);
+
+        // std::cout << "Reading results...\n";
+        // for(const auto& cmd : read_cmds) {
+        //     rd_mem_cmd(tx_usrp, cmd,true);
+        // }
+        // std::cout << "Done printing digital loopback results...\n";
+
+
+
+        //On Chip Acquisition test
+        //Read data and write to binary file to be parsed by matlab for each preamble memory address
+        const int NumPrmblSamps = 512;
+        const uint16_t PrmblStartAddrI = 0xC00, PrmblStartAddrQ = 0xE00;
+        std::vector<std::complex<double>> cap_samps;
+
+        std::ofstream of_file(file, std::ios::binary | std::ios::trunc);
+        //speed test result: 10 mil samps -> 16 hrs
+        for(int i = 0; i < NumPrmblSamps; i++)
+        {
+            
+            if (of_file.is_open()) {
+                uint32_t cmd = 0;
+                cmd  = (cmd & ~addrBits) | (PrmblStartAddrI+i<<16);
+                cmd  = (cmd & ~dataBits) | (0<<0);
+                cmd  = (cmd & ~cmdBits) | (0<<31);
+                int16_t prmbl_samp_I = static_cast<int16_t>(rd_mem_cmd(tx_usrp, cmd) & dataBits);
+
+                // Write the last 16 bits to the file
+            of_file.write(reinterpret_cast<const char*>(&prmbl_samp_I), sizeof(prmbl_samp_I));
+
+                cmd = 0;
+                cmd  = (cmd & ~addrBits) | (PrmblStartAddrQ+i<<16);
+                cmd  = (cmd & ~dataBits) | (0<<0);
+                cmd  = (cmd & ~cmdBits) | (0<<31);
+                int16_t prmbl_samp_Q = static_cast<int16_t>(rd_mem_cmd(tx_usrp, cmd) & dataBits);
+                // Write the last 16 bits to the file
+            of_file.write(reinterpret_cast<const char*>(&prmbl_samp_Q), sizeof(prmbl_samp_Q));
+            
+            // Write sample to vector
+            std::complex<double> samp = {static_cast<double>(prmbl_samp_I),static_cast<double>(prmbl_samp_Q)};
+            samp *= static_cast<std::complex<double>>(pow(2, -8));
+            cap_samps.push_back(samp);
+            //std::cout << std::dec << i << " " << samp << std::endl;
+
+            } else {
+                std::cerr << "Unable to open file for appending." << std::endl;
+            }
+
+        }
+        
+        // Close the file
+        of_file.close();
+
+        std::cout << "Samples written to file" << std::endl;
+        int N_w = static_cast<int>(cap_samps.size()); //number of captured samples
+
+        //On device compensation
+        //Load preamble
+        std::ifstream if_file("../../../matlab/mlsr/preamble.mem"); // Open the file. Notice that this is the relative path from the executable location!!
+
+        if (!if_file.is_open()) {
+            std::cerr << "Error opening the preamble file!" << std::endl;
+            return 1;
+        }
+
+        // Read data from the file and store it as individual bits in a vector
+        std::vector<int> preamble_bits;
+        char bit;
+        while (if_file >> bit) {
+            preamble_bits.push_back(bit - '0'); // Convert character to integer (0 or 1)
+        }
+
+        int N_prmbl = static_cast<int>(preamble_bits.size());
+        if_file.close(); // Close the file
+
+        // Calculate prmbl_amp
+        double prmbl_amp = (1 - std::pow(2, -15));
+
+        // Calculate prmbl_samps
+        std::vector<std::complex<double>> prmbl_samps;
+        for (int i = 0; i < N_prmbl; ++i) {
+            std::complex<double> val = {2 * (preamble_bits[i] - 0.5) * prmbl_amp,0};
+            prmbl_samps.push_back(val);
+        }
+
+        // // Display the values calculated
+        // std::cout << "N_prmbl: " << N_prmbl << std::endl;
+        // std::cout << "prmbl_amp: " << prmbl_amp << std::endl;
+        // std::cout << "prmbl_samps: ";
+        // for (int i = 0; i < N_prmbl; ++i) {
+        //     std::cout << prmbl_samps[i] << " ";
+        // }
+        // std::cout << std::endl;
+        
+        
+        std::vector<std::complex<double>> r;
+        std::vector<int> lags;
+        xcorr_slow(prmbl_samps,cap_samps, r, lags);
+
+        // Find the index of the maximum absolute value in vector r
+        auto max_it = std::max_element(r.begin(), r.end(), [](const std::complex<double>& a, const std::complex<double>& b) {
+            return std::abs(a) < std::abs(b);
+        }); //Finds the iterator pointing to the max element
+        int max_idx = std::distance(r.begin(), max_it); //Finds the index corresponding to that iterator
+
+        // Calculate D_hat (lag at max_idx)
+        int D_hat = lags[max_idx];
+
+
+        // // Output the cross-correlation values and corresponding lags
+        // std::cout << "Cross-correlation result:" << std::endl;
+        // for (size_t i = 0; i < r.size(); ++i) {
+        //     std::cout << std::dec << "Lag: " << lags[i] << ", Correlation: " << r[i] << std::endl;
+        // }
+        
+
+        // Our estimate depends on the number of samples captured in the capture window (of size N_w)
+        int N_samps_cap = 0;
+        if (D_hat > 0) {
+            N_samps_cap = N_w - D_hat;
+        } else if (D_hat < N_w - N_prmbl) {
+            N_samps_cap = N_prmbl + D_hat;
+        } else {
+            N_samps_cap = N_w;
+        }
+
+        // Calculate h_hat, h_hat_mag, and phi_hat
+        std::complex<double> h_hat = r[max_idx] / (N_samps_cap * std::pow(prmbl_amp, 2));
+
+        D_hat += D_test; //account for the test delay we inserted
+
+        D_test_sweep.push_back(D_test);
+        D_hat_sweep.push_back(D_hat);
+        h_hat_sweep.push_back(h_hat);
+        
+        std::cout << std::dec;
+        std::cout << "D_test = " << D_test << ", ";
+        std::cout << "D_hat= " << D_hat << ", ";
+        std::cout << "h_hat : abs= " << std::abs(h_hat) << " arg= " << std::arg(h_hat) << std::endl;
+
+        //matches matlab
+        // std::cout << std::dec;
+        // std::cout << "Number of captured samples: " << N_w << std::endl;
+        // std::cout << "D_hat: " << D_hat << std::endl;
+        // std::cout << "N_samps_cap: " << N_samps_cap << std::endl;
+        // std::cout << "h_hat: " << h_hat << std::endl;
+        // std::cout << "h_hat_mag: " << std::abs(h_hat) << std::endl;
+        // std::cout << "phi_hat: " << std::arg(h_hat) << std::endl;
     }
-    
-    // Close the file
-    of_file.close();
 
-    std::cout << "Samples written to file" << std::endl;
-    int N_w = static_cast<int>(cap_samps.size()); //number of captured samples
-
-    //On device compensation
-    //Load preamble
-    std::ifstream if_file("../../../matlab/mlsr/preamble.mem"); // Open the file. Notice that this is the relative path from the executable location!!
-
-    if (!if_file.is_open()) {
-        std::cerr << "Error opening the preamble file!" << std::endl;
-        return 1;
+    //print swept estimation values
+    // Find the index of the maximum absolute value in vector r
+    std::cout << std::dec << "Sweeping done:" << std::endl;
+    for (int i = 0; i < D_hat_sweep.size(); ++i) {
+        std::cout << "D_test_sweep = " << D_test_sweep[i] << ", ";
+        std::cout << "D_hat_sweep[" << i << "] = " << D_hat_sweep[i] << ", ";
+        std::cout << "h_hat_sweep[" << i << "] : abs= " << std::abs(h_hat_sweep[i]) << " arg= " << std::arg(h_hat_sweep[i]) << std::endl;
     }
-
-    // Read data from the file and store it as individual bits in a vector
-    std::vector<int> preamble_bits;
-    char bit;
-    while (if_file >> bit) {
-        preamble_bits.push_back(bit - '0'); // Convert character to integer (0 or 1)
-    }
-
-    int N_prmbl = static_cast<int>(preamble_bits.size());
-    if_file.close(); // Close the file
-
-    // Calculate prmbl_amp
-    double prmbl_amp = (1 - std::pow(2, -15));
-
-    // Calculate prmbl_samps
-    std::vector<std::complex<double>> prmbl_samps;
-    for (int i = 0; i < N_prmbl; ++i) {
-        std::complex<double> val = {2 * (preamble_bits[i] - 0.5) * prmbl_amp,0};
-        prmbl_samps.push_back(val);
-    }
-
-    // // Display the values calculated
-    // std::cout << "N_prmbl: " << N_prmbl << std::endl;
-    // std::cout << "prmbl_amp: " << prmbl_amp << std::endl;
-    // std::cout << "prmbl_samps: ";
-    // for (int i = 0; i < N_prmbl; ++i) {
-    //     std::cout << prmbl_samps[i] << " ";
-    // }
-    // std::cout << std::endl;
-    
-    
-    std::vector<std::complex<double>> r;
-    std::vector<int> lags;
-    xcorr_slow(prmbl_samps,cap_samps, r, lags);
 
     // Find the index of the maximum absolute value in vector r
-    auto max_it = std::max_element(r.begin(), r.end(), [](const std::complex<double>& a, const std::complex<double>& b) {
+    auto max_it = std::max_element(h_hat_sweep.begin(), h_hat_sweep.end(), [](const std::complex<double>& a, const std::complex<double>& b) {
         return std::abs(a) < std::abs(b);
     }); //Finds the iterator pointing to the max element
-    int max_idx = std::distance(r.begin(), max_it); //Finds the index corresponding to that iterator
+    int max_idx = std::distance(h_hat_sweep.begin(), max_it); //Finds the index corresponding to that iterator
 
-    // Calculate D_hat (lag at max_idx)
-    int D_hat = lags[max_idx];
+    std::complex<double> h_hat = h_hat_sweep[max_idx];
+    int D_hat = D_hat_sweep[max_idx];
 
 
-    // // Output the cross-correlation values and corresponding lags
-    // std::cout << "Cross-correlation result:" << std::endl;
-    // for (size_t i = 0; i < r.size(); ++i) {
-    //     std::cout << std::dec << "Lag: " << lags[i] << ", Correlation: " << r[i] << std::endl;
-    // }
-    
 
-    // Our estimate depends on the number of samples captured in the capture window (of size N_w)
-    int N_samps_cap = 0;
-    if (D_hat > 0) {
-        N_samps_cap = N_w - D_hat;
-    } else if (D_hat < N_w - N_prmbl) {
-        N_samps_cap = N_prmbl + D_hat;
-    } else {
-        N_samps_cap = N_w;
-    }
-
-    // Calculate h_hat, h_hat_mag, and phi_hat
-    std::complex<double> h_hat = r[max_idx] / (N_samps_cap * std::pow(prmbl_amp, 2));
-
-    //matches matlab
-    std::cout << std::dec;
-    std::cout << "Number of captured samples: " << N_w << std::endl;
-    std::cout << "D_hat: " << D_hat << std::endl;
-    std::cout << "N_samps_cap: " << N_samps_cap << std::endl;
-    std::cout << "h_hat: " << h_hat << std::endl;
-    std::cout << "h_hat_mag: " << std::abs(h_hat) << std::endl;
-    std::cout << "phi_hat: " << std::arg(h_hat) << std::endl;
-
-    //compensation values
+    //Compensation-----------------------------------------------------------------------------------------------------------
     // Get the real and imaginary components of 1/h_hat
     std::complex<double> reciprocal_h_hat = 1.0 / h_hat;
     std::cout << reciprocal_h_hat << std::endl;
@@ -888,14 +946,29 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //std::cout << (dest_ch_eq_im_int16 >> 2)  << std::endl;        //0x80533937,
     // //3937 is approx f93d, since last two bits are ignored by device
     
+    std::cout << std::hex;
     std::cout << ((0x80520453 & ~dataBits)|dest_ch_eq_re_int14) << std::endl;
     std::cout << ((0x80533937 & ~dataBits)|dest_ch_eq_im_int14) << std::endl;
     wr_mem_cmd(tx_usrp, (0x80520453 & ~dataBits) | dest_ch_eq_re_int14);
     wr_mem_cmd(tx_usrp, (0x80533937 & ~dataBits) | dest_ch_eq_im_int14);
 
 
-    //seems that the loopback test is just giving me noise. Need to check radio channel logic on vnc
+    int D_eff = D_hat + 4;
+    uint16_t dest_delay_comp, src_delay_comp;
+    if (D_eff < 0) { //estimated D is negative->dest starts first since preamble is early
+        dest_delay_comp = -D_eff;
+        src_delay_comp = 0;
+    }
+    else { //estimated D is positive->src starts first since preamble is late
+        dest_delay_comp = 0;
+        src_delay_comp = D_eff;
+    }
 
+    std::cout << ((0x80110000 & ~dataBits) | dest_delay_comp) << std::endl;
+    std::cout << ((0x80540000 & ~dataBits) | src_delay_comp) << std::endl;
+    wr_mem_cmd(tx_usrp, (0x80110000 & ~dataBits) | dest_delay_comp);
+    wr_mem_cmd(tx_usrp, (0x80540000 & ~dataBits) | src_delay_comp);
+    
 
         // tx_usrp->set_gpio_attr("FP0", "OUT", read_cmds[i]);
 
@@ -1144,6 +1217,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // clean up transmit worker
     stop_signal_called = true;
     transmit_thread.join();
+    recv_thread.join();
 
     // finished
     std::cout << std::endl << "Done!" << std::endl << std::endl;
