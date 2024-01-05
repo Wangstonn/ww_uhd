@@ -699,7 +699,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         // }
 
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(480)); //Need to sleep for at least 480 ms before tx is active
+        std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 480 ms before tx is active
         
         //std::cout << "Start command issued...\n";
         wr_mem_cmd(tx_usrp, start_cmd);
