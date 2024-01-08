@@ -608,6 +608,17 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         0x0FFF0000
     };
 
+    //Preload some default threshold and angle settings
+    //std::cout << "Writing to regs...\n";
+    for(const auto& cmd : write_cmds) {
+        wr_mem_cmd(tx_usrp, cmd);
+    }
+
+    // std::cout << "Readback...\n";
+    // for(const auto& cmd : read_cmds) {
+    //     rd_mem_cmd(tx_usrp, cmd,true);
+    // }
+
     
     //Start tx and streaming
     // start transmit worker thread
@@ -628,9 +639,10 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //PN acquisition test
     //Because our window is small, need to sweep multiple time intervals by adjusting source and dest delay. Assumes channel coherence is quite long
     //Multiple tests have confirmed wired loopback delay with 8inch sma cable + attenuator is 119, so its find to just do one interval for now
-    int N_sweep_intervals = 0; //50
+    int N_sweep_intervals = 5; //50
     std::vector<int> D_hat_sweep, D_test_sweep;
     std::vector<std::complex<double>> h_hat_sweep;
+    std::vector<double> var_sweep;
     
     const int DelaySweepInterval = 128;
 
@@ -679,7 +691,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         //ex: mode 0 =>both digital loopback
         //ex: mode 1 =>dest afe tx
         //ex: mode 2 =>src afe tx
-        std::uint32_t txCoreBits{0x2 << 6}; //2->fwd analog loopback
+        std::uint32_t txCoreBits{0x0 << 6}; //2->fwd analog loopback
 
         file = "usrp_samples.wired.noise.dat";
 
@@ -687,19 +699,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         std::cout << "mode: " << (modeBits>>2) << " rxChSel: " << (rxChSelBits>>4)<< " txCore: " << (txCoreBits>>6) << std::endl; 
         //std::cout << std::hex << std::setw(8) << std::setfill('0') << start_cmd << std::endl;
 
-        //Threshold and angle settings
-        //std::cout << "Writing to regs...\n";
-        for(const auto& cmd : write_cmds) {
-            wr_mem_cmd(tx_usrp, cmd);
-        }
 
-        // std::cout << "Readback...\n";
-        // for(const auto& cmd : read_cmds) {
-        //     rd_mem_cmd(tx_usrp, cmd,true);
-        // }
-
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 480 ms before tx is active
+        std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 500 ms before tx is active
         
         //std::cout << "Start command issued...\n";
         wr_mem_cmd(tx_usrp, start_cmd);
@@ -710,58 +711,17 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         // }
         // std::cout << "Done printing digital loopback results...\n";
 
-
-
-        //On Chip Acquisition
+        
+        //On Chip Acquisition--------------------------------------------------------------------------------
         //Read data and write to binary file to be parsed by matlab for each preamble memory address
         std::vector<std::complex<double>> cap_samps;
-        const int NumPrmblSamps = 512;
-        const uint16_t PrmblStartAddrI = 0xC00, PrmblStartAddrQ = 0xE00;
-        
-
-        std::ofstream of_file(file, std::ios::binary | std::ios::trunc);
-        //speed test result: 10 mil samps -> 16 hrs
-        for(int i = 0; i < NumPrmblSamps; i++)
-        {
-            
-            if (of_file.is_open()) {
-                uint32_t cmd = 0;
-                cmd  = (cmd & ~addrBits) | (PrmblStartAddrI+i<<16);
-                cmd  = (cmd & ~dataBits) | (0<<0);
-                cmd  = (cmd & ~cmdBits) | (0<<31);
-                int16_t prmbl_samp_I = static_cast<int16_t>(rd_mem_cmd(tx_usrp, cmd) & dataBits);
-
-                // Write the last 16 bits to the file
-            of_file.write(reinterpret_cast<const char*>(&prmbl_samp_I), sizeof(prmbl_samp_I));
-
-                cmd = 0;
-                cmd  = (cmd & ~addrBits) | (PrmblStartAddrQ+i<<16);
-                cmd  = (cmd & ~dataBits) | (0<<0);
-                cmd  = (cmd & ~cmdBits) | (0<<31);
-                int16_t prmbl_samp_Q = static_cast<int16_t>(rd_mem_cmd(tx_usrp, cmd) & dataBits);
-                // Write the last 16 bits to the file
-            of_file.write(reinterpret_cast<const char*>(&prmbl_samp_Q), sizeof(prmbl_samp_Q));
-            
-            // Write sample to vector
-            std::complex<double> samp = {static_cast<double>(prmbl_samp_I),static_cast<double>(prmbl_samp_Q)};
-            samp *= static_cast<std::complex<double>>(pow(2, -8));
-            cap_samps.push_back(samp);
-            //std::cout << std::dec << i << " " << samp << std::endl;
-
-            } else {
-                std::cerr << "Unable to open file for appending." << std::endl;
-            }
-
-        }
-        
-        // Close the file
-        of_file.close();
+        read_sample_mem(tx_usrp, cap_samps, file);
 
         std::cout << "Samples written to file" << std::endl;
         int N_w = static_cast<int>(cap_samps.size()); //number of captured samples
 
-        //On device compensation
-        //Load preamble
+        // Estimate phase
+        // Load preamble
         std::ifstream if_file("../../../matlab/mlsr/preamble.mem"); // Open the file. Notice that this is the relative path from the executable location!!
 
         if (!if_file.is_open()) {
@@ -852,6 +812,21 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         // std::cout << "h_hat: " << h_hat << std::endl;
         // std::cout << "h_hat_mag: " << std::abs(h_hat) << std::endl;
         // std::cout << "phi_hat: " << std::arg(h_hat) << std::endl;
+
+
+        // Estimate noise
+        std::complex<double> sum = std::accumulate(std::begin(cap_samps), std::end(cap_samps), std::complex<double>{0,0});
+        //long unsigned int size->double is a narrowing but hopefully our vectors dont have this size
+        std::complex<double> mu =  sum / std::complex<double>{static_cast<double>(cap_samps.size()),0};
+
+        double accum = 0;
+        std::for_each(std::begin(cap_samps), std::end(cap_samps), [&](const std::complex<double> d) {
+            accum += std::pow(std::abs(d - mu),2);
+        });
+
+        double var = accum / (cap_samps.size()-1);
+        std::cout << "Estimated var= " << var << std::endl; //one time this gave me a negative....
+        var_sweep.push_back(var);
     }
 
     //print swept estimation values
@@ -860,6 +835,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     for (int i = 0; i < D_hat_sweep.size(); ++i) {
         std::cout << "D_test_sweep = " << D_test_sweep[i] << ", ";
         std::cout << "D_hat_sweep[" << i << "] = " << D_hat_sweep[i] << ", ";
+        std::cout << "var_sweep[" << i << "] = " << var_sweep[i] << ", ";
         std::cout << "h_hat_sweep[" << i << "] : abs= " << std::abs(h_hat_sweep[i]) << " arg= " << std::arg(h_hat_sweep[i]) << std::endl;
     }
 
@@ -871,9 +847,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     std::complex<double> h_hat = h_hat_sweep[max_idx];
     int D_hat = D_hat_sweep[max_idx];
-
-
-    //Noise estimation
 
 
 

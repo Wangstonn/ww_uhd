@@ -7,6 +7,7 @@ add_library(mmio #create library target. This is added by ../cmakelists.txt
 )
 
 # Add xcorr test executable
-#add_executable(mmioTest mmio.test.cpp)
+add_executable(mmioTest mmio.test.cpp)
+target_link_libraries(mmioTest ${UHD_LIBRARIES} ${Boost_LIBRARIES})
 
-#target_link_libraries(mmioTest mmio)
+target_link_libraries(mmioTest mmio)
