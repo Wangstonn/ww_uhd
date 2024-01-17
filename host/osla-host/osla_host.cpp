@@ -706,7 +706,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         //Configure runtime mode-------------------------------------------------------------------------------------------
         start_tx(tx_usrp, 0x0, 0x1, 0x2);
 
-        file = "usrp_samples.wired.-10db.sync.hb.disable.dat";
+        file = "test.dat";
 
         //Read data and write to binary file to be parsed by matlab 
         std::vector<std::complex<double>> cap_samps;
@@ -853,7 +853,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         //Configure runtime mode--------
         start_tx(tx_usrp, 0x0, 0x1, 0x2);
 
-        file = "usrp_samples.wired.sync.dat";
+        file = "test.dat";
 
         //Read data and write to binary file to be parsed by matlab 
         std::vector<std::complex<double>> cap_samps;

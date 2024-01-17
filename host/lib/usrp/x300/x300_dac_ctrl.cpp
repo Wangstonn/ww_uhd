@@ -123,7 +123,7 @@ public:
 
         // Calculate N0 to be VCO friendly.
         // Aim for VCO between 1 and 2GHz, assert otherwise.
-        const int N1 = 4;
+        const int N1 = 2;
         int N0_val, N0;
         for (N0_val = 0; N0_val < 3; N0_val++) {
             N0 = (1 << N0_val); // 1, 2, 4
@@ -138,7 +138,7 @@ public:
         write_ad9146_reg(0x0C, 0xD1); // Narrow PLL loop filter, Midrange charge pump.
 
         //write_ad9146_reg(0x0D, 0xD1 | (N0_val << 2)); // N1=4, N2=16, N0 as calculated
-        write_ad9146_reg(0x0D, 0xD1 | (N0_val << 2)); // N1=4, N2=16, N0 as calculated
+        write_ad9146_reg(0x0D, 0xD0 | (N0_val << 2)); // N1=2, N2=16, N0 as calculated
         write_ad9146_reg(0x0A, 0xCF); // Auto init VCO band training as per datasheet
         write_ad9146_reg(0x0A, 0xA0); // See above.
 
@@ -159,10 +159,10 @@ public:
 
         // Configure interpolation filters
         // WW - Disable halfband interpolation filters to decrease latency
-        write_ad9146_reg(0x1C, 0x01); // Configure HB1 originally 00
-        write_ad9146_reg(0x1D, 0x01); // Configure HB2 originally 00
-        // write_ad9146_reg(0x1C, 0x00); // Configure HB1 originally 00
-        // write_ad9146_reg(0x1D, 0x00); // Configure HB2 originally 00
+        // write_ad9146_reg(0x1C, 0x01); // Disable HB1 originally 00
+        write_ad9146_reg(0x1D, 0x01); // Diable HB2 originally 00
+        write_ad9146_reg(0x1C, 0x00); // Configure HB1 originally 00
+        //write_ad9146_reg(0x1D, 0x00); // Configure HB2 originally 00
         write_ad9146_reg(0x1B, 0xE4); // Bypass: Modulator, InvSinc, IQ Bal
 
         // Disable sync mode by default (may get turned on later)
