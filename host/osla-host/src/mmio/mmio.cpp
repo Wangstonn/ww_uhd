@@ -6,35 +6,89 @@
 #include <cstdint>
 #include <uhd/usrp/multi_usrp.hpp>
 
-/*
-Write a command to gpio-in and then reads the contents of gpio-out and prints it to the console 
+/**
+ *  Configures the runtime mode of the baseband core and initiates tx
+ * 
+ * @param modeBits bb-engine mode: active (pkt tx), sync. 
+ *      2 bits [src,dest]. For each, 1->active, 0->sync. ex: mode 3 =>both active
+ * @param rxChSelBits controls whther the src/dest are listening to the ch-emu or afe
+        2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
+        ex: mode 0 =>both digital loopback
+        ex: mode 1 =>dest rx to afe
+        ex: mode 2 =>src rx to afe
+        //1->fwd analog loopback
+ * @param txCoreBits controls which engine transmits through the afe
+        2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
+        ex: mode 0 =>both digital loopback
+        ex: mode 1 =>dest afe tx
+        ex: mode 2 =>src afe tx
+        //2->fwd analog loopback
+*/
+void start_tx(uhd::usrp::multi_usrp::sptr tx_usrp, std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits) {
+    std::uint32_t mode_bits_shift{mode_bits << 2};
+    std::uint32_t rx_ch_sel_bits_shift{rx_ch_sel_bits << 4}; 
+    std::uint32_t tx_core_bits_shift{tx_core_bits << 6}; 
+
+    uint32_t start_cmd = 0x80010002+mode_bits_shift+rx_ch_sel_bits_shift+tx_core_bits_shift;
+    //std::cout << "mode: " << mode_bits << " rxChSel: " << rx_ch_sel_bits << " txCore: " << tx_core_bits << std::endl; 
+    //std::cout << std::hex << std::setw(8) << std::setfill('0') << start_cmd << std::endl;
+
+    //write rst command to device in case we run this multiple times. I forgot this but acqusition went fine...
+    wr_mem_cmd(tx_usrp, rst_cmd);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 500 ms before tx is active
+    
+    //std::cout << "Start command issued...\n";
+    wr_mem_cmd(tx_usrp, start_cmd);
+    
+    //should poll done until it flips to one, but this always seems to finish before its necessary. Also which bit to poll varies between test
+
+    // std::cout << "Reading results...\n";
+    // for(const auto& cmd : read_cmds) {
+    //     rd_mem_cmd(tx_usrp, cmd,true);
+    // }
+    // std::cout << "Done printing digital loopback results...\n";
+}
+
+
+/**
+*  Write a command to gpio-in and then reads the contents of gpio-out and prints it to the console 
 */
 uint32_t rd_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t cmd, bool verbose, const int ms_delay)
 {
    if(cmd >> 31) //check to make sure cmd is a read command
         std::cout << "WARNING: Write command used where read command was expected. cmd: " << cmd << std::endl;
 
-   tx_usrp->set_gpio_attr("FP0", "OUT", cmd); 
-   std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+    uint32_t last_output;
+    last_output = tx_usrp->get_gpio_attr("FP0", "READBACK"); 
 
-   uint32_t output_reg;
-   output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); 
-   std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
+    tx_usrp->set_gpio_attr("FP0", "OUT", cmd); 
+    //std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); //Arguably no delay is necessary per https://stackoverflow.com/questions/18071664/stdthis-threadsleep-for-and-nanoseconds 
+
+
+    uint32_t output_reg;
+    output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK"); 
+
+    if (last_output == output_reg)
+        std::cerr << "ERROR: rd_mem_cmd output_reg = last_output" << std::endl;
+    //std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay));
 
     if(verbose)
         std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl; 
 
-   return output_reg;
+    return output_reg;
 }
 
-
+/**
+ * Writes to the mmio memory. Since the data written is typically quite small, just use the sleep even though its slow
+*/
 void wr_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t cmd, const int ms_delay)
 {
     if(cmd >> 31 == 0) //check to make sure cmd is a wr command
         std::cout << "WARNING: Read command use where write command was expected. cmd: " << cmd << std::endl;
 
     tx_usrp->set_gpio_attr("FP0", "OUT", cmd); 
-    std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); 
+    std::this_thread::sleep_for(std::chrono::milliseconds(ms_delay)); //Arguably no delay is necessary per https://stackoverflow.com/questions/18071664/stdthis-threadsleep-for-and-nanoseconds 
 }
 
 

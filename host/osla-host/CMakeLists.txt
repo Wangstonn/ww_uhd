@@ -23,7 +23,7 @@ endif()
 # Choose a static or shared-library build (shared is default, and static will
 # probably need some special care!)
 # Set this to ON in order to link a static build of UHD:
-option(UHD_USE_STATIC_LIBS OFF)
+option(UHD_USE_STATIC_LIBS ON)
 
 # To add UHD as a dependency to this project, add a line such as this:
 find_package(UHD 4.2.0 REQUIRED)

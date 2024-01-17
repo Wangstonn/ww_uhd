@@ -294,19 +294,18 @@ module x300_core #(
       .ce_rst     (ce_rst),
 
       // Radio connections
-      //WW-rx_data and tx_data are streamed to the pc through this bus
       .radio_clk  (radio_clk),
       .radio_rst  (radio_rst),
       .radio_rx_stb     ({     rx_stb[3],     rx_stb[2],     rx_stb[1],     rx_stb[0]}),
-      .radio_rx_data    ({    rx_data[3],    rx_data[2],    rx_data[1],    rx_data[0]}),
-      .radio_rx_running ({ rx_running[3], rx_running[2], rx_running[1], rx_running[0]}),
+      .radio_rx_data    ({    rx_data[3],    rx_data[2],    rx_data[1],    rx_data[0]}), //rx data streamed to pc
+      .radio_rx_running ({ rx_running[3], rx_running[2], rx_running[1], rx_running[0]}), // turns on rx
       .radio_tx_stb     ({     tx_stb[3],     tx_stb[2],     tx_stb[1],     tx_stb[0]}),
-      .radio_tx_data    ({    tx_data[3],    tx_data[2],    tx_data[1],    tx_data[0]}),
-      .radio_tx_running ({ tx_running[3], tx_running[2], tx_running[1], tx_running[0]}),
+      .radio_tx_data    ({    tx_data[3],    tx_data[2],    tx_data[1],    tx_data[0]}), //stream waveform from pc
+      .radio_tx_running ({ tx_running[3], tx_running[2], tx_running[1], tx_running[0]}), // turns on tx
       // Daughter board settings buses
       .db_fe_set_stb ({ db_fe_set_stb[1],  db_fe_set_stb[0]}),
-      .db_fe_set_addr({db_fe_set_addr[1], db_fe_set_addr[0]}),
-      .db_fe_set_data({db_fe_set_data[1], db_fe_set_data[0]}),
+      .db_fe_set_addr({db_fe_set_addr[1], db_fe_set_addr[0]}), // address for writing settings command
+      .db_fe_set_data({db_fe_set_data[1], db_fe_set_data[0]}), // data to write into register (32 bit)
       .db_fe_rb_stb  ({  db_fe_rb_stb[1],   db_fe_rb_stb[0]}),
       .db_fe_rb_addr ({ db_fe_rb_addr[1],  db_fe_rb_addr[0]}),
       .db_fe_rb_data ({ db_fe_rb_data[1],  db_fe_rb_data[0]}),
@@ -544,7 +543,7 @@ module x300_core #(
    wire [1:0]  rx_stb_r[0:NUM_DBOARDS-1], tx_stb_r[0:NUM_DBOARDS-1];
 
 
-   // Data
+   // Dataleds
     wire [31:0] rx_data_in[0:NUM_CHANNELS-1], rx_data[0:NUM_CHANNELS-1];
     wire [31:0] tx_data[0:NUM_CHANNELS-1], tx_data_out[0:NUM_CHANNELS-1];
     wire        rx_stb[0:NUM_CHANNELS-1], tx_stb[0:NUM_CHANNELS-1];

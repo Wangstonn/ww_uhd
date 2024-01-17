@@ -238,8 +238,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("nsamps", po::value<size_t>(&total_num_samps)->default_value(0), "total number of samples to receive")
         ("settling", po::value<double>(&settling)->default_value(double(0.2)), "settling time (seconds) before receiving")
         ("spb", po::value<size_t>(&spb)->default_value(10000), "samples per buffer, 0 for default")
-        ("tx-rate", po::value<double>(&tx_rate)->default_value(6.25e6), "rate of transmit outgoing samples")
-        ("rx-rate", po::value<double>(&rx_rate)->default_value(6.25e6), "rate of receive incoming samples")
+        ("tx-rate", po::value<double>(&tx_rate)->default_value(6.25e6), "rate of transmit outgoing samples") //Data rate of host data
+        ("rx-rate", po::value<double>(&rx_rate)->default_value(6.25e6), "rate of receive incoming samples") //Data rate of streaming
         
         //user specified arguments
         ("input reg", po::value<uint32_t>(&input_reg)->default_value(0), "input reg")
@@ -376,7 +376,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                   << std::endl
                   << std::endl;
 
-        // set the rf gain
+        //std::cout << tx_usrp->get_rx_gain_range(channel).step() << std::endl;
+        // set the rf gain, ubx range: 0-31.5dB
+        tx_gain = 20;
         if (vm.count("tx-gain")) {
             std::cout << boost::format("Setting TX Gain: %f dB...") % tx_gain
                       << std::endl;
@@ -386,6 +388,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                       << std::endl
                       << std::endl;
         }
+
 
         // set the analog frontend filter bandwidth
         if (vm.count("tx-bw")) {
@@ -426,7 +429,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                   << std::endl
                   << std::endl;
 
-        // set the receive rf gain
+        // set the receive rf gain ubx range: 0-31.5dB
         if (vm.count("rx-gain")) {
             std::cout << boost::format("Setting RX Gain: %f dB...") % rx_gain
                       << std::endl;
@@ -635,14 +638,40 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, 0); //save_rx = 0 so that we dont create a huge file
     });
 
+    // Noise estimation---------------------------------------------------------------------------------------------------------
+    std::cout << "Running noise estimation..." << std::endl;
+    start_tx(tx_usrp, 0x0, 0x1, 0x0);
 
-    //PN acquisition test
+    file = "usrp_samples.wired.noise.dat";
+    //Read on chip acquired data and write to binary file to be parsed by matlab
+    std::vector<std::complex<double>> cap_samps;
+    read_sample_mem(tx_usrp, cap_samps, file);
+
+    std::cout << "Samples written to file: "<< file << std::endl;
+
+    // Estimate noise
+    std::complex<double> sum = std::accumulate(std::begin(cap_samps), std::end(cap_samps), std::complex<double>{0,0});
+    //long unsigned int size->double is a narrowing but hopefully our vectors dont have this size
+    std::complex<double> mu =  sum / std::complex<double>{static_cast<double>(cap_samps.size()),0};
+
+    double accum = 0;
+    std::for_each(std::begin(cap_samps), std::end(cap_samps), [&](const std::complex<double> d) {
+        accum += std::pow(std::abs(d - mu),2);
+    });
+
+    double var = accum / (cap_samps.size()-1);
+    std::cout << "Estimated var= " << var << std::endl; //one time this gave me a negative....
+
+
+    // Timing+flatfading estimation---------------------------------------------------------------------------------------------------------------------------
     //Because our window is small, need to sweep multiple time intervals by adjusting source and dest delay. Assumes channel coherence is quite long
     //Multiple tests have confirmed wired loopback delay with 8inch sma cable + attenuator is 119, so its find to just do one interval for now
+    std::cout << "Running delay+flatfading estimation..." << std::endl;
+
     int N_sweep_intervals = 5; //50
     std::vector<int> D_hat_sweep, D_test_sweep;
     std::vector<std::complex<double>> h_hat_sweep;
-    std::vector<double> var_sweep;
+    std::vector<double> EsN0_sweep;
     
     const int DelaySweepInterval = 128;
 
@@ -661,9 +690,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             src_delay_test = 0;
         }
 
-        std::cout << std::dec << "D_test= " << D_test << std::endl;
-        std::cout << std::dec << "src_delay_test= " << src_delay_test << std::endl;
-        std::cout << std::dec << "dest_delay_test= " << dest_delay_test << std::endl;
+        // std::cout << std::dec << "D_test= " << D_test << std::endl;
+        // std::cout << std::dec << "src_delay_test= " << src_delay_test << std::endl;
+        // std::cout << std::dec << "dest_delay_test= " << dest_delay_test << std::endl;
 
         //set test delay
         //std::cout << ((0x80110000 & ~dataBits) | src_delay_test) << std::endl;
@@ -675,49 +704,163 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         //rd_mem_cmd(tx_usrp, 0x00540000,true);
 
         //Configure runtime mode-------------------------------------------------------------------------------------------
+        start_tx(tx_usrp, 0x0, 0x1, 0x2);
 
-        //bb-engine mode: active (pkt tx), sync 
-        std::uint32_t modeBits{0x0 << 2}; //modeBits: 2 bits [src,dest]. For each, 1->active, 0->sync. ex: mode 3 =>both active
-        
-        //rxChSel: controls whther the src/dest are listening to the ch-emu or afe
-        //2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
-        //ex: mode 0 =>both digital loopback
-        //ex: mode 1 =>dest rx to afe
-        //ex: mode 2 =>src rx to afe
-        std::uint32_t rxChSelBits{0x1 << 4}; //1->fwd analog loopback
-        
-        //txCoreBits: controls which engine transmits through the afe
-        //2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
-        //ex: mode 0 =>both digital loopback
-        //ex: mode 1 =>dest afe tx
-        //ex: mode 2 =>src afe tx
-        std::uint32_t txCoreBits{0x0 << 6}; //2->fwd analog loopback
+        file = "usrp_samples.wired.-10db.sync.hb.disable.dat";
 
-        file = "usrp_samples.wired.noise.dat";
-
-        uint32_t start_cmd = 0x80010002+modeBits+rxChSelBits+txCoreBits;
-        std::cout << "mode: " << (modeBits>>2) << " rxChSel: " << (rxChSelBits>>4)<< " txCore: " << (txCoreBits>>6) << std::endl; 
-        //std::cout << std::hex << std::setw(8) << std::setfill('0') << start_cmd << std::endl;
-
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 500 ms before tx is active
-        
-        //std::cout << "Start command issued...\n";
-        wr_mem_cmd(tx_usrp, start_cmd);
-
-        // std::cout << "Reading results...\n";
-        // for(const auto& cmd : read_cmds) {
-        //     rd_mem_cmd(tx_usrp, cmd,true);
-        // }
-        // std::cout << "Done printing digital loopback results...\n";
-
-        
-        //On Chip Acquisition--------------------------------------------------------------------------------
-        //Read data and write to binary file to be parsed by matlab for each preamble memory address
+        //Read data and write to binary file to be parsed by matlab 
         std::vector<std::complex<double>> cap_samps;
         read_sample_mem(tx_usrp, cap_samps, file);
 
-        std::cout << "Samples written to file" << std::endl;
+        //std::cout << "Samples written to file: "<< file << std::endl;
+
+        int N_w = static_cast<int>(cap_samps.size()); //number of captured samples
+
+        // Estimate phase
+        // Load preamble
+        std::ifstream if_file("../../../matlab/mlsr/preamble.mem"); // Open the file. Notice that this is the relative path from the executable location!!
+
+        if (!if_file.is_open()) {
+            std::cerr << "Error opening the preamble file!" << std::endl;
+            return 1;
+        }
+
+        // Read data from the file and store it as individual bits in a vector
+        std::vector<int> preamble_bits;
+        char bit;
+        while (if_file >> bit) {
+            preamble_bits.push_back(bit - '0'); // Convert character to integer (0 or 1)
+        }
+
+        int N_prmbl = static_cast<int>(preamble_bits.size());
+        if_file.close(); // Close the file
+
+        // Calculate prmbl_amp
+        const double prmbl_amp = (1 - std::pow(2, -15));
+
+        // Calculate prmbl_samps
+        std::vector<std::complex<double>> prmbl_samps;
+        for (int i = 0; i < N_prmbl; ++i) {
+            std::complex<double> val = {2 * (preamble_bits[i] - 0.5) * prmbl_amp,0};
+            prmbl_samps.push_back(val);
+        }
+
+        // // Display the values calculated
+        // std::cout << "N_prmbl: " << N_prmbl << std::endl;
+        // std::cout << "prmbl_amp: " << prmbl_amp << std::endl;
+        // std::cout << "prmbl_samps: ";
+        // for (int i = 0; i < N_prmbl; ++i) {
+        //     std::cout << prmbl_samps[i] << " ";
+        // }
+        // std::cout << std::endl;
+        
+        
+        std::vector<std::complex<double>> r;
+        std::vector<int> lags;
+        xcorr_slow(prmbl_samps,cap_samps, r, lags);
+
+        // Find the index of the maximum absolute value in vector r
+        auto max_it = std::max_element(r.begin(), r.end(), [](const std::complex<double>& a, const std::complex<double>& b) {
+            return std::abs(a) < std::abs(b);
+        }); //Finds the iterator pointing to the max element
+        int max_idx = std::distance(r.begin(), max_it); //Finds the index corresponding to that iterator
+
+        // Calculate D_hat (lag at max_idx)
+        int D_hat = lags[max_idx];
+
+
+        // // Output the cross-correlation values and corresponding lags
+        // std::cout << "Cross-correlation result:" << std::endl;
+        // for (size_t i = 0; i < r.size(); ++i) {
+        //     std::cout << std::dec << "Lag: " << lags[i] << ", Correlation: " << r[i] << std::endl;
+        // }
+        
+
+        // Our estimate depends on the number of samples captured in the capture window (of size N_w)
+        int N_samps_cap = 0;
+        if (D_hat > 0) {
+            N_samps_cap = N_w - D_hat;
+        } else if (D_hat < N_w - N_prmbl) {
+            N_samps_cap = N_prmbl + D_hat;
+        } else {
+            N_samps_cap = N_w;
+        }
+
+        // Calculate h_hat, h_hat_mag, and phi_hat
+        std::complex<double> h_hat = r[max_idx] / (N_samps_cap * std::pow(prmbl_amp, 2));
+
+        D_hat += D_test; //account for the test delay we inserted
+
+        D_test_sweep.push_back(D_test);
+        D_hat_sweep.push_back(D_hat);
+        h_hat_sweep.push_back(h_hat);
+        
+
+        //matches matlab
+        // std::cout << std::dec;
+        // std::cout << "Number of captured samples: " << N_w << std::endl;
+        // std::cout << "D_test = " << D_test << ", ";
+        // std::cout << "D_hat: " << D_hat << std::endl;
+        // std::cout << "N_samps_cap: " << N_samps_cap << std::endl;
+        // std::cout << "h_hat: " << h_hat << std::endl;
+        // std::cout << "h_hat_mag: " << std::abs(h_hat) << std::endl;
+        // std::cout << "phi_hat: " << std::arg(h_hat) << std::endl;
+
+
+        // Estimate EsN0
+        double EsN0 = 10*std::log10(std::pow(prmbl_amp*std::abs(h_hat),2)/var);
+
+        EsN0_sweep.push_back(EsN0);
+    }
+
+    //print swept estimation values
+    // Find the index of the maximum absolute value in vector r
+    std::cout << std::dec << "Sweeping done:" << std::endl;
+    for (int i = 0; i < D_hat_sweep.size(); ++i) {
+        std::cout << "D_test_sweep = " << D_test_sweep[i] << ", ";
+        std::cout << "D_hat_sweep[" << i << "] = " << D_hat_sweep[i] << ", ";
+        std::cout << "EsN0_sweep[" << i << "] = " << EsN0_sweep[i] << ", ";
+        std::cout << "h_hat_sweep[" << i << "] : abs= " << std::abs(h_hat_sweep[i]) << " arg= " << std::arg(h_hat_sweep[i]) << std::endl;
+    }
+
+    // Find the index of the maximum absolute value in vector r
+    auto max_it = std::max_element(h_hat_sweep.begin(), h_hat_sweep.end(), [](const std::complex<double>& a, const std::complex<double>& b) {
+        return std::abs(a) < std::abs(b);
+    }); //Finds the iterator pointing to the max element
+    int max_idx = std::distance(h_hat_sweep.begin(), max_it); //Finds the index corresponding to that iterator
+
+    std::complex<double> h_hat = h_hat_sweep[max_idx];
+    int D_hat = D_hat_sweep[max_idx];
+
+    if(true) {
+        //redo timing/flatfade estimation using the estimated delay to get the full preamble----------------------------------------
+        int D_test = D_hat;
+        uint16_t dest_delay_comp, src_delay_comp;
+        if (D_test < 0) { //estimated D is negative->dest starts first since preamble is early
+            dest_delay_comp = -D_test;
+            src_delay_comp = 0;
+        }
+        else { //estimated D is positive->src starts first since preamble is late
+            dest_delay_comp = 0;
+            src_delay_comp = D_test;
+        }
+
+        // std::cout << ((0x80110000 & ~dataBits) | dest_delay_comp) << std::endl;
+        // std::cout << ((0x80540000 & ~dataBits) | src_delay_comp) << std::endl;
+        wr_mem_cmd(tx_usrp, (0x80110000 & ~dataBits) | dest_delay_comp);
+        wr_mem_cmd(tx_usrp, (0x80540000 & ~dataBits) | src_delay_comp);
+
+        //Configure runtime mode--------
+        start_tx(tx_usrp, 0x0, 0x1, 0x2);
+
+        file = "usrp_samples.wired.sync.dat";
+
+        //Read data and write to binary file to be parsed by matlab 
+        std::vector<std::complex<double>> cap_samps;
+        read_sample_mem(tx_usrp, cap_samps, file);
+
+        std::cout << "Samples written to file: "<< file << std::endl;
+
         int N_w = static_cast<int>(cap_samps.size()); //number of captured samples
 
         // Estimate phase
@@ -795,62 +938,19 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
         D_hat += D_test; //account for the test delay we inserted
 
-        D_test_sweep.push_back(D_test);
-        D_hat_sweep.push_back(D_hat);
-        h_hat_sweep.push_back(h_hat);
-        
+        double EsN0 = 10*std::log10(std::pow(prmbl_amp*std::abs(h_hat),2)/var);
+
         std::cout << std::dec;
-        std::cout << "D_test = " << D_test << ", ";
+        std::cout << "D_test= " << D_test << ", ";
         std::cout << "D_hat= " << D_hat << ", ";
+        std::cout << "EsN0= " << EsN0 << ", ";
         std::cout << "h_hat : abs= " << std::abs(h_hat) << " arg= " << std::arg(h_hat) << std::endl;
-
-        //matches matlab
-        // std::cout << std::dec;
-        // std::cout << "Number of captured samples: " << N_w << std::endl;
-        // std::cout << "D_hat: " << D_hat << std::endl;
-        // std::cout << "N_samps_cap: " << N_samps_cap << std::endl;
-        // std::cout << "h_hat: " << h_hat << std::endl;
-        // std::cout << "h_hat_mag: " << std::abs(h_hat) << std::endl;
-        // std::cout << "phi_hat: " << std::arg(h_hat) << std::endl;
-
-
-        // Estimate noise
-        std::complex<double> sum = std::accumulate(std::begin(cap_samps), std::end(cap_samps), std::complex<double>{0,0});
-        //long unsigned int size->double is a narrowing but hopefully our vectors dont have this size
-        std::complex<double> mu =  sum / std::complex<double>{static_cast<double>(cap_samps.size()),0};
-
-        double accum = 0;
-        std::for_each(std::begin(cap_samps), std::end(cap_samps), [&](const std::complex<double> d) {
-            accum += std::pow(std::abs(d - mu),2);
-        });
-
-        double var = accum / (cap_samps.size()-1);
-        std::cout << "Estimated var= " << var << std::endl; //one time this gave me a negative....
-        var_sweep.push_back(var);
+        
     }
-
-    //print swept estimation values
-    // Find the index of the maximum absolute value in vector r
-    std::cout << std::dec << "Sweeping done:" << std::endl;
-    for (int i = 0; i < D_hat_sweep.size(); ++i) {
-        std::cout << "D_test_sweep = " << D_test_sweep[i] << ", ";
-        std::cout << "D_hat_sweep[" << i << "] = " << D_hat_sweep[i] << ", ";
-        std::cout << "var_sweep[" << i << "] = " << var_sweep[i] << ", ";
-        std::cout << "h_hat_sweep[" << i << "] : abs= " << std::abs(h_hat_sweep[i]) << " arg= " << std::arg(h_hat_sweep[i]) << std::endl;
-    }
-
-    // Find the index of the maximum absolute value in vector r
-    auto max_it = std::max_element(h_hat_sweep.begin(), h_hat_sweep.end(), [](const std::complex<double>& a, const std::complex<double>& b) {
-        return std::abs(a) < std::abs(b);
-    }); //Finds the iterator pointing to the max element
-    int max_idx = std::distance(h_hat_sweep.begin(), max_it); //Finds the index corresponding to that iterator
-
-    std::complex<double> h_hat = h_hat_sweep[max_idx];
-    int D_hat = D_hat_sweep[max_idx];
-
-
+    
 
     //Compensation-----------------------------------------------------------------------------------------------------------
+    std::cout << "Performing compensation..." << std::endl;
     // Get the real and imaginary components of 1/h_hat
     std::complex<double> reciprocal_h_hat = 1.0 / h_hat;
     std::cout << reciprocal_h_hat << std::endl;
@@ -901,7 +1001,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << ((0x80540000 & ~dataBits) | src_delay_comp) << std::endl;
     wr_mem_cmd(tx_usrp, (0x80110000 & ~dataBits) | dest_delay_comp);
     wr_mem_cmd(tx_usrp, (0x80540000 & ~dataBits) | src_delay_comp);
-    
+    //ENDPOINT: Change the halfband and see what happens, measure the delay    
 
         // tx_usrp->set_gpio_attr("FP0", "OUT", read_cmds[i]);
 
