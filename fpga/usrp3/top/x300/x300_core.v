@@ -717,6 +717,12 @@ module x300_core #(
 
    );
 
+   reg [31:0] fp_gpio_test;
+   always @(posedge radio_clk) begin
+      fp_gpio_test <= fp_gpio_r_out[1];
+   end
+   assign fp_gpio_r_in[1] = fp_gpio_test;
+
    //
 
    // wire [15:0] scale_val;
