@@ -446,7 +446,7 @@ bool x300_mb_controller::synchronize(std::vector<mb_controller::sptr>& mb_contro
     const double radio_clk_rate = _clock_ctrl->get_master_clock_rate();
     std::string err_str;
     // Try to sync 3 times before giving up
-    constexpr size_t MAX_ATTEMPTS = 3;
+    constexpr size_t MAX_ATTEMPTS = 3; // WW - DAC sync occurs here
     for (size_t attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         try {
             // Reinitialize and resync all DACs

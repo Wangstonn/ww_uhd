@@ -23,7 +23,7 @@ endif()
 # Choose a static or shared-library build (shared is default, and static will
 # probably need some special care!)
 # Set this to ON in order to link a static build of UHD:
-option(UHD_USE_STATIC_LIBS OFF)
+option(UHD_USE_STATIC_LIBS ON)
 
 # To add UHD as a dependency to this project, add a line such as this:
 find_package(UHD 4.2.0 REQUIRED)
@@ -57,7 +57,8 @@ add_executable(osla_host osla_host.cpp)
 
 # WW - add c++ functions
 add_subdirectory(src/xcorr_slow)
-target_link_libraries(osla_host xcorr_slow)
+add_subdirectory(src/mmio)
+target_link_libraries(osla_host xcorr_slow mmio)
 
 set(CMAKE_BUILD_TYPE "Release")
 message(STATUS "******************************************************************************")
