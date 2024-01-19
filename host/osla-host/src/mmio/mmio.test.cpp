@@ -24,6 +24,7 @@
 #include <iostream>
 #include <thread>
 #include <random>
+#include <chrono>
 
 #include "mmio.h"
 
@@ -720,8 +721,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
         std::ofstream of_file(file, std::ios::binary | std::ios::trunc);
         //speed test result: 10 mil samps -> 16 hrs
-        for(int i = 0; i < NumPrmblSamps; i++)
+        // Record the start time
+        auto start_time = std::chrono::high_resolution_clock::now();
+        for(int ii = 0; ii < 5; ii++) 
         {
+            for(int i = 0; i < NumPrmblSamps; i++)
+            {
             
             if (of_file.is_open()) {
                 uint32_t cmd = 0;
@@ -751,13 +756,22 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                 std::cerr << "Unable to open file for appending." << std::endl;
             }
 
+            }
         }
+
         
         // Close the file
         of_file.close();
 
         std::cout << "Samples written to file" << std::endl;
         int N_w = static_cast<int>(cap_samps.size()); //number of captured samples
+        auto end_time = std::chrono::high_resolution_clock::now();
+
+        // Calculate the elapsed time
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+
+        // Print the result and execution time
+        std::cout << "Execution time: " << duration.count() << " microseconds" << std::endl;
 
        
     }

@@ -456,6 +456,14 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             rx_usrp->set_rx_antenna(rx_ant, channel);
     }
 
+    //print options
+    std::vector<std::string> gpio_banks;
+    gpio_banks = tx_usrp->get_gpio_banks(0);
+    for(const auto& bank : gpio_banks) {
+        std::cout << bank << std::endl;
+    }
+    
+
 
     
     // for the const wave, set the wave freq for small samples per period
@@ -640,7 +648,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     // Noise estimation---------------------------------------------------------------------------------------------------------
     std::cout << "Running noise estimation..." << std::endl;
-    start_tx(tx_usrp, 0x0, 0x1, 0x0);
+    start_tx(tx_usrp, 0x0, 0x1, 0x0, 0x0);
 
     file = "usrp_samples.wired.noise.dat";
     //Read on chip acquired data and write to binary file to be parsed by matlab
@@ -704,7 +712,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         //rd_mem_cmd(tx_usrp, 0x00540000,true);
 
         //Configure runtime mode-------------------------------------------------------------------------------------------
-        start_tx(tx_usrp, 0x0, 0x1, 0x2);
+        start_tx(tx_usrp, 0x0, 0x1, 0x2, 0x0);
 
         file = "test.dat";
 
@@ -851,7 +859,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         wr_mem_cmd(tx_usrp, (0x80540000 & ~dataBits) | src_delay_comp);
 
         //Configure runtime mode--------
-        start_tx(tx_usrp, 0x0, 0x1, 0x2);
+        start_tx(tx_usrp, 0x0, 0x1, 0x2, 0x0);
 
         file = "test.dat";
 

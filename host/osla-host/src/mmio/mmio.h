@@ -19,6 +19,6 @@ constexpr std::uint32_t isValid{0x08000002}; //dest done tx
 uint32_t rd_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t cmd, bool verbose = false, const int ms_delay = 1);
 void wr_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t cmd, const int ms_delay = 1);
 void read_sample_mem(uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std::complex<double>>& cap_samps, const std::string file);
-void start_tx(uhd::usrp::multi_usrp::sptr tx_usrp, std::uint32_t modeBits, std::uint32_t rxChSelBits, std::uint32_t txCoreBits);
+void start_tx(uhd::usrp::multi_usrp::sptr tx_usrp, std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits);
 
 #endif  // MMIO_H
