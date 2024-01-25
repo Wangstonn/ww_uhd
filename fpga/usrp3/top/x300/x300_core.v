@@ -701,8 +701,13 @@ module x300_core #(
       .radio_rst(radio_rst),
 
       //MMIO interface
-      .i_mmio(fp_gpio_r_out[0]),
-      .o_mmio_r(fp_gpio_r_in[0]),
+      //.i_mmio(fp_gpio_r_out[0]),
+      //.o_mmio_r(fp_gpio_r_in[0]),
+
+      .i_mmio_cmd(fp_gpio_r_out[1]),
+      .i_mmio_data(fp_gpio_r_out[0]),
+      .o_mmio_cmd_r(fp_gpio_r_in[1]),
+      .o_mmio_data_r(fp_gpio_r_in[0]),
 
       //iq samples
       .i_rx_data(rx_data_r[0][31:0]),
@@ -716,11 +721,11 @@ module x300_core #(
 
    );
 
-   reg [31:0] fp_gpio_test;
-   always @(posedge radio_clk) begin
-      fp_gpio_test <= fp_gpio_r_out[1];
-   end
-   assign fp_gpio_r_in[1] = fp_gpio_test;
+   // reg [31:0] fp_gpio_test;
+   // always @(posedge radio_clk) begin
+   //    fp_gpio_test <= fp_gpio_r_out[1];
+   // end
+   // assign fp_gpio_r_in[1] = fp_gpio_test;
 
    //
 
