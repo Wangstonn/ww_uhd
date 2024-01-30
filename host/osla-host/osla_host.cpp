@@ -27,6 +27,7 @@
 
 #include "src/mmio/mmio.h"
 #include "src/xcorr_slow/xcorr_slow.h"
+#include "src/estim/estim.h"
 
 namespace po = boost::program_options;
 
@@ -231,7 +232,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("ref", po::value<std::string>(&ref)->default_value("internal"), "clock reference (internal, external, mimo)")
         
         //streaming to file
-        ("file", po::value<std::string>(&file)->default_value("usrp_samples.dat"), "name of the file to write binary samples to")
+        ("file", po::value<std::string>(&file)->default_value("stream_samps.dat"), "name of the file to write binary samples to")
         ("save-file", po::value<size_t>(&save_file)->default_value(0), "save file option")
         ("type", po::value<std::string>(&type)->default_value("short"), "sample type in file: double, float, or short")
         ("otw", po::value<std::string>(&otw)->default_value("sc16"), "specify the over-the-wire sample mode")
@@ -573,50 +574,43 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //--------------------------------------------------
 
     //Load phases and thresholds
-    std::vector<uint32_t> write_cmds = {
-        0x80000000,
-        0x80010001,
-        0x80101DED,          
-        //0x80110000,
-        0x8020CE94,          //32'h8020FFFF,
-        0x8021E12A,          //32'h8021FFFF,
-        0x8050A000,
-        0x80510005,
-        0x80520453,
-        0x80533937,
-        //0x80540000, //dest delay, should be 0x80540009
-        0x8060030B,
-        0x80613DD1,
-        0x8062223C,
-        0x8063CA59
+    std::vector<uint64_t> write_cmds = {
+        0x80000000'00000000,
+        0x80000001'00000001,
+        0x80000010'00001DED,
+        0x80000011'00000000,
+        0x80000020'E12ACE94,
+        0x80000030'0005A000,
+        0x80000031'00000453,
+        0x80000032'00003937,
+        0x80000033'00000000,
+        0x80000040'0000030B,
+        0x80000041'00003DD1,
+        0x80000042'0000223C,
+        0x80000043'0000CA59
     };
+
 
     //Readback input bit, phase, and threshold settings, valid and done, and pkt out
     std::vector<uint32_t> read_cmds = {
         0x00000000,
-        0x00010000,
-        0x00100000,
-        0x00110000,
-        0x00200000,
-        0x00210000,
-        0x00500000,
-        0x00510000,
-        0x00520000,
-        0x00530000,
-        0x00540000,
-        0x00600000,
-        0x00610000,
-        0x00620000,
-        0x00630000,
+        0x00000001,
+        0x00000010,
+        0x00000011,
+        0x00000020,
+        0x00000030,
+        0x00000031,
+        0x00000032,
+        0x00000033,
+        0x00000040,
+        0x00000041,
+        0x00000042,
+        0x00000043,
         
-        0x08000000, //valid and done
-        0x08100000, //pkt out
-        0x08110000, //pkt out
-
-        0x0C000000,
-        0x0DFF0000,
-        0x0E000000,
-        0x0FFF0000
+        0x00000800,
+        0x00000810,
+        0x00000A00,
+        0x00000BFF
     };
 
     //Preload some default threshold and angle settings
@@ -624,12 +618,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     for(const auto& cmd : write_cmds) {
         wr_mem_cmd(tx_usrp, cmd);
     }
-
-    // std::cout << "Readback...\n";
-    // for(const auto& cmd : read_cmds) {
-    //     rd_mem_cmd(tx_usrp, cmd,true);
-    // }
-
     
     //Start tx and streaming
     // start transmit worker thread
@@ -641,6 +629,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // However, given how transmit_worker sets the tx settings (tx_running), its very possible that rx settings need to be set for proper operation
     // Ordinary operation of recv_to_file will lock out the rest of the c++ code, so try putting it in a thread so that it can execute indefinitely just like transmit_worker
     // This will block streaming though. If you want to record samples you that will have to modify recv_to_file to write to file for only part of the time recv to file is active.
+    //  Or separately call this after a run is complete to capture strobed data...
     std::thread recv_thread([&]() {
         recv_to_file<std::complex<double>>(
             rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, 0); //save_rx = 0 so that we dont create a huge file
@@ -648,12 +637,11 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     // Noise estimation---------------------------------------------------------------------------------------------------------
     std::cout << "Running noise estimation..." << std::endl;
-    start_tx(tx_usrp, 0x0, 0x1, 0x0, 0x0);
+    start_tx(tx_usrp, 0x0, 0x1, 0x0, 0x0); //Mode zero, only listen at src (no tx)
 
-    file = "usrp_samples.wired.noise.dat";
     //Read on chip acquired data and write to binary file to be parsed by matlab
     std::vector<std::complex<double>> cap_samps;
-    read_sample_mem(tx_usrp, cap_samps, file);
+    read_sample_mem(tx_usrp, cap_samps, "usrp_samples.wired.noise.dat");
 
     std::cout << "Samples written to file: "<< file << std::endl;
 
@@ -676,11 +664,17 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //Multiple tests have confirmed wired loopback delay with 8inch sma cable + attenuator is 119, so its find to just do one interval for now
     std::cout << "Running delay+flatfading estimation..." << std::endl;
 
-    int N_sweep_intervals = 5; //50
+    int N_sweep_intervals = 5; //5
     std::vector<int> D_hat_sweep, D_test_sweep;
     std::vector<std::complex<double>> h_hat_sweep;
     std::vector<double> EsN0_sweep;
     
+    std::uint32_t mode_bits{0x0};
+    std::uint32_t rx_ch_sel_bits{0x01}; 
+    std::uint32_t tx_core_bits{0x02}; 
+    std::uint32_t gpio_start_sel_bits{0x1};
+
+
     const int DelaySweepInterval = 128;
 
     for(int interval_idx = -N_sweep_intervals/2; interval_idx <= N_sweep_intervals/2; interval_idx++) {
@@ -688,37 +682,15 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         int D_test = interval_idx * DelaySweepInterval; //D_test is the delay between src and dest we set. This is the opposite of D_comp's logic
         
         
-        uint16_t dest_delay_test, src_delay_test;
-        if (D_test < 0) { //estimated D is negative->dest starts first since preamble is early
-            dest_delay_test = 0;
-            src_delay_test = -D_test;
-        }
-        else { 
-            dest_delay_test = D_test;
-            src_delay_test = 0;
-        }
-
-        // std::cout << std::dec << "D_test= " << D_test << std::endl;
-        // std::cout << std::dec << "src_delay_test= " << src_delay_test << std::endl;
-        // std::cout << std::dec << "dest_delay_test= " << dest_delay_test << std::endl;
-
-        //set test delay
-        //std::cout << ((0x80110000 & ~dataBits) | src_delay_test) << std::endl;
-        //std::cout << ((0x80540000 & ~dataBits) | dest_delay_test) << std::endl;
-        wr_mem_cmd(tx_usrp, (0x80110000 & ~dataBits) | src_delay_test);
-        wr_mem_cmd(tx_usrp, (0x80540000 & ~dataBits) | dest_delay_test);
-
-        //rd_mem_cmd(tx_usrp, 0x00110000,true);
-        //rd_mem_cmd(tx_usrp, 0x00540000,true);
+        compensateDelays(tx_usrp, -D_test);
 
         //Configure runtime mode-------------------------------------------------------------------------------------------
-        start_tx(tx_usrp, 0x0, 0x1, 0x2, 0x0);
-
-        file = "test.dat";
+        start_tx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits); //wired loopback
 
         //Read data and write to binary file to be parsed by matlab 
         std::vector<std::complex<double>> cap_samps;
-        read_sample_mem(tx_usrp, cap_samps, file);
+        read_sample_mem(tx_usrp, cap_samps, ""); //dont write to file since itll be overwritten
+
 
         //std::cout << "Samples written to file: "<< file << std::endl;
 
@@ -797,7 +769,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         // Calculate h_hat, h_hat_mag, and phi_hat
         std::complex<double> h_hat = r[max_idx] / (N_samps_cap * std::pow(prmbl_amp, 2));
 
-        D_hat += D_test; //account for the test delay we inserted
+        D_hat += -D_test; //account for the test delay we inserted
 
         D_test_sweep.push_back(D_test);
         D_hat_sweep.push_back(D_hat);
@@ -843,29 +815,15 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     if(true) {
         //redo timing/flatfade estimation using the estimated delay to get the full preamble----------------------------------------
         int D_test = D_hat;
-        uint16_t dest_delay_comp, src_delay_comp;
-        if (D_test < 0) { //estimated D is negative->dest starts first since preamble is early
-            dest_delay_comp = -D_test;
-            src_delay_comp = 0;
-        }
-        else { //estimated D is positive->src starts first since preamble is late
-            dest_delay_comp = 0;
-            src_delay_comp = D_test;
-        }
+        compensateDelays(tx_usrp, D_test);
 
-        // std::cout << ((0x80110000 & ~dataBits) | dest_delay_comp) << std::endl;
-        // std::cout << ((0x80540000 & ~dataBits) | src_delay_comp) << std::endl;
-        wr_mem_cmd(tx_usrp, (0x80110000 & ~dataBits) | dest_delay_comp);
-        wr_mem_cmd(tx_usrp, (0x80540000 & ~dataBits) | src_delay_comp);
 
         //Configure runtime mode--------
-        start_tx(tx_usrp, 0x0, 0x1, 0x2, 0x0);
-
-        file = "test.dat";
+        start_tx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits); //loopback
 
         //Read data and write to binary file to be parsed by matlab 
         std::vector<std::complex<double>> cap_samps;
-        read_sample_mem(tx_usrp, cap_samps, file);
+        read_sample_mem(tx_usrp, cap_samps, "usrp_samples.wired.dat");
 
         std::cout << "Samples written to file: "<< file << std::endl;
 
@@ -987,29 +945,18 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //std::cout << (dest_ch_eq_im_int16 >> 2)  << std::endl;        //0x80533937,
     // //3937 is approx f93d, since last two bits are ignored by device
     
-    std::cout << std::hex;
-    std::cout << ((0x80520453 & ~dataBits)|dest_ch_eq_re_int14) << std::endl;
-    std::cout << ((0x80533937 & ~dataBits)|dest_ch_eq_im_int14) << std::endl;
-    wr_mem_cmd(tx_usrp, (0x80520453 & ~dataBits) | dest_ch_eq_re_int14);
-    wr_mem_cmd(tx_usrp, (0x80533937 & ~dataBits) | dest_ch_eq_im_int14);
+    // std::cout << std::hex;
+    // std::cout << ((0x80000031 << 32)|dest_ch_eq_re_int14) << std::endl;
+    // std::cout << ((0x80000032 << 32)|dest_ch_eq_im_int14) << std::endl;
+    wr_mem_cmd(tx_usrp, ((0x80000031'00000000) | dest_ch_eq_re_int14));
+    wr_mem_cmd(tx_usrp, ((0x80000032'00000000) | dest_ch_eq_im_int14));
 
 
     int D_eff = D_hat + 4;
-    uint16_t dest_delay_comp, src_delay_comp;
-    if (D_eff < 0) { //estimated D is negative->dest starts first since preamble is early
-        dest_delay_comp = -D_eff;
-        src_delay_comp = 0;
-    }
-    else { //estimated D is positive->src starts first since preamble is late
-        dest_delay_comp = 0;
-        src_delay_comp = D_eff;
-    }
+    compensateDelays(tx_usrp, D_eff);
+    
 
-    std::cout << ((0x80110000 & ~dataBits) | dest_delay_comp) << std::endl;
-    std::cout << ((0x80540000 & ~dataBits) | src_delay_comp) << std::endl;
-    wr_mem_cmd(tx_usrp, (0x80110000 & ~dataBits) | dest_delay_comp);
-    wr_mem_cmd(tx_usrp, (0x80540000 & ~dataBits) | src_delay_comp);
-    //ENDPOINT: Change the halfband and see what happens, measure the delay    
+    //------------------------------------------------------------------------------------------------------------
 
         // tx_usrp->set_gpio_attr("FP0", "OUT", read_cmds[i]);
 
@@ -1150,90 +1097,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     // std::cout << "Test done" << std::endl;
     // std::cout << "Num errors: " << std::dec << n_errors << std::endl;
-
-
-
-    //Reset 
-    /*
-
-    for(int i=0;i<3;i++){
-
-        tx_usrp->set_gpio_attr("FP0", "OUT", rst_cmd); std::this_thread::sleep_for(std::chrono::milliseconds(10000)); 
-
-        tx_usrp->set_gpio_attr("FP0", "OUT", start_cmd); std::this_thread::sleep_for(std::chrono::milliseconds(10)); 
-
-        std::cout << "Reset and run again " << i << std::endl;
-
-        rd_mem_cmd(tx_usrp, 0x08000000); //Check done/valied 
-
-        rd_mem_cmd(tx_usrp, 0x08100000); //Check bits 1-16
-
-        rd_mem_cmd(tx_usrp, 0x08110000); //Check bits 17-32
-
-
-        //debug
-        rd_mem_cmd(tx_usrp, 0x08200000); //db-fb-counter
-
-        rd_mem_cmd(tx_usrp, 0x08210000); //db-dest-rx-1
-
-        rd_mem_cmd(tx_usrp, 0x08220000); //db-src-next-pkt-idx
-
-        rd_mem_cmd(tx_usrp, 0x08300000); //db-dest-pkt-idx
-			 
-    }
-     
-    */
-
-    
-
-
-
-
-    // }
-
-    // std::cout << "Print output\n";
-
-    // for(int i=0;i<3;i++){
-    //     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[29], mask);
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-    //     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[2], mask);
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(10000));
-
-	//     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[18], mask);
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
-	//     std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
-
-
-	//     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[19], mask);
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
-	//     std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
-
-        
-	//     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[20], mask);
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
-	//     std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl; 
-        
-    // }
-
-
-    // while(!pkt_done)
-    // {
-	// tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[18], mask);
-        
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
-	// std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg;
-        
-	// pkt_done = (output_reg & isValid) == isValid;
- // remember to reset
-    // }
-    
-
-  
     //////////////////////////////////////////////////////////////////////////////////////////////////
 
 

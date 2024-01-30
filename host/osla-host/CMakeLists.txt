@@ -11,7 +11,7 @@ project(OSLA_HOST CXX)
 #list(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_SOURCE_DIR}/cmake/Modules)
 
 ### Configure Compiler ########################################################
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD" AND ${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
     set(CMAKE_EXE_LINKER_FLAGS "-lthr ${CMAKE_EXE_LINKER_FLAGS}")
@@ -58,7 +58,8 @@ add_executable(osla_host osla_host.cpp)
 # WW - add c++ functions
 add_subdirectory(src/xcorr_slow)
 add_subdirectory(src/mmio)
-target_link_libraries(osla_host xcorr_slow mmio)
+add_subdirectory(src/estim)
+target_link_libraries(osla_host xcorr_slow mmio estim)
 
 set(CMAKE_BUILD_TYPE "Release")
 message(STATUS "******************************************************************************")

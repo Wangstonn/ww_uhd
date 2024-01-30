@@ -232,7 +232,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("ref", po::value<std::string>(&ref)->default_value("internal"), "clock reference (internal, external, mimo)")
         
         //streaming to file
-        ("file", po::value<std::string>(&file)->default_value("usrp_samples.dat"), "name of the file to write binary samples to")
+        ("file", po::value<std::string>(&file)->default_value("stream_samps.dat"), "name of the file to write binary samples to")
         ("save-file", po::value<size_t>(&save_file)->default_value(0), "save file option")
         ("type", po::value<std::string>(&type)->default_value("short"), "sample type in file: double, float, or short")
         ("otw", po::value<std::string>(&otw)->default_value("sc16"), "specify the over-the-wire sample mode")
@@ -563,52 +563,44 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //--------------------------------------------------
 
     //Load phases and thresholds
-    std::vector<uint32_t> write_cmds = {
-        0x80000000,
-        0x80010001,
-        0x80101DED,          
-        //0x80110000,
-        0x8020CE94,          //32'h8020FFFF,
-        0x8021E12A,          //32'h8021FFFF,
-        0x8050A000,
-        0x80510005,
-        0x80520453,
-        0x80533937,
-        //0x80540000, //dest delay, should be 0x80540009
-        0x8060030B,
-        0x80613DD1,
-        0x8062223C,
-        0x8063CA59
+    std::vector<uint64_t> write_cmds = {
+        0x80000000'00000000,
+        0x80000001'00000001,
+        0x80000010'00001DED,
+        0x80000011'00000000,
+        0x80000020'E12ACE94,
+        0x80000030'0005A000,
+        0x80000031'00000453,
+        0x80000032'00003937,
+        0x80000033'00000000,
+        0x80000040'0000030B,
+        0x80000041'00003DD1,
+        0x80000042'0000223C,
+        0x80000043'0000CA59
     };
+
 
     //Readback input bit, phase, and threshold settings, valid and done, and pkt out
     std::vector<uint32_t> read_cmds = {
         0x00000000,
-        0x00010000,
-        0x00100000,
-        0x00110000,
-        0x00200000,
-        0x00210000,
-        0x00500000,
-        0x00510000,
-        0x00520000,
-        0x00530000,
-        0x00540000,
-        0x00600000,
-        0x00610000,
-        0x00620000,
-        0x00630000,
+        0x00000001,
+        0x00000010,
+        0x00000011,
+        0x00000020,
+        0x00000030,
+        0x00000031,
+        0x00000032,
+        0x00000033,
+        0x00000040,
+        0x00000041,
+        0x00000042,
+        0x00000043,
         
-        0x08000000, //valid and done
-        0x08100000, //pkt out
-        0x08110000, //pkt out
-
-        0x0C000000,
-        0x0DFF0000,
-        0x0E000000,
-        0x0FFF0000
+        0x00000800,
+        0x00000810,
+        0x00000A00,
+        0x00000BFF
     };
-
     
     //Start tx and streaming
     // start transmit worker thread
@@ -625,7 +617,121 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, 0); //save_rx = 0 so that we dont create a huge file
     });
 
+    /*
+    //Basic MMIO development - simple read and write
+    //write
+    std::cout << "\nBasic MMIO test..." << std::endl;
+    tx_usrp->set_gpio_attr("FP0A", "OUT", 0x0); 
+    tx_usrp->set_gpio_attr("FP0B", "OUT", 0x0); 
 
+    uint64_t test_wr_cmd = 0x80000020'E12ACE94;
+    uint32_t test_rd_cmd = 0x00000020;
+
+    tx_usrp->set_gpio_attr("FP0A", "OUT", static_cast<uint32_t>(test_wr_cmd)); 
+    tx_usrp->set_gpio_attr("FP0B", "OUT", static_cast<uint32_t>(test_wr_cmd >> 32)); 
+    std::this_thread::sleep_for(std::chrono::nanoseconds(5)); //Arguably no delay is necessary per https://stackoverflow.com/questions/18071664/stdthis-threadsleep-for-and-nanoseconds 
+    
+    std::cout << std::hex << std::setw(16) << std::setfill('0') << "Output after write: " << tx_usrp->get_gpio_attr("FP0B", "READBACK") << std::endl; 
+    std::cout << std::hex << std::setw(16) << std::setfill('0') << "Output after write: " << tx_usrp->get_gpio_attr("FP0A", "READBACK") << std::endl; 
+
+    tx_usrp->set_gpio_attr("FP0B", "OUT", test_rd_cmd); 
+    std::this_thread::sleep_for(std::chrono::nanoseconds(5)); 
+    std::cout << std::hex << std::setw(16) << std::setfill('0') << "Output after read: " <<tx_usrp->get_gpio_attr("FP0A", "READBACK") << std::endl; 
+    */
+
+    
+    //Full readback test
+    //Threshold and angle settings
+    std::cout << "\nFull readback test...\n";
+    std::cout << "Writing to mmio...\n";
+    for(const auto& cmd : write_cmds) {
+        wr_mem_cmd(tx_usrp, cmd);
+    }
+
+    std::cout << "Readback...\n";
+    for(const auto& cmd : read_cmds) {
+        rd_mem_cmd(tx_usrp, cmd,true);
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 500 ms before tx is active
+    
+    //set digital loopback
+    std::uint32_t mode_bits_shift{0x0 << 2};
+    std::uint32_t rx_ch_sel_bits_shift{0x0 << 4}; 
+    std::uint32_t tx_core_bits_shift{0x0 << 6}; 
+    std::uint32_t gpio_start_sel_bits_shift{0x0 << 8};
+
+    uint64_t start_cmd = 0x80000001'00000002+mode_bits_shift+rx_ch_sel_bits_shift+tx_core_bits_shift+gpio_start_sel_bits_shift;
+    std::cout << "Start command issued...\n";
+    //wr_mem_cmd(tx_usrp, start_cmd);
+    start_tx(tx_usrp, 0x0, 0x1, 0x2, 0x0); //wired loopback
+
+    std::cout << "Reading results...\n";
+    for(const auto& cmd : read_cmds) {
+        rd_mem_cmd(tx_usrp, cmd,true);
+    }
+    std::cout << "Done printing digital loopback results...\n";
+
+    
+    //On-chip acquisition test
+    std::cout << "\nOn chip acquisition test...\n";
+    std::vector<std::complex<double>> cap_samps;
+
+
+    read_sample_mem(tx_usrp, cap_samps, "file_samps.dat");
+    int i = 0;
+    for(const auto& samp : cap_samps) {
+        std::cout << std::dec << i << " " << samp << std::endl;
+        i++;
+    }
+
+
+    /*
+    const int NumPrmblSamps_test = 512;
+    
+    const uint16_t PrmblStartAddr_test = 0xA00;
+    
+
+    file = "test1.dat";
+    std::ofstream of_file(file, std::ios::binary | std::ios::trunc);
+
+    for(int i = 0; i < NumPrmblSamps_test; i++)
+    {
+        if (of_file.is_open()) {
+            uint32_t cmd = 0;
+            cmd  = (cmd & ~addrBits) | (PrmblStartAddr_test+i);
+            cmd  = (cmd & ~cmdBits) | (0<<31);
+            uint32_t prmbl_samp = static_cast<uint32_t>(rd_mem_cmd(tx_usrp, cmd));
+
+            uint16_t prmbl_samp_I, prmbl_samp_Q;
+            prmbl_samp_I = static_cast<uint16_t>(prmbl_samp >> 16); //shouldnt do sign extension
+            prmbl_samp_Q = static_cast<uint16_t>(prmbl_samp & 0x0000FFFF);
+            // Write the 32 bits to the file
+            of_file.write(reinterpret_cast<const char*>(&prmbl_samp_I), sizeof(prmbl_samp_I));
+            of_file.write(reinterpret_cast<const char*>(&prmbl_samp_Q), sizeof(prmbl_samp_Q));
+
+            // Write sample to vector
+            std::complex<double> samp = {static_cast<double>(prmbl_samp_I),static_cast<double>(prmbl_samp_Q)};
+            // Scale this to where we expect the "decimal point" is
+            samp *= static_cast<std::complex<double>>(pow(2, -8));
+            cap_samps.push_back(samp);
+            std::cout << std::dec << i << " " << samp << std::endl;
+
+        } else {
+            std::cerr << "Unable to open file for appending." << std::endl;
+        }
+
+    }
+    
+    // Close the file
+    of_file.close();
+
+    std::cout << "Samples written to file" << std::endl;
+    */
+
+
+   
+/*
     //PN acquisition test
     //Because our window is small, need to sweep multiple time intervals by adjusting source and dest delay. Assumes channel coherence is quite long
     //Multiple tests have confirmed wired loopback delay with 8inch sma cable + attenuator is 119, so its find to just do one interval for now
@@ -700,7 +806,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         // }
 
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(480)); //Need to sleep for at least 480 ms before tx is active
+        std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 500 ms before tx is active
         //std::cout << "Start command issued...\n";
         wr_mem_cmd(tx_usrp, start_cmd);
 
@@ -721,9 +827,11 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
         std::ofstream of_file(file, std::ios::binary | std::ios::trunc);
         //speed test result: 10 mil samps -> 16 hrs
+        //51200 samples: nanosleep: 40 sec
+        //nosleep: 30
         // Record the start time
         auto start_time = std::chrono::high_resolution_clock::now();
-        for(int ii = 0; ii < 5; ii++) 
+        for(int ii = 0; ii < 100; ii++) 
         {
             for(int i = 0; i < NumPrmblSamps; i++)
             {
@@ -775,6 +883,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
        
     }
+*/
+    
 
     // clean up transmit worker
     stop_signal_called = true;
