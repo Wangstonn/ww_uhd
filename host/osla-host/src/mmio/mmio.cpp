@@ -151,8 +151,8 @@ void wr_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint64_t cmd)
 // }
 
 //Hardcode here because I dont anticipate switching between different mmios
-const int NumPrmblSamps = 512;
-const uint16_t PrmblStartAddr = 0xA00;
+const int NumPrmblSamps = 1024;
+const uint32_t PrmblStartAddr = 0x02000000;
 
 /**
  * Loops through the MMIO and reads each of the samples. If there is a valid of_file object, then write to that file. 

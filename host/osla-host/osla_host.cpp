@@ -609,8 +609,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         
         0x00000800,
         0x00000810,
-        0x00000A00,
-        0x00000BFF
+        0x00000819,
+        0x02000000,
+        0x020003FF
     };
 
     //Preload some default threshold and angle settings
@@ -956,20 +957,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     compensateDelays(tx_usrp, D_eff);
     
 
-    //------------------------------------------------------------------------------------------------------------
-
-        // tx_usrp->set_gpio_attr("FP0", "OUT", read_cmds[i]);
-
-    // output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
-    // std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
-    // std::this_thread::sleep_for(std::chrono::milliseconds(1));
-
-    // for(int i=1;i<18;i=i+2){
-    //     tx_usrp->set_gpio_attr("FP0", "OUT", bit_cmds[i], mask);
-        
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    //     output_reg = tx_usrp->get_gpio_attr("FP0", "READBACK");
-    //     std::cout << std::hex << std::setw(8) << std::setfill('0') << output_reg << std::endl;
+    //-----------------------------------------------------------------------------------------------------------
 
 
   // //BER test

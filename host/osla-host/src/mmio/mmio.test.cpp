@@ -598,8 +598,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         
         0x00000800,
         0x00000810,
-        0x00000A00,
-        0x00000BFF
+        0x00000819,
+        0x02000000,
+        0x020003FF
     };
     
     //Start tx and streaming
@@ -677,13 +678,15 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << "\nOn chip acquisition test...\n";
     std::vector<std::complex<double>> cap_samps;
 
-
+    
     read_sample_mem(tx_usrp, cap_samps, "file_samps.dat");
     int i = 0;
     for(const auto& samp : cap_samps) {
         std::cout << std::dec << i << " " << samp << std::endl;
         i++;
     }
+    
+    
 
 
     /*
