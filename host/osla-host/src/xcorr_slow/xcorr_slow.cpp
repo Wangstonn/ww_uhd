@@ -2,6 +2,24 @@
 #include <complex>
 #include "xcorr_slow.h"
 
+/**
+ * @brief Computes the cross-correlation of two complex-valued vectors.
+ *
+ * The function calculates the cross-correlation between two input vectors, `x` and `y`, and stores the results in the output vectors `r` and `lags`.
+ * Cross-correlation is a measure of similarity between two signals as a function of the time lag applied to one of them.
+ *
+ * @param x Input vector representing the first complex signal. It is conjugated and dragged over y
+ * @param y Input vector representing the second complex signal.
+ * @param r Output vector containing the cross-correlation values.
+ * @param lags Output vector containing the corresponding time lags for each cross-correlation value.
+ *
+ * @details The function uses a nested loop to iterate over all possible time lags within the range [-n+1, m-1].
+ *          For each lag, it calculates the cross-correlation sum by multiplying the complex conjugate of `x`
+ *          with the corresponding element in `y`. The results are stored in the output vectors `r` and `lags`.
+ *
+ * @note The input vectors `x` and `y` must be of complex type, and the output vectors `r` and `lags` are modified in place.
+ *
+ */
 void xcorr_slow(const std::vector<std::complex<double>>& x, const std::vector<std::complex<double>>& y, std::vector<std::complex<double>>& r, std::vector<int>& lags) {
     int n = static_cast<int>(x.size());
     int m = static_cast<int>(y.size());
