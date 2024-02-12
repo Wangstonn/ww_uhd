@@ -151,13 +151,12 @@ void wr_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint64_t cmd)
 // }
 
 //Hardcode here because I dont anticipate switching between different mmios
-const int NumPrmblSamps = 1024;
 const uint32_t PrmblStartAddr = 0x02000000;
 
 /**
  * Loops through the MMIO and reads each of the samples. If there is a valid of_file object, then write to that file. 
 */
-void read_samples_helper(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std::complex<double>>& cap_samps, std::ofstream& of_file) {
+void read_samples_helper(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std::complex<double>>& cap_samps, const int NumPrmblSamps, std::ofstream& of_file) {
     for(int i = 0; i < NumPrmblSamps; i++) {
         uint32_t cmd = 0;
         cmd  = (cmd & ~addrBits) | (PrmblStartAddr+i);
@@ -191,7 +190,7 @@ void read_samples_helper(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<
  * @param cap_samps vector that will be cleared and filled with captured IQ samples
  * @return void
  */
-void read_sample_mem(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std::complex<double>>& cap_samps, const std::string& file = "") {
+void read_sample_mem(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std::complex<double>>& cap_samps, const int NumPrmblSamps = pow(2,12), const std::string& file = "") {
     if (!file.empty()) {
         std::ofstream of_file(file, std::ios::binary | std::ios::trunc);
 
@@ -201,7 +200,7 @@ void read_sample_mem(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std:
         }
 
         // Call the helper function for reading samples
-        read_samples_helper(tx_usrp, cap_samps, of_file);
+        read_samples_helper(tx_usrp, cap_samps, NumPrmblSamps, of_file);
 
         // Close the file
         of_file.close();
@@ -209,7 +208,7 @@ void read_sample_mem(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std:
         // Call the helper function for reading samples without writing to the file
         std::ofstream of_file;
         //of_file.open("");
-        read_samples_helper(tx_usrp, cap_samps, of_file);
+        read_samples_helper(tx_usrp, cap_samps, NumPrmblSamps, of_file);
     }
 }
 
