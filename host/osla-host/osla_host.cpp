@@ -636,9 +636,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, 0); //save_rx = 0 so that we dont create a huge file
     });
 
-    int NumPrmblSamps = pow(2,12);
+    int NumPrmblSamps = pow(2,15);
 
-    for(int i = 0; i < 5; i++) {
+    for(int i = 0; i < 1; i++) {
         // Noise estimation---------------------------------------------------------------------------------------------------------
         std::cout << "Running noise estimation..." << std::endl;
         start_tx(tx_usrp, 0x0, 0x1, 0x0, 0x0); //Mode zero, only listen at src (no tx)
@@ -698,7 +698,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::uint32_t tx_core_bits{0x02}; 
     std::uint32_t gpio_start_sel_bits{0x1};
 
-    int N_sweep_intervals = 10; //5
+    int N_sweep_intervals = 1; //5
     const int DelaySweepInterval = 512;
 
     for(int interval_idx = -N_sweep_intervals/2; interval_idx <= N_sweep_intervals/2; interval_idx++) {
