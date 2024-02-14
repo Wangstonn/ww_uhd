@@ -1,0 +1,405 @@
+[INFO] [UHD] linux; GNU C++ version 9.4.0; Boost_107100; UHD_4.5.0.0-0ubuntu1~focal1
+[INFO] [X300] X300 initialization sequence...
+[INFO] [X300] Maximum frame size: 1472 bytes.
+[INFO] [X300] Radio 1x clock: 200 MHz
+
+Creating the receive usrp device with: type=x300,addr=192.168.110.2...
+Using TX Device: Single USRP:
+  Device: X-Series Device
+  Mboard 0: X310
+  RX Channel: 0
+    RX DSP: 0
+    RX Dboard: A
+    RX Subdev: UBX RX
+  TX Channel: 0
+    TX DSP: 0
+    TX Dboard: A
+    TX Subdev: UBX TX
+
+Using RX Device: Single USRP:
+  Device: X-Series Device
+  Mboard 0: X310
+  RX Channel: 0
+    RX DSP: 0
+    RX Dboard: A
+    RX Subdev: UBX RX
+  TX Channel: 0
+    TX DSP: 0
+    TX Dboard: A
+    TX Subdev: UBX TX
+
+Setting TX Rate: 6.250000 Msps...
+Actual TX Rate: 6.250000 Msps...
+
+Setting RX Rate: 6.250000 Msps...
+Actual RX Rate: 6.250000 Msps...
+
+Setting TX Freq: 2400.000000 MHz...
+Actual TX Freq: 2400.000000 MHz...
+
+Setting TX Gain: 12.000000 dB...
+Actual TX Gain: 12.000000 dB...
+
+Setting TX Bandwidth: 160000000.000000 MHz...
+Actual TX Bandwidth: 160000000.000000 MHz...
+
+Setting RX Freq: 2400.000000 MHz...
+Actual RX Freq: 2400.000000 MHz...
+
+Setting RX Gain: 0.000000 dB...
+Actual RX Gain: 0.000000 dB...
+
+Setting RX Bandwidth: 160.000000 MHz...
+Actual RX Bandwidth: 160.000000 MHz...
+
+[WARNING] [0/Radio#0] Attempting to set tick rate to 0. Skipping.
+Checking TX: TXLO: locked ...
+Checking RX: RXLO: locked ...
+Press Ctrl + C to stop streaming...
+Setting device timestamp to 0...
+Running noise estimation...
+Samples written to file: usrp_samples.wired.noise.dat
+Estimated var= 0.00588705
+Running delay+flatfading estimation...
+Sweeping done:
+D_test_sweep = -256, D_hat_sweep[0] = 119, EsN0_sweep[0] = -5.88687, h_hat_sweep[0] : abs= 0.03896 arg= -0.0446589
+D_test_sweep = -128, D_hat_sweep[1] = 119, EsN0_sweep[1] = -8.33037, h_hat_sweep[1] : abs= 0.0294065 arg= 0.0943814
+D_test_sweep = 0, D_hat_sweep[2] = 119, EsN0_sweep[2] = -10.9003, h_hat_sweep[2] : abs= 0.021875 arg= 0.150058
+D_test_sweep = 128, D_hat_sweep[3] = 119, EsN0_sweep[3] = -7.96962, h_hat_sweep[3] : abs= 0.0306536 arg= 0.0291252
+D_test_sweep = 256, D_hat_sweep[4] = 119, EsN0_sweep[4] = -8.38794, h_hat_sweep[4] : abs= 0.0292123 arg= 0.134916
+Samples written to file: usrp_samples.wired.sync.dat
+D_test= 119, D_hat= 119, EsN0= -7.94843, h_hat : abs= 0.0307285 arg= 0.116964
+Performing compensation...
+(25.6418,1.1459)
+WARNING: dest_ch_eq saturated
+80521fff
+fffff6d5
+80110000
+8054007b
+
+Done!
+
+
+[2028][Wed Jan 10 08:52:50][~/OSLA/bpsk/ww_uhd/host/osla-host]
+< ↪ ✴ wangston@aa2: osla-host > cd build/
+
+[2029][Wed Jan 10 08:52:57][~/OSLA/bpsk/ww_uhd/host/osla-host/build]
+< ↪ ✴ wangston@aa2: build > cd b
+bash: cd: b: No such file or directory
+
+[2030][Wed Jan 10 08:53:06][~/OSLA/bpsk/ww_uhd/host/osla-host/build]
+< ↪ ✴ wangston@aa2: build > make
+[ 20%] Built target xcorr_slow
+[ 40%] Built target mmio
+Scanning dependencies of target osla_host
+[ 50%] Building CXX object CMakeFiles/osla_host.dir/osla_host.cpp.o
+cd ..
+. c
+[ 60%] Linking CXX executable osla_host
+[ 60%] Built target osla_host
+[ 80%] Built target xcorrTest
+[100%] Built target mmioTest
+
+[2031][Wed Jan 10 08:53:16][~/OSLA/bpsk/ww_uhd/host/osla-host/build]
+< ↪ ✴ wangston@aa2: build > cd ..
+
+[2032][Wed Jan 10 08:53:16][~/OSLA/bpsk/ww_uhd/host/osla-host]
+< ↪ ✴ wangston@aa2: osla-host > . cap_osla_host.sh 
+
+Creating the transmit usrp device with: type=x300,addr=192.168.110.2...
+[INFO] [UHD] linux; GNU C++ version 9.4.0; Boost_107100; UHD_4.5.0.0-0ubuntu1~focal1
+[INFO] [X300] X300 initialization sequence...
+[INFO] [X300] Maximum frame size: 1472 bytes.
+[INFO] [X300] Radio 1x clock: 200 MHz
+
+Creating the receive usrp device with: type=x300,addr=192.168.110.2...
+Using TX Device: Single USRP:
+  Device: X-Series Device
+  Mboard 0: X310
+  RX Channel: 0
+    RX DSP: 0
+    RX Dboard: A
+    RX Subdev: UBX RX
+  TX Channel: 0
+    TX DSP: 0
+    TX Dboard: A
+    TX Subdev: UBX TX
+
+Using RX Device: Single USRP:
+  Device: X-Series Device
+  Mboard 0: X310
+  RX Channel: 0
+    RX DSP: 0
+    RX Dboard: A
+    RX Subdev: UBX RX
+  TX Channel: 0
+    TX DSP: 0
+    TX Dboard: A
+    TX Subdev: UBX TX
+
+Setting TX Rate: 6.250000 Msps...
+Actual TX Rate: 6.250000 Msps...
+
+Setting RX Rate: 6.250000 Msps...
+Actual RX Rate: 6.250000 Msps...
+
+Setting TX Freq: 2400.000000 MHz...
+Actual TX Freq: 2400.000000 MHz...
+
+Setting TX Gain: 31.000000 dB...
+Actual TX Gain: 31.000000 dB...
+
+Setting TX Bandwidth: 160000000.000000 MHz...
+Actual TX Bandwidth: 160000000.000000 MHz...
+
+Setting RX Freq: 2400.000000 MHz...
+Actual RX Freq: 2400.000000 MHz...
+
+Setting RX Gain: 0.000000 dB...
+Actual RX Gain: 0.000000 dB...
+
+Setting RX Bandwidth: 160.000000 MHz...
+Actual RX Bandwidth: 160.000000 MHz...
+
+[WARNING] [0/Radio#0] Attempting to set tick rate to 0. Skipping.
+Checking TX: TXLO: locked ...
+Checking RX: RXLO: locked ...
+Press Ctrl + C to stop streaming...
+Setting device timestamp to 0...
+Running noise estimation...
+Samples written to file: usrp_samples.wired.noise.dat
+Estimated var= 0.00547675
+Running delay+flatfading estimation...
+Sweeping done:
+D_test_sweep = -256, D_hat_sweep[0] = 119, EsN0_sweep[0] = 8.06641, h_hat_sweep[0] : abs= 0.187325 arg= -0.215994
+D_test_sweep = -128, D_hat_sweep[1] = 119, EsN0_sweep[1] = 7.0137, h_hat_sweep[1] : abs= 0.165943 arg= -0.205671
+D_test_sweep = 0, D_hat_sweep[2] = 119, EsN0_sweep[2] = 6.83878, h_hat_sweep[2] : abs= 0.162635 arg= -0.234513
+D_test_sweep = 128, D_hat_sweep[3] = 119, EsN0_sweep[3] = 7.47747, h_hat_sweep[3] : abs= 0.175044 arg= -0.226446
+D_test_sweep = 256, D_hat_sweep[4] = 119, EsN0_sweep[4] = 7.3975, h_hat_sweep[4] : abs= 0.17344 arg= -0.221718
+Samples written to file: usrp_samples.wired.sync.dat
+D_test= 119, D_hat= 119, EsN0= 7.80032, h_hat : abs= 0.181673 arg= -0.204989
+Performing compensation...
+(5.21428,1.1441)
+WARNING: dest_ch_eq saturated
+80521fff
+fffff6d9
+80110000
+8054007b
+
+Done!
+
+
+[2033][Wed Jan 10 08:53:40][~/OSLA/bpsk/ww_uhd/host/osla-host]
+< ↪ ✴ wangston@aa2: osla-host > cd ..
+
+[2034][Wed Jan 10 08:57:01][~/OSLA/bpsk/ww_uhd/host]
+< ↪ ✴ wangston@aa2: host > make
+make: *** No targets specified and no makefile found.  Stop.
+
+[2035][Wed Jan 10 08:57:03][~/OSLA/bpsk/ww_uhd/host]
+< ↪ ✴ wangston@aa2: host > cd osla-host/build/
+
+[2036][Wed Jan 10 08:57:06][~/OSLA/bpsk/ww_uhd/host/osla-host/build]
+< ↪ ✴ wangston@aa2: build > make
+[ 20%] Built target xcorr_slow
+[ 40%] Built target mmio
+Scanning dependencies of target osla_host
+[ 50%] Building CXX object CMakeFiles/osla_host.dir/osla_host.cpp.o
+cd ..
+. c
+[ 60%] Linking CXX executable osla_host
+[ 60%] Built target osla_host
+[ 80%] Built target xcorrTest
+[100%] Built target mmioTest
+
+[2037][Wed Jan 10 08:57:15][~/OSLA/bpsk/ww_uhd/host/osla-host/build]
+< ↪ ✴ wangston@aa2: build > cd ..
+
+[2038][Wed Jan 10 08:57:15][~/OSLA/bpsk/ww_uhd/host/osla-host]
+< ↪ ✴ wangston@aa2: osla-host > . cap_osla_host.sh 
+
+Creating the transmit usrp device with: type=x300,addr=192.168.110.2...
+[INFO] [UHD] linux; GNU C++ version 9.4.0; Boost_107100; UHD_4.5.0.0-0ubuntu1~focal1
+[INFO] [X300] X300 initialization sequence...
+[INFO] [X300] Maximum frame size: 1472 bytes.
+[INFO] [X300] Radio 1x clock: 200 MHz
+
+Creating the receive usrp device with: type=x300,addr=192.168.110.2...
+Using TX Device: Single USRP:
+  Device: X-Series Device
+  Mboard 0: X310
+  RX Channel: 0
+    RX DSP: 0
+    RX Dboard: A
+    RX Subdev: UBX RX
+  TX Channel: 0
+    TX DSP: 0
+    TX Dboard: A
+    TX Subdev: UBX TX
+
+Using RX Device: Single USRP:
+  Device: X-Series Device
+  Mboard 0: X310
+  RX Channel: 0
+    RX DSP: 0
+    RX Dboard: A
+    RX Subdev: UBX RX
+  TX Channel: 0
+    TX DSP: 0
+    TX Dboard: A
+    TX Subdev: UBX TX
+
+Setting TX Rate: 6.250000 Msps...
+Actual TX Rate: 6.250000 Msps...
+
+Setting RX Rate: 6.250000 Msps...
+Actual RX Rate: 6.250000 Msps...
+
+Setting TX Freq: 2400.000000 MHz...
+Actual TX Freq: 2400.000000 MHz...
+
+Setting TX Gain: 0.000000 dB...
+Actual TX Gain: 0.000000 dB...
+
+Setting TX Bandwidth: 160000000.000000 MHz...
+Actual TX Bandwidth: 160000000.000000 MHz...
+
+Setting RX Freq: 2400.000000 MHz...
+Actual RX Freq: 2400.000000 MHz...
+
+Setting RX Gain: 15.000000 dB...
+Actual RX Gain: 15.000000 dB...
+
+Setting RX Bandwidth: 160.000000 MHz...
+Actual RX Bandwidth: 160.000000 MHz...
+
+[WARNING] [0/Radio#0] Attempting to set tick rate to 0. Skipping.
+Checking TX: TXLO: locked ...
+Checking RX: RXLO: locked ...
+Press Ctrl + C to stop streaming...
+Setting device timestamp to 0...
+Running noise estimation...
+Samples written to file: usrp_samples.wired.noise.dat
+Estimated var= 0.00712311
+Running delay+flatfading estimation...
+Sweeping done:
+D_test_sweep = -256, D_hat_sweep[0] = 119, EsN0_sweep[0] = -7.11705, h_hat_sweep[0] : abs= 0.037196 arg= 0.0276004
+D_test_sweep = -128, D_hat_sweep[1] = 119, EsN0_sweep[1] = -7.86792, h_hat_sweep[1] : abs= 0.0341155 arg= 0.073955
+D_test_sweep = 0, D_hat_sweep[2] = 119, EsN0_sweep[2] = -8.66894, h_hat_sweep[2] : abs= 0.0311101 arg= 0.0425072
+D_test_sweep = 128, D_hat_sweep[3] = 119, EsN0_sweep[3] = -7.31738, h_hat_sweep[3] : abs= 0.0363479 arg= 0.100504
+D_test_sweep = 256, D_hat_sweep[4] = 119, EsN0_sweep[4] = -7.19786, h_hat_sweep[4] : abs= 0.0368515 arg= 0.0955896
+Samples written to file: usrp_samples.wired.sync.dat
+D_test= 119, D_hat= 119, EsN0= -6.72911, h_hat : abs= 0.0388949 arg= 0.275955
+Performing compensation...
+(26.8744,-0.741931)
+WARNING: dest_ch_eq saturated
+80521fff
+805305ef
+80110000
+8054007b
+
+Done!
+
+
+[2039][Wed Jan 10 08:57:39][~/OSLA/bpsk/ww_uhd/host/osla-host]
+< ↪ ✴ wangston@aa2: osla-host > cd build/
+
+[2040][Wed Jan 10 08:57:54][~/OSLA/bpsk/ww_uhd/host/osla-host/build]
+< ↪ ✴ wangston@aa2: build > make
+[ 20%] Built target xcorr_slow
+[ 40%] Built target mmio
+Scanning dependencies of target osla_host
+[ 50%] Building CXX object CMakeFiles/osla_host.dir/osla_host.cpp.o
+cd ..
+. c
+[ 60%] Linking CXX executable osla_host
+[ 60%] Built target osla_host
+[ 80%] Built target xcorrTest
+[100%] Built target mmioTest
+
+[2041][Wed Jan 10 08:58:02][~/OSLA/bpsk/ww_uhd/host/osla-host/build]
+< ↪ ✴ wangston@aa2: build > cd ..
+
+[2042][Wed Jan 10 08:58:02][~/OSLA/bpsk/ww_uhd/host/osla-host]
+< ↪ ✴ wangston@aa2: osla-host > . cap_osla_host.sh 
+
+Creating the transmit usrp device with: type=x300,addr=192.168.110.2...
+[INFO] [UHD] linux; GNU C++ version 9.4.0; Boost_107100; UHD_4.5.0.0-0ubuntu1~focal1
+[INFO] [X300] X300 initialization sequence...
+[INFO] [X300] Maximum frame size: 1472 bytes.
+[INFO] [X300] Radio 1x clock: 200 MHz
+
+Creating the receive usrp device with: type=x300,addr=192.168.110.2...
+Using TX Device: Single USRP:
+  Device: X-Series Device
+  Mboard 0: X310
+  RX Channel: 0
+    RX DSP: 0
+    RX Dboard: A
+    RX Subdev: UBX RX
+  TX Channel: 0
+    TX DSP: 0
+    TX Dboard: A
+    TX Subdev: UBX TX
+
+Using RX Device: Single USRP:
+  Device: X-Series Device
+  Mboard 0: X310
+  RX Channel: 0
+    RX DSP: 0
+    RX Dboard: A
+    RX Subdev: UBX RX
+  TX Channel: 0
+    TX DSP: 0
+    TX Dboard: A
+    TX Subdev: UBX TX
+
+Setting TX Rate: 6.250000 Msps...
+Actual TX Rate: 6.250000 Msps...
+
+Setting RX Rate: 6.250000 Msps...
+Actual RX Rate: 6.250000 Msps...
+
+Setting TX Freq: 2400.000000 MHz...
+Actual TX Freq: 2400.000000 MHz...
+
+Setting TX Gain: 0.000000 dB...
+Actual TX Gain: 0.000000 dB...
+
+Setting TX Bandwidth: 160000000.000000 MHz...
+Actual TX Bandwidth: 160000000.000000 MHz...
+
+Setting RX Freq: 2400.000000 MHz...
+Actual RX Freq: 2400.000000 MHz...
+
+Setting RX Gain: 31.000000 dB...
+Actual RX Gain: 31.000000 dB...
+
+Setting RX Bandwidth: 160.000000 MHz...
+Actual RX Bandwidth: 160.000000 MHz...
+
+[WARNING] [0/Radio#0] Attempting to set tick rate to 0. Skipping.
+Checking TX: TXLO: locked ...
+Checking RX: RXLO: locked ...
+Press Ctrl + C to stop streaming...
+Setting device timestamp to 0...
+Running noise estimation...
+Samples written to file: usrp_samples.wired.noise.dat
+Estimated var= 0.0729929
+Running delay+flatfading estimation...
+Sweeping done:
+D_test_sweep = -256, D_hat_sweep[0] = 119, EsN0_sweep[0] = -0.497162, h_hat_sweep[0] : abs= 0.25515 arg= -0.0781947
+D_test_sweep = -128, D_hat_sweep[1] = 119, EsN0_sweep[1] = -2.1256, h_hat_sweep[1] : abs= 0.211531 arg= -0.102831
+D_test_sweep = 0, D_hat_sweep[2] = 119, EsN0_sweep[2] = -1.93698, h_hat_sweep[2] : abs= 0.216174 arg= -0.0527184
+D_test_sweep = 128, D_hat_sweep[3] = 119, EsN0_sweep[3] = -2.00949, h_hat_sweep[3] : abs= 0.214377 arg= 0.000782974
+D_test_sweep = 256, D_hat_sweep[4] = 119, EsN0_sweep[4] = -1.5169, h_hat_sweep[4] : abs= 0.226886 arg= -0.06889
+Samples written to file: usrp_samples.wired.sync.dat
+D_test= 119, D_hat= 119, EsN0= -2.248, h_hat : abs= 0.208571 arg= -0.0352343
+Performing compensation...
+(3.90729,0.306153)
+80521f42
+fffffd8d
+80110000
+8054007b
+
+Done!
