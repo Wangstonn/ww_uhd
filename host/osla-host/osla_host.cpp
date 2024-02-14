@@ -636,9 +636,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, 0); //save_rx = 0 so that we dont create a huge file
     });
 
-    int NumPrmblSamps = pow(2,15);
+    int NumPrmblSamps = pow(2,12);
 
-    for(int i = 0; i < 1; i++) {
+    for(int i = 0; i < 0; i++) {
         // Noise estimation---------------------------------------------------------------------------------------------------------
         std::cout << "Running noise estimation..." << std::endl;
         start_tx(tx_usrp, 0x0, 0x1, 0x0, 0x0); //Mode zero, only listen at src (no tx)
@@ -698,15 +698,15 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::uint32_t tx_core_bits{0x02}; 
     std::uint32_t gpio_start_sel_bits{0x1};
 
-    int N_sweep_intervals = 1; //5
+    int N_sweep_intervals = 5; //5
     const int DelaySweepInterval = 512;
 
     for(int interval_idx = -N_sweep_intervals/2; interval_idx <= N_sweep_intervals/2; interval_idx++) {
         // Record the start time
         auto start_time = std::chrono::high_resolution_clock::now();
 
-        //int D_test = interval_idx * DelaySweepInterval; //D_test is the delay between src and dest we set. This is the opposite of D_comp's logic
-        int D_test = 0;
+        int D_test = interval_idx * DelaySweepInterval; //D_test is the delay between src and dest we set. This is the opposite of D_comp's logic
+        //int D_test = 0;
         
         compensateDelays(tx_usrp, D_test);
 
@@ -950,7 +950,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
         D_hat += D_test; //account for the test delay we inserted
 
-        double EsN0 = 10*std::log10(std::pow(prmbl_amp*std::abs(h_hat),2)/var);
+        double EsN0 = 10*std::log10(std::pow(prmbl_amp*std::abs(h_hat),2)/(var*2));
 
         std::cout << std::dec;
         std::cout << "D_test= " << D_test << ", ";
