@@ -188,6 +188,7 @@ void read_samples_helper(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<
  *
  * @param file Name of file to write to. If empty/missing will not write to file.
  * @param cap_samps vector that will be cleared and filled with captured IQ samples
+ * @param NumPrmblSamps number of samples to be captured. Max is 2**15
  * @return void
  */
 void read_sample_mem(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std::complex<double>>& cap_samps, const int NumPrmblSamps = pow(2,12), const std::string& file = "") {

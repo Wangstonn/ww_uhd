@@ -636,7 +636,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, 0); //save_rx = 0 so that we dont create a huge file
     });
 
-    int NumPrmblSamps = pow(2,12);
+    int NumPrmblSamps = pow(2,15);
 
     for(int i = 0; i < 0; i++) {
         // Noise estimation---------------------------------------------------------------------------------------------------------
@@ -869,7 +869,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         std::vector<std::complex<double>> cap_samps;
         read_sample_mem(tx_usrp, cap_samps, NumPrmblSamps, "usrp_samples.wired.dat");
 
-        std::cout << "Samples written to file: "<< file << std::endl;
+        std::cout << NumPrmblSamps << " samples written to file: "<< file << std::endl;
 
         int N_w = static_cast<int>(cap_samps.size()); //number of captured samples
 
