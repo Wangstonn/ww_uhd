@@ -666,7 +666,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     //Read on chip acquired data and write to binary file to be parsed by matlab
     std::vector<std::complex<double>> cap_samps;
-    read_sample_mem(tx_usrp, cap_samps, NumPrmblSamps , "usrp_samples.wired.noise.dat");
+    read_sample_mem(tx_usrp, cap_samps, NumPrmblSamps , "usrp_samples.noise.dat");
 
     std::cout << "Samples written to file: "<< file << std::endl;
 
@@ -698,15 +698,15 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::uint32_t tx_core_bits{0x02}; 
     std::uint32_t gpio_start_sel_bits{0x1};
 
-    int N_sweep_intervals = 5; //5
+    int N_sweep_intervals = 1; //5
     const int DelaySweepInterval = 512;
 
     for(int interval_idx = -N_sweep_intervals/2; interval_idx <= N_sweep_intervals/2; interval_idx++) {
         // Record the start time
         auto start_time = std::chrono::high_resolution_clock::now();
 
-        int D_test = interval_idx * DelaySweepInterval; //D_test is the delay between src and dest we set. This is the opposite of D_comp's logic
-        //int D_test = 0;
+        //int D_test = interval_idx * DelaySweepInterval; //D_test is the delay between src and dest we set. This is the opposite of D_comp's logic
+        int D_test = 0;
         
         compensateDelays(tx_usrp, D_test);
 
@@ -867,7 +867,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
         //Read data and write to binary file to be parsed by matlab 
         std::vector<std::complex<double>> cap_samps;
-        read_sample_mem(tx_usrp, cap_samps, NumPrmblSamps, "usrp_samples.wired.dat");
+        read_sample_mem(tx_usrp, cap_samps, NumPrmblSamps, "usrp_samples.dat");
 
         std::cout << NumPrmblSamps << " samples written to file: "<< file << std::endl;
 
