@@ -666,7 +666,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     //Read on chip acquired data and write to binary file to be parsed by matlab
     std::vector<std::complex<double>> cap_samps;
-    read_sample_mem(tx_usrp, cap_samps, NumPrmblSamps , "usrp_samples.noise.dat");
+    file = "usrp_samples.noise.dat";
+    read_sample_mem(tx_usrp, cap_samps, NumPrmblSamps , file);
 
     std::cout << "Samples written to file: "<< file << std::endl;
 
@@ -867,7 +868,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
         //Read data and write to binary file to be parsed by matlab 
         std::vector<std::complex<double>> cap_samps;
-        read_sample_mem(tx_usrp, cap_samps, NumPrmblSamps, "usrp_samples.dat");
+        file = "usrp_samples.dat";
+        read_sample_mem(tx_usrp, cap_samps, NumPrmblSamps, file);
 
         std::cout << NumPrmblSamps << " samples written to file: "<< file << std::endl;
 
