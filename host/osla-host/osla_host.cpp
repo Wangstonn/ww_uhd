@@ -697,7 +697,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::uint32_t mode_bits{0x0};
     std::uint32_t rx_ch_sel_bits{0x01}; 
     std::uint32_t tx_core_bits{0x02}; 
-    std::uint32_t gpio_start_sel_bits{0x1};
+    std::uint32_t gpio_start_sel_bits{0x0};
 
     int N_sweep_intervals = 1; //5
     const int DelaySweepInterval = 512;
