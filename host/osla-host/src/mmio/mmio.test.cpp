@@ -657,15 +657,17 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 500 ms before tx is active
     
     //set digital loopback
-    std::uint32_t mode_bits_shift{0x0 << 2};
-    std::uint32_t rx_ch_sel_bits_shift{0x0 << 4}; 
-    std::uint32_t tx_core_bits_shift{0x0 << 6}; 
-    std::uint32_t gpio_start_sel_bits_shift{0x0 << 8};
+    // std::uint32_t mode_bits_shift{0x0 << 2};
+    // std::uint32_t rx_ch_sel_bits_shift{0x0 << 4}; 
+    // std::uint32_t tx_core_bits_shift{0x0 << 6}; 
+    // std::uint32_t gpio_start_sel_bits_shift{0x0 << 8};
 
-    uint64_t start_cmd = 0x80000001'00000002+mode_bits_shift+rx_ch_sel_bits_shift+tx_core_bits_shift+gpio_start_sel_bits_shift;
-    std::cout << "Start command issued...\n";
+    // uint64_t start_cmd = 0x80000001'00000002+mode_bits_shift+rx_ch_sel_bits_shift+tx_core_bits_shift+gpio_start_sel_bits_shift;
     //wr_mem_cmd(tx_usrp, start_cmd);
-    start_tx(tx_usrp, 0x0, 0x1, 0x2, 0x0); //wired loopback
+    
+    std::cout << "Start command issued...\n";
+    //start_tx(tx_usrp, 0x0, 0x1, 0x2, 0x0); //wired loopback
+    start_tx(tx_usrp, 0x0, 0x0, 0x0, 0x0); //wired loopback
 
     std::cout << "Reading results...\n";
     for(const auto& cmd : read_cmds) {
@@ -679,7 +681,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::vector<std::complex<double>> cap_samps;
 
     
-    read_sample_mem(tx_usrp, cap_samps, "file_samps.dat");
+    read_sample_mem(tx_usrp, cap_samps, pow(2,12), "file_samps.dat");
     int i = 0;
     for(const auto& samp : cap_samps) {
         std::cout << std::dec << i << " " << samp << std::endl;

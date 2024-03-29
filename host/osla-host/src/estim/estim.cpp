@@ -8,7 +8,7 @@
 #include <uhd/usrp/multi_usrp.hpp>
 
 /**
- * Takes a given source-destination delay and compensates by matching the start delay. To purposefully insert a delay of D, set D_hat = -D
+ * Delays destination. To purposefully insert a delay of D, set D_hat = D
  * 
  * @param D_hat estimated relative delay of source wrt destination
  * 
@@ -26,3 +26,35 @@ void compensateDelays(const uhd::usrp::multi_usrp::sptr tx_usrp, const int D_hat
     wr_mem_cmd(tx_usrp, (src_delay_cmd << 32) | src_delay);
     wr_mem_cmd(tx_usrp, (dest_delay_cmd << 32) | dest_delay);
 }
+
+/**
+ * @brief Upsamples a vector by duplicating each sample N times.
+ *
+ * This template function takes a vector of either arithmetic types or std::complex<double>
+ * and an upsampling factor 'N'. It creates and returns a new vector where each element 
+ * from the original vector is duplicated 'N' times.
+ *
+ * @tparam T The type of elements in the vector (arithmetic type or std::complex<double>).
+ * @param input The original vector to be upsampled.
+ * @param N The upsampling factor. Each sample in the original vector will be duplicated 'N' times.
+ * @return A new vector representing the upsampled data.
+ */
+template <typename T>
+std::vector<T> upsample(const std::vector<T>& input, int N) {
+    static_assert(std::is_arithmetic<T>::value || std::is_same<T, std::complex<double>>::value,
+                  "Unsupported type. Only arithmetic types or complex<double> are allowed.");
+
+    std::vector<T> upsampled;
+
+    for (const auto& value : input) {
+        for (int i = 0; i < N; ++i) {
+            upsampled.push_back(value);
+        }
+    }
+
+    return upsampled;
+}
+
+// Explicit instantiation for types you plan to use
+template std::vector<double> upsample(const std::vector<double>& input, int N);
+template std::vector<std::complex<double>> upsample(const std::vector<std::complex<double>>& input, int N);
