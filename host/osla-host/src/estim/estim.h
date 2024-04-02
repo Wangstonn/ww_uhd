@@ -4,8 +4,17 @@
 #include <cstdint>
 #include <uhd/usrp/multi_usrp.hpp>
 
-//Will eventually need xcorr in here
+void xcorr_slow(const std::vector<std::complex<double>>& x, const std::vector<std::complex<double>>& y, std::vector<std::complex<double>>& r, std::vector<int>& lags);
+struct ChParams {
+    int D_hat; //delay of the channel
+    std::complex<double> h_hat; //fading coefficient of the channel
 
+     // Default constructor
+    ChParams() : D_hat(0), h_hat(0.0, 0.0) {} // Initializes D_hat to 0 and h_hat to (0, 0)
+
+};
+ChParams ch_estim(const uhd::usrp::multi_usrp::sptr tx_usrp, const int D_test, const std::uint32_t rx_ch_sel_bits, const std::uint32_t tx_core_bits, const std::uint32_t gpio_start_sel_bits, const int& NCapSamps, const std::string& file);
+double calcSNR(const std::complex<double>& h_hat, const double var);
 void compensateDelays(const uhd::usrp::multi_usrp::sptr tx_usrp, const int D_hat);
 template <typename T>
 std::vector<T> upsample(const std::vector<T>& input, int N);

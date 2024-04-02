@@ -56,10 +56,9 @@ link_directories(${Boost_LIBRARY_DIRS})
 add_executable(osla_host osla_host.cpp)
 
 # WW - add c++ functions
-add_subdirectory(src/xcorr_slow)
 add_subdirectory(src/mmio)
 add_subdirectory(src/estim)
-target_link_libraries(osla_host xcorr_slow mmio estim)
+target_link_libraries(osla_host mmio estim)
 
 set(CMAKE_BUILD_TYPE "Release")
 message(STATUS "******************************************************************************")

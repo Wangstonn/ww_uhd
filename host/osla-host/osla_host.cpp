@@ -26,7 +26,6 @@
 #include <random>
 
 #include "src/mmio/mmio.h"
-#include "src/xcorr_slow/xcorr_slow.h"
 #include "src/estim/estim.h"
 
 namespace po = boost::program_options;
@@ -464,9 +463,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         std::cout << bank << std::endl;
     }
     
-
-
-    
     // for the const wave, set the wave freq for small samples per period
     if (wave_freq == 0 and wave_type == "CONST") {
         wave_freq = tx_usrp->get_tx_rate() / 2;
@@ -577,17 +573,15 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::vector<uint64_t> write_cmds = {
         0x80000000'00000000,
         0x80000001'00000001,
-        0x80000010'00001DED,
+        0x80000010'00001000,
         0x80000011'00000000,
         0x80000020'E12ACE94,
-        0x80000030'0005A000,
-        0x80000031'00000453,
-        0x80000032'00003937,
-        0x80000033'00000000,
-        0x80000040'0000030B,
-        0x80000041'00003DD1,
-        0x80000042'0000223C,
-        0x80000043'0000CA59
+        0x80000021'E12ACE94,
+        0x80000030'27100000,
+        0x80000031'00002000,
+        0x80000032'00000000,
+        0x80000033'00000075,
+        0x80000034'00007FFF
     };
 
 
@@ -598,14 +592,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         0x00000010,
         0x00000011,
         0x00000020,
+        0x00000021,
         0x00000030,
         0x00000031,
         0x00000032,
         0x00000033,
-        0x00000040,
-        0x00000041,
-        0x00000042,
-        0x00000043,
+        0x00000034,
         
         0x00000800,
         0x00000810,
@@ -837,16 +829,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         // Print the result and execution time
         std::cout << "Execution time: " << duration.count() << " seconds" << std::endl;
     }
-
-    // //print swept estimation values
-    // // Find the index of the maximum absolute value in vector r
-    // std::cout << std::dec << "Sweeping done:" << std::endl;
-    // for (int i = 0; i < D_hat_sweep.size(); ++i) {
-    //     std::cout << "D_test_sweep = " << D_test_sweep[i] << ", ";
-    //     std::cout << "D_hat_sweep[" << i << "] = " << D_hat_sweep[i] << ", ";
-    //     std::cout << "EsN0_sweep[" << i << "] = " << EsN0_sweep[i] << ", ";
-    //     std::cout << "h_hat_sweep[" << i << "] : abs= " << std::abs(h_hat_sweep[i]) << " arg= " << std::arg(h_hat_sweep[i]) << std::endl;
-    // }
 
     // Find the index of the maximum absolute value in vector r
     auto max_it = std::max_element(h_hat_sweep.begin(), h_hat_sweep.end(), [](const std::complex<double>& a, const std::complex<double>& b) {

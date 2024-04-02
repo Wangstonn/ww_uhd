@@ -61,6 +61,56 @@ void start_tx(uhd::usrp::multi_usrp::sptr tx_usrp, std::uint32_t mode_bits, std:
     // std::cout << "Done printing digital loopback results...\n";
 }
 
+    //Load phases and thresholds
+    std::vector<uint64_t> write_cmds = {
+        0x80000000'00000000,
+        0x80000001'00000001,
+        0x80000010'00001000,
+        0x80000011'00000000,
+        0x80000020'E12ACE94,
+        0x80000021'E12ACE94,
+        0x80000030'27100000,
+        0x80000031'00002000,
+        0x80000032'00000000,
+        0x80000033'00000075,
+        0x80000034'00007FFF
+    };
+
+    //Readback input bit, phase, and threshold settings, valid and done, and pkt out
+    std::vector<uint32_t> read_cmds = {
+        0x00000000,
+        0x00000001,
+        0x00000010,
+        0x00000011,
+        0x00000020,
+        0x00000021,
+        0x00000030,
+        0x00000031,
+        0x00000032,
+        0x00000033,
+        0x00000034,
+        
+        0x00000800,
+        0x00000810,
+        0x00000819,
+        0x02000000,
+        0x020003FF
+    };
+
+    void InitBBCore (uhd::usrp::multi_usrp::sptr tx_usrp) {
+        for(const auto& cmd : write_cmds) {
+            wr_mem_cmd(tx_usrp, cmd);
+        }
+    }
+
+    void ReadBBCore (uhd::usrp::multi_usrp::sptr tx_usrp) {
+        for(const auto& cmd : read_cmds) {
+            rd_mem_cmd(tx_usrp, cmd,true);
+        }
+    }
+    
+
+
 
 /**
 *  Write a command to gpio-in and then reads the contents of gpio-out and prints it to the console 
@@ -107,57 +157,14 @@ void wr_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint64_t cmd)
     std::this_thread::sleep_for(std::chrono::nanoseconds(5)); //Arguably no delay is necessary per https://stackoverflow.com/questions/18071664/stdthis-threadsleep-for-and-nanoseconds 
 }
 
-
-
-
-// void read_sample_mem(uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std::complex<double>>& cap_samps, const std::string file){
-  
-//     std::ofstream of_file(file, std::ios::binary | std::ios::trunc);
-
-//     //speed test result: 10 mil samps -> 16 hrs
-//     for(int i = 0; i < NumPrmblSamps; i++)
-//     {
-//         if (of_file.is_open()) {
-//             uint32_t cmd = 0;
-//             cmd  = (cmd & ~addrBits) | (PrmblStartAddr+i);
-//             cmd  = (cmd & ~cmdBits) | (0<<31);
-//             uint32_t prmbl_samp = static_cast<uint32_t>(rd_mem_cmd(tx_usrp, cmd));
-
-//             uint16_t prmbl_samp_I, prmbl_samp_Q;
-//             prmbl_samp_I = static_cast<uint16_t>(prmbl_samp >> 16); //shouldnt do sign extension
-//             prmbl_samp_Q = static_cast<uint16_t>(prmbl_samp & 0x0000FFFF);
-//             // Write the 32 bits to the file
-//             of_file.write(reinterpret_cast<const char*>(&prmbl_samp_I), sizeof(prmbl_samp_I));
-//             of_file.write(reinterpret_cast<const char*>(&prmbl_samp_Q), sizeof(prmbl_samp_Q));
-
-//             // Write sample to vector
-//             std::complex<double> samp = {static_cast<double>(prmbl_samp_I),static_cast<double>(prmbl_samp_Q)};
-//             // Scale this to where we expect the "decimal point" is
-//             samp *= static_cast<std::complex<double>>(pow(2, -8));
-//             cap_samps.push_back(samp);
-//             //std::cout << std::dec << i << " " << samp << std::endl;
-
-//         } else {
-//             std::cerr << "Unable to open file for appending." << std::endl;
-//         }
-
-//     }
-    
-//     // Close the file
-//     of_file.close();
-
-//     //std::cout << "Samples written to file" << std::endl;
-    
-// }
-
 //Hardcode here because I dont anticipate switching between different mmios
 const uint32_t PrmblStartAddr = 0x02000000;
 
 /**
  * Loops through the MMIO and reads each of the samples. If there is a valid of_file object, then write to that file. 
 */
-void read_samples_helper(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std::complex<double>>& cap_samps, const int NumPrmblSamps, std::ofstream& of_file) {
-    for(int i = 0; i < NumPrmblSamps; i++) {
+void read_samples_helper(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std::complex<double>>& cap_samps, const int NCapSamps, std::ofstream& of_file) {
+    for(int i = 0; i < NCapSamps; i++) {
         uint32_t cmd = 0;
         cmd  = (cmd & ~addrBits) | (PrmblStartAddr+i);
         cmd  = (cmd & ~cmdBits) | (0<<31);
@@ -188,10 +195,10 @@ void read_samples_helper(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<
  *
  * @param file Name of file to write to. If empty/missing will not write to file.
  * @param cap_samps vector that will be cleared and filled with captured IQ samples
- * @param NumPrmblSamps number of samples to be captured. Max is 2**15
+ * @param NCapSamps number of samples to be captured. Max is 2**15
  * @return void
  */
-void read_sample_mem(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std::complex<double>>& cap_samps, const int NumPrmblSamps = pow(2,12), const std::string& file = "") {
+void read_sample_mem(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std::complex<double>>& cap_samps, const int NCapSamps = pow(2,12), const std::string& file = "") {
     if (!file.empty()) {
         std::ofstream of_file(file, std::ios::binary | std::ios::trunc);
 
@@ -201,7 +208,7 @@ void read_sample_mem(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std:
         }
 
         // Call the helper function for reading samples
-        read_samples_helper(tx_usrp, cap_samps, NumPrmblSamps, of_file);
+        read_samples_helper(tx_usrp, cap_samps, NCapSamps, of_file);
 
         // Close the file
         of_file.close();
@@ -209,7 +216,7 @@ void read_sample_mem(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std:
         // Call the helper function for reading samples without writing to the file
         std::ofstream of_file;
         //of_file.open("");
-        read_samples_helper(tx_usrp, cap_samps, NumPrmblSamps, of_file);
+        read_samples_helper(tx_usrp, cap_samps, NCapSamps, of_file);
     }
 }
 

@@ -24,10 +24,9 @@
 #include <iostream>
 #include <thread>
 #include <random>
-#include <chrono>
 
-#include "mmio.h"
-
+#include "../mmio/mmio.h"
+#include "../estim/estim.h"
 
 namespace po = boost::program_options;
 
@@ -239,16 +238,16 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("nsamps", po::value<size_t>(&total_num_samps)->default_value(0), "total number of samples to receive")
         ("settling", po::value<double>(&settling)->default_value(double(0.2)), "settling time (seconds) before receiving")
         ("spb", po::value<size_t>(&spb)->default_value(10000), "samples per buffer, 0 for default")
-        ("tx-rate", po::value<double>(&tx_rate)->default_value(6.25e6), "rate of transmit outgoing samples")
-        ("rx-rate", po::value<double>(&rx_rate)->default_value(6.25e6), "rate of receive incoming samples")
+        ("tx-rate", po::value<double>(&tx_rate)->default_value(6.25e6), "rate of transmit outgoing samples") //Data rate of host data
+        ("rx-rate", po::value<double>(&rx_rate)->default_value(6.25e6), "rate of receive incoming samples") //Data rate of streaming
         
         //user specified arguments
         ("input reg", po::value<uint32_t>(&input_reg)->default_value(0), "input reg")
         ("output reg", po::value<uint32_t>(&output_reg)->default_value(0), "output reg")
 
         //afe params
-        ("tx-freq", po::value<double>(&tx_freq)->default_value(2.4e9), "transmit RF center frequency in Hz")
-        ("rx-freq", po::value<double>(&rx_freq)->default_value(2.4e9), "receive RF center frequency in Hz")
+        ("tx-freq", po::value<double>(&tx_freq)->default_value(.915e9), "transmit RF center frequency in Hz")
+        ("rx-freq", po::value<double>(&rx_freq)->default_value(.915e9), "receive RF center frequency in Hz")
         ("tx-gain", po::value<double>(&tx_gain)->default_value(0), "gain for the transmit RF chain")
         ("rx-gain", po::value<double>(&rx_gain)->default_value(0), "gain for the receive RF chain")
         ("tx-bw", po::value<double>(&tx_bw)->default_value(160e6), "analog transmit filter bandwidth in Hz")
@@ -377,7 +376,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                   << std::endl
                   << std::endl;
 
-        // set the rf gain
+        //std::cout << tx_usrp->get_rx_gain_range(channel).step() << std::endl;
+        // set the rf gain, ubx range: 0-31.5dB
+        tx_gain = 0;
         if (vm.count("tx-gain")) {
             std::cout << boost::format("Setting TX Gain: %f dB...") % tx_gain
                       << std::endl;
@@ -387,6 +388,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                       << std::endl
                       << std::endl;
         }
+
 
         // set the analog frontend filter bandwidth
         if (vm.count("tx-bw")) {
@@ -427,7 +429,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                   << std::endl
                   << std::endl;
 
-        // set the receive rf gain
+        // set the receive rf gain ubx range: 0-31.5dB
         if (vm.count("rx-gain")) {
             std::cout << boost::format("Setting RX Gain: %f dB...") % rx_gain
                       << std::endl;
@@ -454,7 +456,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             rx_usrp->set_rx_antenna(rx_ant, channel);
     }
 
-
+    //print options
+    std::vector<std::string> gpio_banks;
+    gpio_banks = tx_usrp->get_gpio_banks(0);
+    for(const auto& bank : gpio_banks) {
+        std::cout << bank << std::endl;
+    }
     
     // for the const wave, set the wave freq for small samples per period
     if (wave_freq == 0 and wave_type == "CONST") {
@@ -561,6 +568,10 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //--------------------------------------------------
     //WW Changes
     //--------------------------------------------------
+
+    //Preload some default threshold and angle settings
+    //std::cout << "Writing to regs...\n";
+    InitBBCore(tx_usrp);
     
     //Start tx and streaming
     // start transmit worker thread
@@ -572,320 +583,304 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // However, given how transmit_worker sets the tx settings (tx_running), its very possible that rx settings need to be set for proper operation
     // Ordinary operation of recv_to_file will lock out the rest of the c++ code, so try putting it in a thread so that it can execute indefinitely just like transmit_worker
     // This will block streaming though. If you want to record samples you that will have to modify recv_to_file to write to file for only part of the time recv to file is active.
+    //  Or separately call this after a run is complete to capture strobed data...
     std::thread recv_thread([&]() {
         recv_to_file<std::complex<double>>(
             rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, 0); //save_rx = 0 so that we dont create a huge file
     });
 
-    // //Load phases and thresholds
-    // std::vector<uint64_t> write_cmds = {
-    //     0x80000000'00000000,
-    //     0x80000001'00000001,
-    //     0x80000010'00001000,
-    //     0x80000011'00000000,
-    //     0x80000020'E12ACE94,
-    //     0x80000021'E12ACE94,
-    //     0x80000030'27100000,
-    //     0x80000031'00002000,
-    //     0x80000032'00000000,
-    //     0x80000033'00000075,
-    //     0x80000034'00007FFF
-    // };
+    int NumPrmblSamps = pow(2,15);
 
-    // //Readback input bit, phase, and threshold settings, valid and done, and pkt out
-    // std::vector<uint32_t> read_cmds = {
-    //     0x00000000,
-    //     0x00000001,
-    //     0x00000010,
-    //     0x00000011,
-    //     0x00000020,
-    //     0x00000021,
-    //     0x00000030,
-    //     0x00000031,
-    //     0x00000032,
-    //     0x00000033,
-    //     0x00000034,
-        
-    //     0x00000800,
-    //     0x00000810,
-    //     0x00000819,
-    //     0x02000000,
-    //     0x020003FF
-    // };
+    for(int i = 0; i < 0; i++) {
+        // Noise estimation---------------------------------------------------------------------------------------------------------
+        std::cout << "Running noise estimation..." << std::endl;
+        start_tx(tx_usrp, 0x0, 0x1, 0x0, 0x0); //Mode zero, only listen at src (no tx)
 
-    /*
-    //Basic MMIO development - simple read and write
-    //write
-    std::cout << "\nBasic MMIO test..." << std::endl;
-    tx_usrp->set_gpio_attr("FP0A", "OUT", 0x0); 
-    tx_usrp->set_gpio_attr("FP0B", "OUT", 0x0); 
+        //Read on chip acquired data and write to binary file to be parsed by matlab
+        std::vector<std::complex<double>> cap_samps;
+        read_sample_mem(tx_usrp, cap_samps, NumPrmblSamps,"");
 
-    uint64_t test_wr_cmd = 0x80000020'E12ACE94;
-    uint32_t test_rd_cmd = 0x00000020;
+        // Estimate noise
+        std::complex<double> sum = std::accumulate(std::begin(cap_samps), std::end(cap_samps), std::complex<double>{0,0});
+        //long unsigned int size->double is a narrowing but hopefully our vectors dont have this size
+        std::complex<double> mu =  sum / std::complex<double>{static_cast<double>(cap_samps.size()),0};
 
-    tx_usrp->set_gpio_attr("FP0A", "OUT", static_cast<uint32_t>(test_wr_cmd)); 
-    tx_usrp->set_gpio_attr("FP0B", "OUT", static_cast<uint32_t>(test_wr_cmd >> 32)); 
-    std::this_thread::sleep_for(std::chrono::nanoseconds(5)); //Arguably no delay is necessary per https://stackoverflow.com/questions/18071664/stdthis-threadsleep-for-and-nanoseconds 
-    
-    std::cout << std::hex << std::setw(16) << std::setfill('0') << "Output after write: " << tx_usrp->get_gpio_attr("FP0B", "READBACK") << std::endl; 
-    std::cout << std::hex << std::setw(16) << std::setfill('0') << "Output after write: " << tx_usrp->get_gpio_attr("FP0A", "READBACK") << std::endl; 
+        double accum = 0;
+        std::for_each(std::begin(cap_samps), std::end(cap_samps), [&](const std::complex<double> d) {
+            accum += std::pow(std::abs(d - mu),2);
+        });
 
-    tx_usrp->set_gpio_attr("FP0B", "OUT", test_rd_cmd); 
-    std::this_thread::sleep_for(std::chrono::nanoseconds(5)); 
-    std::cout << std::hex << std::setw(16) << std::setfill('0') << "Output after read: " <<tx_usrp->get_gpio_attr("FP0A", "READBACK") << std::endl; 
-    */
-
-    
-    //Full readback test
-    //Threshold and angle settings
-    std::cout << "\nFull readback test...\n";
-    std::cout << "Writing to mmio...\n";
-    // for(const auto& cmd : write_cmds) {
-    //     wr_mem_cmd(tx_usrp, cmd);
-    // }
-    InitBBCore(tx_usrp);
-
-    std::cout << "Readback...\n";
-    // for(const auto& cmd : read_cmds) {
-    //     rd_mem_cmd(tx_usrp, cmd,true);
-    // }
-    ReadBBCore(tx_usrp);
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 500 ms before tx is active
-    
-    //set digital loopback
-    // std::uint32_t mode_bits_shift{0x0 << 2};
-    // std::uint32_t rx_ch_sel_bits_shift{0x0 << 4}; 
-    // std::uint32_t tx_core_bits_shift{0x0 << 6}; 
-    // std::uint32_t gpio_start_sel_bits_shift{0x0 << 8};
-
-    // uint64_t start_cmd = 0x80000001'00000002+mode_bits_shift+rx_ch_sel_bits_shift+tx_core_bits_shift+gpio_start_sel_bits_shift;
-    //wr_mem_cmd(tx_usrp, start_cmd);
-    
-    std::cout << "Start command issued...\n";
-    //start_tx(tx_usrp, 0x0, 0x1, 0x2, 0x0); //wired loopback
-    start_tx(tx_usrp, 0x0, 0x0, 0x0, 0x0); //wired loopback
-
-    std::cout << "Reading results...\n";
-    ReadBBCore(tx_usrp);
-    
-    std::cout << "Done printing digital loopback results...\n";
-
-    
-    //On-chip acquisition test
-    std::cout << "\nOn chip acquisition test...\n";
-    std::vector<std::complex<double>> cap_samps;
-
-    
-    read_sample_mem(tx_usrp, cap_samps, pow(2,12), "file_samps.dat");
-    int i = 0;
-    for(const auto& samp : cap_samps) {
-        std::cout << std::dec << i << " " << samp << std::endl;
-        i++;
-    }//disable printout to look at mmio results
-    
-    
-
-
-    /*
-    const int NumPrmblSamps_test = 512;
-    
-    const uint16_t PrmblStartAddr_test = 0xA00;
-    
-
-    file = "test1.dat";
-    std::ofstream of_file(file, std::ios::binary | std::ios::trunc);
-
-    for(int i = 0; i < NumPrmblSamps_test; i++)
-    {
-        if (of_file.is_open()) {
-            uint32_t cmd = 0;
-            cmd  = (cmd & ~addrBits) | (PrmblStartAddr_test+i);
-            cmd  = (cmd & ~cmdBits) | (0<<31);
-            uint32_t prmbl_samp = static_cast<uint32_t>(rd_mem_cmd(tx_usrp, cmd));
-
-            uint16_t prmbl_samp_I, prmbl_samp_Q;
-            prmbl_samp_I = static_cast<uint16_t>(prmbl_samp >> 16); //shouldnt do sign extension
-            prmbl_samp_Q = static_cast<uint16_t>(prmbl_samp & 0x0000FFFF);
-            // Write the 32 bits to the file
-            of_file.write(reinterpret_cast<const char*>(&prmbl_samp_I), sizeof(prmbl_samp_I));
-            of_file.write(reinterpret_cast<const char*>(&prmbl_samp_Q), sizeof(prmbl_samp_Q));
-
-            // Write sample to vector
-            std::complex<double> samp = {static_cast<double>(prmbl_samp_I),static_cast<double>(prmbl_samp_Q)};
-            // Scale this to where we expect the "decimal point" is
-            samp *= static_cast<std::complex<double>>(pow(2, -8));
-            cap_samps.push_back(samp);
-            std::cout << std::dec << i << " " << samp << std::endl;
-
-        } else {
-            std::cerr << "Unable to open file for appending." << std::endl;
-        }
-
+        double var = accum / (cap_samps.size()-1);
+        std::cout << "Estimated var= " << var << std::endl; //one time this gave me a negative....
     }
-    
-    // Close the file
-    of_file.close();
 
-    std::cout << "Samples written to file" << std::endl;
-    */
+    std::cout << "Running noise estimation..." << std::endl;
+    start_tx(tx_usrp, 0x0, 0x1, 0x0, 0x0); //Mode zero, only listen at src (no tx)
+
+    //Read on chip acquired data and write to binary file to be parsed by matlab
+    std::vector<std::complex<double>> cap_samps;
+    file = "usrp_samples.noise.dat";
+    read_sample_mem(tx_usrp, cap_samps, NumPrmblSamps , file);
+
+    std::cout << "Samples written to file: "<< file << std::endl;
+
+    // Estimate noise
+    std::complex<double> sum = std::accumulate(std::begin(cap_samps), std::end(cap_samps), std::complex<double>{0,0});
+    //long unsigned int size->double is a narrowing but hopefully our vectors dont have this size
+    std::complex<double> mu =  sum / std::complex<double>{static_cast<double>(cap_samps.size()),0};
+
+    double accum = 0;
+    std::for_each(std::begin(cap_samps), std::end(cap_samps), [&](const std::complex<double> d) {
+        accum += std::pow(std::abs(d - mu),2);
+    });
+
+    double var = accum / (cap_samps.size()-1);
+    std::cout << "Estimated var= " << var << std::endl; //one time this gave me a negative....
 
 
-   
-/*
-    //PN acquisition test
+    // Timing+flatfading estimation---------------------------------------------------------------------------------------------------------------------------
     //Because our window is small, need to sweep multiple time intervals by adjusting source and dest delay. Assumes channel coherence is quite long
     //Multiple tests have confirmed wired loopback delay with 8inch sma cable + attenuator is 119, so its find to just do one interval for now
-    int N_sweep_intervals = 0; //50
+    std::cout << "Running delay+flatfading estimation..." << std::endl;
+
     std::vector<int> D_hat_sweep, D_test_sweep;
     std::vector<std::complex<double>> h_hat_sweep;
+    std::vector<double> EsN0_sweep;
     
-    const int DelaySweepInterval = 128;
+    std::uint32_t mode_bits{0x0};
+    std::uint32_t rx_ch_sel_bits{0x01}; 
+    std::uint32_t tx_core_bits{0x02}; 
+    std::uint32_t gpio_start_sel_bits{0x0};
+
+    int N_sweep_intervals = 3; //5
+    const int DelaySweepInterval = 512;
 
     for(int interval_idx = -N_sweep_intervals/2; interval_idx <= N_sweep_intervals/2; interval_idx++) {
-
-        int D_test = interval_idx * DelaySweepInterval; //D_test is the delay between src and dest we set. This is the opposite of D_comp's logic
-        
-        
-        uint16_t dest_delay_test, src_delay_test;
-        if (D_test < 0) { //estimated D is negative->dest starts first since preamble is early
-            dest_delay_test = 0;
-            src_delay_test = -D_test;
-        }
-        else { 
-            dest_delay_test = D_test;
-            src_delay_test = 0;
-        }
-
-        std::cout << std::dec << "D_test= " << D_test << std::endl;
-        std::cout << std::dec << "src_delay_test= " << src_delay_test << std::endl;
-        std::cout << std::dec << "dest_delay_test= " << dest_delay_test << std::endl;
-
-        //set test delay
-        //std::cout << ((0x80110000 & ~dataBits) | src_delay_test) << std::endl;
-        //std::cout << ((0x80540000 & ~dataBits) | dest_delay_test) << std::endl;
-        wr_mem_cmd(tx_usrp, (0x80110000 & ~dataBits) | src_delay_test);
-        wr_mem_cmd(tx_usrp, (0x80540000 & ~dataBits) | dest_delay_test);
-
-        //rd_mem_cmd(tx_usrp, 0x00110000,true);
-        //rd_mem_cmd(tx_usrp, 0x00540000,true);
-
-        //Configure runtime mode-------------------------------------------------------------------------------------------
-
-        //bb-engine mode: active (pkt tx), sync 
-        std::uint32_t modeBits{0x0 << 2}; //modeBits: 2 bits [src,dest]. For each, 1->active, 0->sync. ex: mode 3 =>both active
-        
-        //rxChSel: controls whther the src/dest are listening to the ch-emu or afe
-        //2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
-        //ex: mode 0 =>both digital loopback
-        //ex: mode 1 =>dest rx to afe
-        //ex: mode 2 =>src rx to afe
-        std::uint32_t rxChSelBits{0x1 << 4}; //1->fwd analog loopback
-        
-        //txCoreBits: controls which engine transmits through the afe
-        //2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
-        //ex: mode 0 =>both digital loopback
-        //ex: mode 1 =>dest afe tx
-        //ex: mode 2 =>src afe tx
-        std::uint32_t txCoreBits{0x0 << 6}; //2->fwd analog loopback
-
-        file = "usrp_samples.wired.noise.dat";
-
-        uint32_t start_cmd = 0x80010002+modeBits+rxChSelBits+txCoreBits;
-        std::cout << "mode: " << (modeBits>>2) << " rxChSel: " << (rxChSelBits>>4)<< " txCore: " << (txCoreBits>>6) << std::endl; 
-        //std::cout << std::hex << std::setw(8) << std::setfill('0') << start_cmd << std::endl;
-
-        //Threshold and angle settings
-        //std::cout << "Writing to regs...\n";
-        for(const auto& cmd : write_cmds) {
-            wr_mem_cmd(tx_usrp, cmd);
-        }
-
-        // std::cout << "Readback...\n";
-        // for(const auto& cmd : read_cmds) {
-        //     rd_mem_cmd(tx_usrp, cmd,true);
-        // }
-
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 500 ms before tx is active
-        //std::cout << "Start command issued...\n";
-        wr_mem_cmd(tx_usrp, start_cmd);
-
-        // std::cout << "Reading results...\n";
-        // for(const auto& cmd : read_cmds) {
-        //     rd_mem_cmd(tx_usrp, cmd,true);
-        // }
-        // std::cout << "Done printing digital loopback results...\n";
-
-
-
-        //On Chip Acquisition
-        //Read data and write to binary file to be parsed by matlab for each preamble memory address
-        std::vector<std::complex<double>> cap_samps;
-        const int NumPrmblSamps = 512;
-        const uint16_t PrmblStartAddrI = 0xC00, PrmblStartAddrQ = 0xE00;
-        
-
-        std::ofstream of_file(file, std::ios::binary | std::ios::trunc);
-        //speed test result: 10 mil samps -> 16 hrs
-        //51200 samples: nanosleep: 40 sec
-        //nosleep: 30
         // Record the start time
         auto start_time = std::chrono::high_resolution_clock::now();
-        for(int ii = 0; ii < 100; ii++) 
-        {
-            for(int i = 0; i < NumPrmblSamps; i++)
-            {
-            
-            if (of_file.is_open()) {
-                uint32_t cmd = 0;
-                cmd  = (cmd & ~addrBits) | (PrmblStartAddrI+i<<16);
-                cmd  = (cmd & ~dataBits) | (0<<0);
-                cmd  = (cmd & ~cmdBits) | (0<<31);
-                int16_t prmbl_samp_I = static_cast<int16_t>(rd_mem_cmd(tx_usrp, cmd) & dataBits);
 
-                // Write the last 16 bits to the file
-            of_file.write(reinterpret_cast<const char*>(&prmbl_samp_I), sizeof(prmbl_samp_I));
+        int D_test = interval_idx * DelaySweepInterval; //D_test is the delay between src and dest we set. This is the opposite of D_comp's logic
+        //int D_test = 0;
+        
+        // compensateDelays(tx_usrp, D_test);
 
-                cmd = 0;
-                cmd  = (cmd & ~addrBits) | (PrmblStartAddrQ+i<<16);
-                cmd  = (cmd & ~dataBits) | (0<<0);
-                cmd  = (cmd & ~cmdBits) | (0<<31);
-                int16_t prmbl_samp_Q = static_cast<int16_t>(rd_mem_cmd(tx_usrp, cmd) & dataBits);
-                // Write the last 16 bits to the file
-            of_file.write(reinterpret_cast<const char*>(&prmbl_samp_Q), sizeof(prmbl_samp_Q));
-            
-            // Write sample to vector
-            std::complex<double> samp = {static_cast<double>(prmbl_samp_I),static_cast<double>(prmbl_samp_Q)};
-            samp *= static_cast<std::complex<double>>(pow(2, -8));
-            cap_samps.push_back(samp);
-            //std::cout << std::dec << i << " " << samp << std::endl;
+        // //Configure runtime mode-------------------------------------------------------------------------------------------
+        // start_tx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits); //wired loopback
 
-            } else {
-                std::cerr << "Unable to open file for appending." << std::endl;
-            }
+        // //Read data and write to binary file to be parsed by matlab 
+        // std::vector<std::complex<double>> cap_samps;
+        // read_sample_mem(tx_usrp, cap_samps, pow(2,12), ""); //dont write to file since itll be overwritten
 
-            }
-        }
+
+        // //std::cout << "Samples written to file: "<< file << std::endl;
+
+        // int N_w = static_cast<int>(cap_samps.size()); //number of captured samples
+
+        // // Estimate phase
+        // // Load preamble
+        // std::ifstream if_file("../../../matlab/mlsr/preamble.mem"); // Open the file. Notice that this is the relative path from the executable location!!
+
+        // if (!if_file.is_open()) {
+        //     std::cerr << "Error opening the preamble file!" << std::endl;
+        //     return 1;
+        // }
+
+        // // Read data from the file and store it as individual bits in a vector
+        // std::vector<int> preamble_bits;
+        // char bit;
+        // while (if_file >> bit) {
+        //     preamble_bits.push_back(bit - '0'); // Convert character to integer (0 or 1)
+        // }
+
+        // if_file.close(); // Close the file
+
+        // // Calculate prmbl_amp
+        // const double prmbl_amp = (1 - std::pow(2, -15));
+
+        // // Calculate prmbl_samps
+        // std::vector<std::complex<double>> prmbl_samps;
+        // for (const auto& bit : preamble_bits) {
+        //     std::complex<double> val = {2 * (bit - 0.5) * prmbl_amp,0};
+        //     prmbl_samps.push_back(val);
+        // }
+
+        // prmbl_samps = upsample(prmbl_samps,32);
+        // int N_prmbl = static_cast<int>(prmbl_samps.size());
+
+        // // // Display the values calculated
+        // //std::cout << "N_prmbl: " << N_prmbl << std::endl;
+        // // std::cout << "prmbl_amp: " << prmbl_amp << std::endl;
+        // // std::cout << "prmbl_samps: ";
+        // // for (int i = 0; i < N_prmbl; ++i) {
+        // //     std::cout << prmbl_samps[i] << " ";
+        // // }
+        // // std::cout << std::endl;
+        
+        
+        // std::vector<std::complex<double>> r;
+        // std::vector<int> lags;
+        // xcorr_slow(prmbl_samps,cap_samps, r, lags); //prmbl samps dragged over cap_samps
+
+        // // Find the index of the maximum absolute value in vector r
+        // auto max_it = std::max_element(r.begin(), r.end(), [](const std::complex<double>& a, const std::complex<double>& b) {
+        //     return std::abs(a) < std::abs(b);
+        // }); //Finds the iterator pointing to the max element
+        // int max_idx = std::distance(r.begin(), max_it); //Finds the index corresponding to that iterator
+
+        // // Calculate D_hat (lag at max_idx)
+        // int D_hat = lags[max_idx];
+
+
+        // // // Output the cross-correlation values and corresponding lags
+        // // std::cout << "Cross-correlation result:" << std::endl;
+        // // for (size_t i = 0; i < r.size(); ++i) {
+        // //     std::cout << std::dec << "Lag: " << lags[i] << ", Correlation: " << r[i] << std::endl;
+        // // }
+        
+
+        // // Our estimate depends on the number of samples captured in the capture window (of size N_w)
+        // int N_samps_cap = 0;
+        // if (D_hat > 0) {
+        //     N_samps_cap = N_w - D_hat;
+        // } else if (D_hat < N_w - N_prmbl) {
+        //     N_samps_cap = N_prmbl + D_hat;
+        // } else {
+        //     N_samps_cap = N_w;
+        // }
+
+        // // Calculate h_hat, h_hat_mag, and phi_hat
+        // std::complex<double> h_hat = r[max_idx] / (N_samps_cap * std::pow(prmbl_amp, 2));
+
+        // D_hat += D_test; //account for the test delay we inserted
+
+        // //matches matlab
+        // // std::cout << std::dec;
+        // // std::cout << "Number of captured samples: " << N_w << std::endl;
+        // // std::cout << "D_test = " << D_test << ", ";
+        // // std::cout << "D_hat: " << D_hat << std::endl;
+        // // std::cout << "N_samps_cap: " << N_samps_cap << std::endl;
+        // // std::cout << "h_hat: " << h_hat << std::endl;
+        // // std::cout << "h_hat_mag: " << std::abs(h_hat) << std::endl;
+        // // std::cout << "phi_hat: " << std::arg(h_hat) << std::endl;
+
+
+        // // Estimate EsN0
+        // double EsN0 = 10*std::log10(std::pow(prmbl_amp*std::abs(h_hat),2)/(var*2));
 
         
-        // Close the file
-        of_file.close();
+        auto ch_params = ch_estim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "");
+        int D_hat = ch_params.D_hat;
+        std::complex<double> h_hat = ch_params.h_hat;
 
-        std::cout << "Samples written to file" << std::endl;
-        int N_w = static_cast<int>(cap_samps.size()); //number of captured samples
+        double EsN0 = calcSNR(h_hat, var);
+
+        D_test_sweep.push_back(D_test);
+        D_hat_sweep.push_back(D_hat);
+        h_hat_sweep.push_back(h_hat);
+        EsN0_sweep.push_back(EsN0);
+
+ 
+        //std::cout << "r[max_idx] = " << r[max_idx] << ", "; 
+        
+        std::cout << "D_test_sweep = " << D_test << ", ";
+        std::cout << "D_hat_sweep" << " = " << D_hat << ", ";
+        std::cout << "EsN0_sweep" << " = " << EsN0 << ", ";
+        std::cout << "h_hat_sweep" << " : abs= " << std::abs(h_hat) << " arg= " << std::arg(h_hat) << std::endl;
+
         auto end_time = std::chrono::high_resolution_clock::now();
 
         // Calculate the elapsed time
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        auto duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time);
 
         // Print the result and execution time
-        std::cout << "Execution time: " << duration.count() << " microseconds" << std::endl;
-
-       
+        std::cout << "Execution time: " << duration.count() << " seconds" << std::endl;
     }
-*/
+
+    // Find the index of the maximum absolute value in vector r
+    auto max_it = std::max_element(h_hat_sweep.begin(), h_hat_sweep.end(), [](const std::complex<double>& a, const std::complex<double>& b) {
+        return std::abs(a) < std::abs(b);
+    }); //Finds the iterator pointing to the max element
+    int max_idx = std::distance(h_hat_sweep.begin(), max_it); //Finds the index corresponding to that iterator
+
+    std::complex<double> h_hat = h_hat_sweep[max_idx];
+    int D_hat = D_hat_sweep[max_idx];
+
+    if(true) {
+        //redo timing/flatfade estimation using the estimated delay to get the full preamble----------------------------------------
+        int D_test = D_hat;
+
+        auto ch_params = ch_estim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "");
+        D_hat = ch_params.D_hat;
+        h_hat = ch_params.h_hat;
+        double EsN0 = calcSNR(h_hat, var);
+
+        std::cout << std::dec;
+        std::cout << "D_test= " << D_test << ", ";
+        std::cout << "D_hat= " << D_hat << ", ";
+        std::cout << "EsN0= " << EsN0 << ", ";
+        std::cout << "h_hat : abs= " << std::abs(h_hat) << " arg= " << std::arg(h_hat) << std::endl;
+    }
+
+    //Compensation-----------------------------------------------------------------------------------------------------------
+    std::cout << "Performing compensation..." << std::endl;
+    // Get the real and imaginary components of 1/h_hat
+    std::complex<double> reciprocal_h_hat = 1.0 / h_hat;
+    std::cout << reciprocal_h_hat << std::endl;
+    double dest_ch_eq_re = std::real(reciprocal_h_hat)*std::pow(2, 13);
+    double dest_ch_eq_im = -std::imag(reciprocal_h_hat)*std::pow(2, 13);
+
+    //covert to bit command
+    int16_t dest_ch_eq_re_int16, dest_ch_eq_im_int16, dest_ch_eq_re_int14, dest_ch_eq_im_int14;
+    dest_ch_eq_re_int16 = static_cast<int16_t>(std::round(dest_ch_eq_re));
+    dest_ch_eq_im_int16 = static_cast<int16_t>(std::round(dest_ch_eq_im));
+
+    // Apply saturation check
+    if (dest_ch_eq_re > INT16_MAX || dest_ch_eq_re < INT16_MIN) {
+        dest_ch_eq_re_int16 = (dest_ch_eq_re > INT16_MAX) ? INT16_MAX : INT16_MIN;
+        std::cout << "WARNING: dest_ch_eq saturated" << std::endl;
+    }
+    if (dest_ch_eq_im > INT16_MAX || dest_ch_eq_im < INT16_MIN) {
+        dest_ch_eq_im_int16 = (dest_ch_eq_im > INT16_MAX) ? INT16_MAX : INT16_MIN;
+        std::cout << "WARNING: dest_ch_eq saturated" << std::endl;
+    }
+
+    dest_ch_eq_re_int14 = dest_ch_eq_re_int16 >> 2;
+    dest_ch_eq_im_int14 = dest_ch_eq_im_int16 >> 2;
+    // std::cout << std::hex << std::setw(4) ;
+    //std::cout << (dest_ch_eq_re_int16 >> 2) << std::endl;        //0x80520453,
+    //std::cout << (dest_ch_eq_im_int16 >> 2)  << std::endl;        //0x80533937,
+    // //3937 is approx f93d, since last two bits are ignored by device
     
+    // std::cout << std::hex;
+    // std::cout << ((0x80000031 << 32)|dest_ch_eq_re_int14) << std::endl;
+    // std::cout << ((0x80000032 << 32)|dest_ch_eq_im_int14) << std::endl;
+    wr_mem_cmd(tx_usrp, ((0x80000031'00000000) | dest_ch_eq_re_int14));
+    wr_mem_cmd(tx_usrp, ((0x80000032'00000000) | dest_ch_eq_im_int14));
+
+
+    int D_eff = D_hat + 4;
+    compensateDelays(tx_usrp, D_eff);
+    
+
+    //-----------------------------------------------------------------------------------------------------------
+
+    // // recv to file
+    // bool rx_save = save_file != 0;
+    // if (type == "double")
+    //     recv_to_file<std::complex<double>>(
+    //         rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
+    // else if (type == "float")
+    //     recv_to_file<std::complex<float>>(
+    //         rx_usrp, "fc32", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
+    // else if (type == "short")
+    //     recv_to_file<std::complex<short>>(
+    //         rx_usrp, "sc16", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
+    // else {
+    //     // clean up transmit worker
+    //     stop_signal_called = true;
+    //     transmit_thread.join();
+    //     throw std::runtime_error("Unknown type " + type);
+    // }
 
     // clean up transmit worker
     stop_signal_called = true;

@@ -7,6 +7,184 @@
 #include <cstdint>
 #include <uhd/usrp/multi_usrp.hpp>
 
+const double prmbl_amp = (1 - std::pow(2, -15));
+
+/**
+ * @brief Estimates channel characteristics based on captured samples.
+ * 
+ * This function estimates phase, and channel coefficient.
+ * 
+ * @param tx_usrp A pointer to the UHD USRP object for transmission.
+ * @param D_test The test delay to be compensated.
+ * @param rx_ch_sel_bits Selector bits for receiving channels.
+ * @param tx_core_bits Selector bits for transmission core.
+ * @param gpio_start_sel_bits Selector bits for GPIO start.
+ * @param NCapSamps Number of samples to be captured.
+ * @param var Variance of the captured samples.
+ * @param D_hat Output parameter to store the calculated value of D_hat (lag).
+ * @param h_hat Output parameter to store the calculated value of h_hat.
+ * @param EsN0 Output parameter to store the calculated value of EsN0.
+ */
+ChParams ch_estim(const uhd::usrp::multi_usrp::sptr tx_usrp, const int D_test, const std::uint32_t rx_ch_sel_bits, const std::uint32_t tx_core_bits, const std::uint32_t gpio_start_sel_bits, const int& NCapSamps, const std::string& file) {
+    compensateDelays(tx_usrp, D_test);
+
+    //Configure runtime mode-------------------------------------------------------------------------------------------
+    std::uint32_t mode_bits{0x0};
+    start_tx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
+
+    //Read data
+    std::vector<std::complex<double>> cap_samps;
+    read_sample_mem(tx_usrp, cap_samps, NCapSamps, ""); //dont write to file since itll be overwritten
+
+    int N_w = static_cast<int>(cap_samps.size()); //number of captured samples
+
+    // Estimate phase------------------------------------------------------------------------------
+    // Load preamble
+    std::ifstream if_file("preamble.mem"); // Open the file. Notice that this is the relative path from the executable location!!
+
+    if (!if_file.is_open()) {
+        std::cerr << "Error opening the preamble file!" << std::endl;
+        ChParams ch_params;
+        return ch_params;
+    }
+
+    // Read data from the file and store it as individual bits in a vector
+    std::vector<int> preamble_bits;
+    char bit;
+    while (if_file >> bit) {
+        preamble_bits.push_back(bit - '0'); // Convert character to integer (0 or 1)
+    }
+
+    if_file.close(); // Close the file
+
+    // Calculate prmbl_samps
+    std::vector<std::complex<double>> prmbl_samps;
+    for (const auto& bit : preamble_bits) {
+        std::complex<double> val = {2 * (bit - 0.5) * prmbl_amp,0};
+        prmbl_samps.push_back(val);
+    }
+
+    prmbl_samps = upsample(prmbl_samps,32);
+    int N_prmbl = static_cast<int>(prmbl_samps.size());
+
+    // // Display the values calculated
+    //std::cout << "N_prmbl: " << N_prmbl << std::endl;
+    // std::cout << "prmbl_amp: " << prmbl_amp << std::endl;
+    // std::cout << "prmbl_samps: ";
+    // for (int i = 0; i < N_prmbl; ++i) {
+    //     std::cout << prmbl_samps[i] << " ";
+    // }
+    // std::cout << std::endl;
+    
+    
+    std::vector<std::complex<double>> r;
+    std::vector<int> lags;
+    xcorr_slow(prmbl_samps,cap_samps, r, lags); //prmbl samps dragged over cap_samps
+
+    // Find the index of the maximum absolute value in vector r
+    auto max_it = std::max_element(r.begin(), r.end(), [](const std::complex<double>& a, const std::complex<double>& b) {
+        return std::abs(a) < std::abs(b);
+    }); //Finds the iterator pointing to the max element
+    int max_idx = std::distance(r.begin(), max_it); //Finds the index corresponding to that iterator
+
+    // Calculate D_hat (lag at max_idx)
+    int D_hat;
+    D_hat = lags[max_idx];
+
+
+    // // Output the cross-correlation values and corresponding lags
+    // std::cout << "Cross-correlation result:" << std::endl;
+    // for (size_t i = 0; i < r.size(); ++i) {
+    //     std::cout << std::dec << "Lag: " << lags[i] << ", Correlation: " << r[i] << std::endl;
+    // }
+    
+
+    // Our estimate depends on the number of samples captured in the capture window (of size N_w)
+    int N_samps_cap = 0;
+    if (D_hat > 0) {
+        N_samps_cap = N_w - D_hat;
+    } else if (D_hat < N_w - N_prmbl) {
+        N_samps_cap = N_prmbl + D_hat;
+    } else {
+        N_samps_cap = N_w;
+    }
+
+    // Calculate h_hat, h_hat_mag, and phi_hat
+    std::complex<double> h_hat;
+    h_hat = r[max_idx] / (N_samps_cap * std::pow(prmbl_amp, 2));
+
+    D_hat += D_test; //account for the test delay we inserted
+
+    ChParams ch_params;
+    ch_params.D_hat = D_hat;
+    ch_params.h_hat = h_hat;
+    return ch_params;
+
+
+    //matches matlab
+    // std::cout << std::dec;
+    // std::cout << "Number of captured samples: " << N_w << std::endl;
+    // std::cout << "D_test = " << D_test << ", ";
+    // std::cout << "D_hat: " << D_hat << std::endl;
+    // std::cout << "N_samps_cap: " << N_samps_cap << std::endl;
+    // std::cout << "h_hat: " << h_hat << std::endl;
+    // std::cout << "h_hat_mag: " << std::abs(h_hat) << std::endl;
+    // std::cout << "phi_hat: " << std::arg(h_hat) << std::endl;
+}
+
+double calcSNR(const std::complex<double>& h_hat, const double var)
+{
+    double EsN0 = 10*std::log10(std::pow(prmbl_amp*std::abs(h_hat),2)/(var*2));
+    return EsN0;
+}
+
+
+/**
+ * @brief Computes the cross-correlation of two complex-valued vectors.
+ *
+ * The function calculates the cross-correlation between two input vectors, `x` and `y`, and stores the results in the output vectors `r` and `lags`.
+ * Cross-correlation is a measure of similarity between two signals as a function of the time lag applied to one of them.
+ *
+ * @param x Input vector representing the first complex signal. It is conjugated and dragged over y
+ * @param y Input vector representing the second complex signal.
+ * @param r Output vector containing the cross-correlation values.
+ * @param lags Output vector containing the corresponding time lags for each cross-correlation value.
+ *
+ * @details The function uses a nested loop to iterate over all possible time lags within the range [-n+1, m-1].
+ *          For each lag, it calculates the cross-correlation sum by multiplying the complex conjugate of `x`
+ *          with the corresponding element in `y`. The results are stored in the output vectors `r` and `lags`.
+ *
+ * @note The input vectors `x` and `y` must be of complex type, and the output vectors `r` and `lags` are modified in place.
+ *
+ */
+void xcorr_slow(const std::vector<std::complex<double>>& x, const std::vector<std::complex<double>>& y, std::vector<std::complex<double>>& r, std::vector<int>& lags) {
+    int n = static_cast<int>(x.size());
+    int m = static_cast<int>(y.size());
+
+    int maxLag = n + m - 1; // Maximum lag for cross-correlation
+
+    r.resize(maxLag, std::complex<double>(0.0, 0.0)); // Initialize result vector with zeros
+    lags.resize(maxLag, 0); // Initialize lags vector
+
+    for (int lag = -n + 1; lag < m; ++lag) {
+        std::complex<double> sum(0.0, 0.0);
+        int startIdxX = std::max(0, -lag);
+        int endIdxX = std::min(n - 1, m - 1 - lag);
+
+        for (int i = startIdxX; i <= endIdxX; ++i) {
+            int j = i + lag;
+            sum += std::conj(x[i]) * y[j];
+        }
+
+        int rIdx = lag + n - 1;
+        r[rIdx] = sum;
+        lags[rIdx] = lag;
+    }
+}
+
+
+
+
 /**
  * Delays destination. To purposefully insert a delay of D, set D_hat = D
  * 

@@ -21,8 +21,10 @@ constexpr uint64_t dest_delay_cmd = 0x80000033;
 
 uint32_t rd_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t cmd, bool verbose = false);
 void wr_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint64_t cmd);
-void read_sample_mem(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std::complex<double>>& cap_samps, const int NumPrmblSamps, const std::string& file);
+void read_sample_mem(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std::complex<double>>& cap_samps, const int NCapSamps, const std::string& file);
 //void read_samples_helper(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std::complex<double>>& cap_samps, std::ofstream& of_file);
 void start_tx(uhd::usrp::multi_usrp::sptr tx_usrp, std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits);
+void InitBBCore (uhd::usrp::multi_usrp::sptr tx_usrp);
+void ReadBBCore (uhd::usrp::multi_usrp::sptr tx_usrp);
 
 #endif  // MMIO_H
