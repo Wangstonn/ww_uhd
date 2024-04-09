@@ -2,6 +2,7 @@
 #include "../mmio/mmio.h"
 #include <vector>
 #include <complex>
+#include <numeric>
 #include <fstream>
 #include <iostream>
 #include <cstdint>
@@ -30,11 +31,11 @@ ChParams ch_estim(const uhd::usrp::multi_usrp::sptr tx_usrp, const int D_test, c
 
     //Configure runtime mode-------------------------------------------------------------------------------------------
     std::uint32_t mode_bits{0x0};
-    start_tx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
+    mmio::start_tx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
 
     //Read data
     std::vector<std::complex<double>> cap_samps;
-    read_sample_mem(tx_usrp, cap_samps, NCapSamps, ""); //dont write to file since itll be overwritten
+    mmio::read_sample_mem(tx_usrp, cap_samps, NCapSamps, ""); //dont write to file since itll be overwritten
 
     int N_w = static_cast<int>(cap_samps.size()); //number of captured samples
 
@@ -132,12 +133,91 @@ ChParams ch_estim(const uhd::usrp::multi_usrp::sptr tx_usrp, const int D_test, c
     // std::cout << "phi_hat: " << std::arg(h_hat) << std::endl;
 }
 
+double EstimNoise(const uhd::usrp::multi_usrp::sptr tx_usrp, int NCapSamps){
+    mmio::start_tx(tx_usrp, 0x0, 0x1, 0x0, 0x0); //Mode zero, only listen at src (no tx)
+
+    //Read on chip acquired data and write to binary file to be parsed by matlab
+    std::vector<std::complex<double>> cap_samps;
+    mmio::read_sample_mem(tx_usrp, cap_samps, NCapSamps,"");
+
+    // Estimate noise
+    std::complex<double> sum = std::accumulate(std::begin(cap_samps), std::end(cap_samps), std::complex<double>{0,0});
+    //long unsigned int size->double is a narrowing but hopefully our vectors dont have this size
+    std::complex<double> mu =  sum / std::complex<double>{static_cast<double>(cap_samps.size()),0};
+
+    double accum = 0;
+    std::for_each(std::begin(cap_samps), std::end(cap_samps), [&](const std::complex<double> d) {
+        accum += std::pow(std::abs(d - mu),2);
+    });
+
+    double var = accum / (cap_samps.size()-1);
+    return var;
+}
+
+
 double calcSNR(const std::complex<double>& h_hat, const double var)
 {
     double EsN0 = 10*std::log10(std::pow(prmbl_amp*std::abs(h_hat),2)/(var*2));
     return EsN0;
 }
 
+
+/**
+ * Delays destination. To purposefully insert a delay of D, set D_hat = D
+ * 
+ * @param D_hat estimated relative delay of source wrt destination
+ * 
+*/
+void compensateDelays(const uhd::usrp::multi_usrp::sptr tx_usrp, const int D_hat) {
+    uint16_t dest_delay, src_delay;
+    if (D_hat < 0) { // D < 0 -> prmbl early -> delay src
+        dest_delay = 0;
+        src_delay = -D_hat;
+    }
+    else { // D > 0 -> prmbl late -> delay dest
+        dest_delay = D_hat;
+        src_delay = 0;
+    }
+    mmio::wr_mem_cmd(tx_usrp, (mmio::src_delay_cmd << 32) | src_delay);
+    mmio::wr_mem_cmd(tx_usrp, (mmio::dest_delay_cmd << 32) | dest_delay);
+}
+
+
+const int kEqFrac = 13;
+
+/**
+ * Sets the digital flatfading equalization parameters for the destination 
+ * 
+ * h_hat magnitude can range from 0.5 to 2. This should be applied after analog gain/tx amp is set.
+ * 
+ * @param h_hat The channel estimate in complex double format.
+ * @param tx_usrp A shared pointer to the UHD multi_usrp object for transmitting.
+ */
+void PhaseEq(uhd::usrp::multi_usrp::sptr tx_usrp, const std::complex<double>& h_hat) {
+    std::complex<double> reciprocal_h_hat = 1.0 / h_hat;
+    
+    std::cout << reciprocal_h_hat << std::endl;
+    double dest_ch_eq_re = std::real(reciprocal_h_hat)*std::pow(2, kEqFrac);
+    double dest_ch_eq_im = -std::imag(reciprocal_h_hat)*std::pow(2, kEqFrac); //because dest expects the phase of the channel, not the reciprocal
+
+
+    //covert to bit command
+    int16_t dest_ch_eq_re_int16 = static_cast<int16_t>(std::round(dest_ch_eq_re));
+    int16_t dest_ch_eq_im_int16 = static_cast<int16_t>(std::round(dest_ch_eq_im));
+
+    // Apply saturation check
+    if (dest_ch_eq_re > INT16_MAX || dest_ch_eq_re < INT16_MIN) {
+        dest_ch_eq_re_int16 = (dest_ch_eq_re > INT16_MAX) ? INT16_MAX : INT16_MIN;
+        std::cout << "WARNING: dest_ch_eq saturated" << std::endl;
+    }
+    if (dest_ch_eq_im > INT16_MAX || dest_ch_eq_im < INT16_MIN) {
+        dest_ch_eq_im_int16 = (dest_ch_eq_im > INT16_MAX) ? INT16_MAX : INT16_MIN;
+        std::cout << "WARNING: dest_ch_eq saturated" << std::endl;
+    }
+
+    mmio::WrMmio(tx_usrp, mmio::kDestChEqReAddr, static_cast<uint16_t>(dest_ch_eq_re_int16));
+    mmio::WrMmio(tx_usrp, mmio::kDestChEqImAddr, static_cast<uint16_t>(dest_ch_eq_im_int16));
+}
 
 /**
  * @brief Computes the cross-correlation of two complex-valued vectors.
@@ -183,27 +263,6 @@ void xcorr_slow(const std::vector<std::complex<double>>& x, const std::vector<st
 }
 
 
-
-
-/**
- * Delays destination. To purposefully insert a delay of D, set D_hat = D
- * 
- * @param D_hat estimated relative delay of source wrt destination
- * 
-*/
-void compensateDelays(const uhd::usrp::multi_usrp::sptr tx_usrp, const int D_hat) {
-    uint16_t dest_delay, src_delay;
-    if (D_hat < 0) { // D < 0 -> prmbl early -> delay src
-        dest_delay = 0;
-        src_delay = -D_hat;
-    }
-    else { // D > 0 -> prmbl late -> delay dest
-        dest_delay = D_hat;
-        src_delay = 0;
-    }
-    wr_mem_cmd(tx_usrp, (src_delay_cmd << 32) | src_delay);
-    wr_mem_cmd(tx_usrp, (dest_delay_cmd << 32) | dest_delay);
-}
 
 /**
  * @brief Upsamples a vector by duplicating each sample N times.

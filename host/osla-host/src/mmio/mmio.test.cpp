@@ -643,13 +643,21 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // for(const auto& cmd : write_cmds) {
     //     wr_mem_cmd(tx_usrp, cmd);
     // }
-    InitBBCore(tx_usrp);
+    mmio::InitBBCore(tx_usrp);
+    //Write input pkt
+    const int PktLen = 256;
+    for(int i = 0; i*32 < PktLen; i++) {
+        uint64_t cmd = 0x80000020 + i;
+
+        mmio::wr_mem_cmd(tx_usrp, cmd << 32 | 0xE12ACE94);
+        mmio::rd_mem_cmd(tx_usrp, 0x00000020+i ,true);
+    }
 
     std::cout << "Readback...\n";
     // for(const auto& cmd : read_cmds) {
     //     rd_mem_cmd(tx_usrp, cmd,true);
     // }
-    ReadBBCore(tx_usrp);
+    mmio::ReadBBCore(tx_usrp);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 500 ms before tx is active
     
@@ -664,10 +672,10 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     
     std::cout << "Start command issued...\n";
     //start_tx(tx_usrp, 0x0, 0x1, 0x2, 0x0); //wired loopback
-    start_tx(tx_usrp, 0x0, 0x0, 0x0, 0x0); //wired loopback
+    mmio::start_tx(tx_usrp, 0x0, 0x0, 0x0, 0x0); //wired loopback
 
     std::cout << "Reading results...\n";
-    ReadBBCore(tx_usrp);
+    mmio::ReadBBCore(tx_usrp);
     
     std::cout << "Done printing digital loopback results...\n";
 
@@ -677,15 +685,86 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::vector<std::complex<double>> cap_samps;
 
     
-    read_sample_mem(tx_usrp, cap_samps, pow(2,12), "file_samps.dat");
+    mmio::read_sample_mem(tx_usrp, cap_samps, pow(2,12), "file_samps.dat");
     int i = 0;
     for(const auto& samp : cap_samps) {
         std::cout << std::dec << i << " " << samp << std::endl;
         i++;
     }//disable printout to look at mmio results
     
+
+    // //Write input pkt
+    // const int PktLen = 256;
+    // for(int i = 0; i*32 < PktLen; i++) {
+    //     uint64_t cmd = 0x80000020 + i;
+
+    //     wr_mem_cmd(tx_usrp, cmd << 32 | 0xE12ACE94);
+    //     rd_mem_cmd(tx_usrp, 0x00000020+i ,true);
+    // }
     
 
+    //pkt write test
+    //     std::random_device rd;
+
+    // // Create a Mersenne Twister PRNG engine
+    // std::mt19937 mt(rd());
+
+    // // Define a distribution for generating uint32_t values
+    // std::uniform_int_distribution<uint32_t> dist;
+
+
+    // // Generate a random uint32_t
+    //     const int Num16BitSlices = PktLen/32;
+    //     uint32_t input_pkt[Num16BitSlices] = {0};
+    //     uint32_t output_pkt[Num16BitSlices] = {0};
+
+    //     // Generate a random uint32_t
+    //     for(int i = 0; i < Num16BitSlices; i++)
+    //     {
+    //         uint32_t randomValue = dist(mt);
+    //         //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
+
+    //         input_pkt[i] = randomValue;
+
+    //         WrCmd(tx_usrp, 0x020+i, randomValue);
+
+    //         // uint64_t cmd = 0;
+    //         // cmd  = (cmd & ~addrBits) | (static_cast<uint64_t>(0x020+i)<<32);
+    //         // cmd  = (cmd & ~dataBits) | (randomValue<<0);
+    //         // cmd  = (cmd & ~cmdBits) | (static_cast<uint64_t>(0x1)<<63);
+        
+    //         // wr_mem_cmd(tx_usrp, cmd);
+    //     }
+        
+// //check write
+//         for(int i = 0; i*32 < mmio::kPktLen; i++) {
+//             mmio::rd_mem_cmd(tx_usrp, mmio::kPktAddr+i ,true);
+//             std::cout << std::hex << input_pkt[i] << std::endl;
+//         }
+
+        // //Basic analog loopback test   
+    // //Write input pkt
+    // const int PktLen = 256;
+    // for(int i = 0; i*32 < PktLen; i++) {
+    //     uint64_t cmd = 0x80000020 + i;
+
+    //     wr_mem_cmd(tx_usrp, cmd << 32 | 0xE12ACE94);
+    //     rd_mem_cmd(tx_usrp, 0x00000020+i ,true);
+    // }
+
+    // mode_bits = 0x3;
+    // rx_ch_sel_bits = 0x1; 
+    // tx_core_bits = 0x2; 
+    // gpio_start_sel_bits = 0x0;
+    // start_tx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
+
+
+    // ReadBBCore(tx_usrp);
+
+    // std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    // for(int i = 0; i*32 < PktLen; i++) {
+    //     rd_mem_cmd(tx_usrp, 0x00000810+i ,true);
+    // }
 
     /*
     const int NumPrmblSamps_test = 512;
