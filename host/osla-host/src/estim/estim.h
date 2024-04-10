@@ -15,6 +15,8 @@ struct ChParams {
 ChParams ch_estim(const uhd::usrp::multi_usrp::sptr tx_usrp, const int D_test, const std::uint32_t rx_ch_sel_bits, const std::uint32_t tx_core_bits, const std::uint32_t gpio_start_sel_bits, const int& NCapSamps, const std::string& file);
 double EstimNoise(const uhd::usrp::multi_usrp::sptr tx_usrp, int NCapSamps);
 double calcSNR(const std::complex<double>& h_hat, const double var);
+double calcEsN0(const std::complex<double>& h_hat, const int osr, const double var);
+
 
 void compensateDelays(const uhd::usrp::multi_usrp::sptr tx_usrp, const int D_hat);
 void PhaseEq(uhd::usrp::multi_usrp::sptr tx_usrp, const std::complex<double>& h_hat);

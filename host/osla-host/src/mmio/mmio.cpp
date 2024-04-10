@@ -44,7 +44,7 @@ namespace mmio {
         //write rst command to device in case we run this multiple times. I forgot this but acqusition went fine...
         wr_mem_cmd(tx_usrp, rst_cmd);
 
-        wr_mem_cmd(tx_usrp,0x80000000'00000000); //need to clear addr buffer
+        wr_mem_cmd(tx_usrp,0x80000000'00000000); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
 
         //rd_mem_cmd(tx_usrp,0x00000001,1);
 

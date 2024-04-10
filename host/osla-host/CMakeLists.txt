@@ -63,6 +63,8 @@ add_subdirectory(src/mmio)
 add_subdirectory(src/estim)
 target_link_libraries(osla_host mmio estim)
 
+add_subdirectory(tests)
+
 set(CMAKE_BUILD_TYPE "Release")
 message(STATUS "******************************************************************************")
 message(STATUS "* NOTE: When building your own app, you probably need all kinds of different  ")

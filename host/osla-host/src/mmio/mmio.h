@@ -23,7 +23,7 @@ namespace mmio {
 
     constexpr int kPktLen = 256;
     constexpr uint32_t kInPktAddr = 0x20;
-    constexpr uint32_t kOutPktAddr = 0x20;
+    constexpr uint32_t kOutPktAddr = 0x810;
 
     //Useful read commands
     //constexpr std::uint32_t isDone{0x08000001}; //src done tx

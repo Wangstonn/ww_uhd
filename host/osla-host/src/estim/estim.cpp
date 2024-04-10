@@ -13,7 +13,7 @@ const double prmbl_amp = (1 - std::pow(2, -15));
 /**
  * @brief Estimates channel characteristics based on captured samples.
  * 
- * This function estimates phase, and channel coefficient.
+ * This function estimates channel coefficient h_hat and delay d_hat.
  * 
  * @param tx_usrp A pointer to the UHD USRP object for transmission.
  * @param D_test The test delay to be compensated.
@@ -22,9 +22,7 @@ const double prmbl_amp = (1 - std::pow(2, -15));
  * @param gpio_start_sel_bits Selector bits for GPIO start.
  * @param NCapSamps Number of samples to be captured.
  * @param var Variance of the captured samples.
- * @param D_hat Output parameter to store the calculated value of D_hat (lag).
- * @param h_hat Output parameter to store the calculated value of h_hat.
- * @param EsN0 Output parameter to store the calculated value of EsN0.
+ * @return ChParams struct containing d_hat and h_hat 
  */
 ChParams ch_estim(const uhd::usrp::multi_usrp::sptr tx_usrp, const int D_test, const std::uint32_t rx_ch_sel_bits, const std::uint32_t tx_core_bits, const std::uint32_t gpio_start_sel_bits, const int& NCapSamps, const std::string& file) {
     compensateDelays(tx_usrp, D_test);
@@ -157,7 +155,13 @@ double EstimNoise(const uhd::usrp::multi_usrp::sptr tx_usrp, int NCapSamps){
 
 double calcSNR(const std::complex<double>& h_hat, const double var)
 {
-    double EsN0 = 10*std::log10(std::pow(prmbl_amp*std::abs(h_hat),2)/(var*2));
+    double SNR = 10*std::log10(std::pow(prmbl_amp*std::abs(h_hat),2)/(var*2));
+    return SNR;
+}
+
+double calcEsN0(const std::complex<double>& h_hat, const int osr, const double var)
+{
+    double EsN0 = 10*std::log10(std::pow(prmbl_amp*std::abs(h_hat),2)*osr/(var*2));
     return EsN0;
 }
 
