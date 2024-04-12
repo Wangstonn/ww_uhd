@@ -4,9 +4,10 @@ plot(variancesArray)
 mean(variancesArray)
 
 %%
-snr_1 = 13;
+snr_2 = 27;
+snr_1 = 27+10*log10(4);
 dists = 1:50;
-snrs = 13-log(dists.^2);
+snrs = snr_1-10*log10(dists.^2);
 plot(dists, snrs)
 title("Estimated SNR vs Distance with tx gain = 0 dB")
 xlabel("Distance (m)")
