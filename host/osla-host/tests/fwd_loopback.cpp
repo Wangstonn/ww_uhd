@@ -592,8 +592,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     });
 
     //test settings
-    std::uint32_t rx_ch_sel_bits{0b00}; 
-    std::uint32_t tx_core_bits{0b00}; 
+    std::uint32_t tx_core_bits{0b10}; 
+    std::uint32_t rx_ch_sel_bits{0b01}; 
     std::uint32_t gpio_start_sel_bits{0b00};
 
     //Measure noise multiple times incase there is interference
@@ -670,7 +670,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         //redo timing/flatfade estimation using the estimated delay to get the full preamble----------------------------------------
         int D_test = D_hat;
         
-        auto ch_params = ch_estim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "../../tests/lb_samps.mem");
+        auto ch_params = ch_estim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "../../tests/lb_samps.dat");
         D_hat = ch_params.D_hat;
         h_hat = ch_params.h_hat;
         SNR = calcSNR(h_hat, var);
@@ -691,6 +691,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //Phase Compensation
     PhaseEq(tx_usrp, h_comp);
 
+    std::cout << "h_hat: " << h_hat << std::endl;
     mmio::rd_mem_cmd(tx_usrp,mmio::kDestChEqReAddr, true);
     mmio::rd_mem_cmd(tx_usrp,mmio::kDestChEqImAddr, true);
     
@@ -704,7 +705,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     double lin_digital_gain = 1/h_mag; //total gain needed in system to equalize 
     std::cout << "h_mag: " << h_mag << std::endl;
     std::cout << "lin_digital_gain: " << lin_digital_gain << std::endl;
-    uint16_t tx_amp = static_cast<uint16_t>(std::round(lin_digital_gain*(std::pow(2,15))));
+    int16_t lin_digital_gain_int16 = (std::round(lin_digital_gain*(std::pow(2,15))) > INT16_MAX) ? INT16_MAX : std::round(lin_digital_gain*(std::pow(2,15)));
+
+    uint16_t tx_amp = static_cast<uint16_t>(lin_digital_gain_int16);
     mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
     mmio::rd_mem_cmd(tx_usrp,mmio::kSrcTxAmpAddr,true);
 
@@ -803,6 +806,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             break;
         }
     }
+
+    std::vector<std::complex<double>> cap_samps;
+    mmio::read_sample_mem(tx_usrp, cap_samps, std::pow(2,15), "../../tests/pkt_samps.dat"); 
 
 
     
