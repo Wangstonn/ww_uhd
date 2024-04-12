@@ -211,7 +211,7 @@ namespace mmio {
             uint32_t cmd = 0;
             cmd  = (cmd & ~addrBits) | (PrmblStartAddr+i);
             cmd  = (cmd & ~cmdBits) | (0<<31);
-            uint32_t prmbl_samp = static_cast<uint32_t>(rd_mem_cmd(tx_usrp, cmd));
+            uint32_t prmbl_samp = rd_mem_cmd(tx_usrp, cmd);
 
             int16_t prmbl_samp_I, prmbl_samp_Q; //integer because samples are signed
             prmbl_samp_I = static_cast<int16_t>(prmbl_samp >> 16);

@@ -33,7 +33,7 @@ ChParams ch_estim(const uhd::usrp::multi_usrp::sptr tx_usrp, const int D_test, c
 
     //Read data
     std::vector<std::complex<double>> cap_samps;
-    mmio::read_sample_mem(tx_usrp, cap_samps, NCapSamps, ""); //dont write to file since itll be overwritten
+    mmio::read_sample_mem(tx_usrp, cap_samps, NCapSamps, file); 
 
     int N_w = static_cast<int>(cap_samps.size()); //number of captured samples
 
@@ -131,8 +131,12 @@ ChParams ch_estim(const uhd::usrp::multi_usrp::sptr tx_usrp, const int D_test, c
     // std::cout << "phi_hat: " << std::arg(h_hat) << std::endl;
 }
 
-double EstimNoise(const uhd::usrp::multi_usrp::sptr tx_usrp, int NCapSamps){
-    mmio::start_tx(tx_usrp, 0x0, 0x1, 0x0, 0x0); //Mode zero, only listen at src (no tx)
+double EstimNoise(const uhd::usrp::multi_usrp::sptr tx_usrp, const int NCapSamps, const uint32_t rx_ch_sel_bits){
+    //temporarily set tx_amp = 0
+    uint32_t tx_amp = mmio::rd_mem_cmd(tx_usrp,mmio::kSrcTxAmpAddr);
+    mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,0x0);
+
+    mmio::start_tx(tx_usrp, 0x0, rx_ch_sel_bits, 0x0, 0x0); //Mode zero, only listen at src (no tx)
 
     //Read on chip acquired data and write to binary file to be parsed by matlab
     std::vector<std::complex<double>> cap_samps;
@@ -149,6 +153,8 @@ double EstimNoise(const uhd::usrp::multi_usrp::sptr tx_usrp, int NCapSamps){
     });
 
     double var = accum / (cap_samps.size()-1);
+
+    mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
     return var;
 }
 
@@ -200,7 +206,7 @@ const int kEqFrac = 13;
 void PhaseEq(uhd::usrp::multi_usrp::sptr tx_usrp, const std::complex<double>& h_hat) {
     std::complex<double> reciprocal_h_hat = 1.0 / h_hat;
     
-    std::cout << reciprocal_h_hat << std::endl;
+    //std::cout << reciprocal_h_hat << std::endl;
     double dest_ch_eq_re = std::real(reciprocal_h_hat)*std::pow(2, kEqFrac);
     double dest_ch_eq_im = -std::imag(reciprocal_h_hat)*std::pow(2, kEqFrac); //because dest expects the phase of the channel, not the reciprocal
 

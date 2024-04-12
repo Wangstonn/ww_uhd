@@ -246,8 +246,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("output reg", po::value<uint32_t>(&output_reg)->default_value(0), "output reg")
 
         //afe params
-        ("tx-freq", po::value<double>(&tx_freq)->default_value(.915e9), "transmit RF center frequency in Hz")
-        ("rx-freq", po::value<double>(&rx_freq)->default_value(.915e9), "receive RF center frequency in Hz")
+        ("tx-freq", po::value<double>(&tx_freq)->default_value(2.4e9), "transmit RF center frequency in Hz")
+        ("rx-freq", po::value<double>(&rx_freq)->default_value(2.4e9), "receive RF center frequency in Hz")
         ("tx-gain", po::value<double>(&tx_gain)->default_value(0), "gain for the transmit RF chain")
         ("rx-gain", po::value<double>(&rx_gain)->default_value(0), "gain for the receive RF chain")
         ("tx-bw", po::value<double>(&tx_bw)->default_value(160e6), "analog transmit filter bandwidth in Hz")
@@ -559,7 +559,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         std::signal(SIGINT, &sig_int_handler);
         std::cout << "Press Ctrl + C to stop streaming..." << std::endl;
     }
-//For early termination use Ctrl + Z
+    //For early termination use Ctrl + Z
 
     // reset usrp time to prepare for transmit/receive
     std::cout << boost::format("Setting device timestamp to 0...") << std::endl;
@@ -591,11 +591,156 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, 0); //save_rx = 0 so that we dont create a huge file
     });
 
-    //Basic digital loopback test
-    uint16_t mode_bits = 0b11;
-    uint16_t rx_ch_sel_bits = 0b00; 
-    uint16_t tx_core_bits = 0b00; 
-    uint16_t gpio_start_sel_bits = 0b00;
+    std::uint32_t mode_bits{0b00};
+    std::uint32_t rx_ch_sel_bits{0b01}; 
+    std::uint32_t tx_core_bits{0b10}; 
+    std::uint32_t gpio_start_sel_bits{0b00};
+
+    //Measure noise multiple times incase there is interference
+    for(int i = 0; i < 0; i++) {
+        // Noise estimation---------------------------------------------------------------------------------------------------------
+        std::cout << "Running noise estimation..." << std::endl;
+        double var = EstimNoise(tx_usrp, pow(2,12)); //use 2^15 samples to get a good estimate for the noise
+        std::cout << "Estimated var= " << var << std::endl; //one time this gave me a negative....
+    
+    }
+    //noise estimation
+    double var;
+    std::cout << "Running noise estimation..." << std::endl;
+    var = EstimNoise(tx_usrp, pow(2,15)); //use 2^15 samples to get a good estimate for the noise
+    std::cout << "Estimated var= " << var << std::endl; //one time this gave me a negative....
+
+    // Timing+flatfading estimation---------------------------------------------------------------------------------------------------------------------------
+    //Because our window is small, need to sweep multiple time intervals by adjusting source and dest delay. Assumes channel coherence is quite long
+    //Multiple tests have confirmed wired loopback delay with 8inch sma cable + attenuator is 119, so its find to just do one interval for now
+    std::cout << "Running delay+flatfading estimation..." << std::endl;
+
+    std::vector<int> D_hat_sweep, D_test_sweep;
+    std::vector<std::complex<double>> h_hat_sweep;
+    std::vector<double> SNR_sweep;
+    
+
+    int N_sweep_intervals = 0; //5
+    const int DelaySweepInterval = 512;
+
+    for(int interval_idx = -N_sweep_intervals/2; interval_idx <= N_sweep_intervals/2; interval_idx++) {
+        // Record the start time
+        auto start_time = std::chrono::high_resolution_clock::now();
+
+        int D_test = interval_idx * DelaySweepInterval; //D_test is the delay between src and dest we set. This is the opposite of D_comp's logic
+
+        auto ch_params = ch_estim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "");
+        int D_hat = ch_params.D_hat;
+        std::complex<double> h_hat = ch_params.h_hat;
+
+        double SNR = calcSNR(h_hat, var);
+
+        D_test_sweep.push_back(D_test);
+        D_hat_sweep.push_back(D_hat);
+        h_hat_sweep.push_back(h_hat);
+        SNR_sweep.push_back(SNR);
+
+        
+        //std::cout << "r[max_idx] = " << r[max_idx] << ", "; 
+        
+        std::cout << "D_test_sweep = " << D_test << ", ";
+        std::cout << "D_hat_sweep" << " = " << D_hat << ", ";
+        std::cout << "SNR_sweep" << " = " << SNR << ", ";
+        std::cout << "h_hat_sweep" << " : abs= " << std::abs(h_hat) << " arg= " << std::arg(h_hat) << std::endl;
+
+        auto end_time = std::chrono::high_resolution_clock::now();
+
+        // Calculate the elapsed time
+        auto duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time);
+
+        // Print the result and execution time
+        std::cout << "Execution time: " << duration.count() << " seconds" << std::endl;
+    }
+
+    // Find the index of the maximum absolute value in vector r
+    auto max_it = std::max_element(h_hat_sweep.begin(), h_hat_sweep.end(), [](const std::complex<double>& a, const std::complex<double>& b) {
+        return std::abs(a) < std::abs(b);
+    }); //Finds the iterator pointing to the max element
+    int max_idx = std::distance(h_hat_sweep.begin(), max_it); //Finds the index corresponding to that iterator
+
+    std::complex<double> h_hat = h_hat_sweep[max_idx];
+    int D_hat = D_hat_sweep[max_idx];
+    double SNR = SNR_sweep[max_idx];
+    double EsN0 = 0;
+    if(true) {
+        //redo timing/flatfade estimation using the estimated delay to get the full preamble----------------------------------------
+        int D_test = D_hat;
+        
+        auto ch_params = ch_estim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "");
+        D_hat = ch_params.D_hat;
+        h_hat = ch_params.h_hat;
+        SNR = calcSNR(h_hat, var);
+        EsN0 = calcEsN0(h_hat, 336, var);
+
+        std::cout << std::dec;
+        std::cout << "D_test= " << D_test << ", ";
+        std::cout << "D_hat= " << D_hat << ", ";
+        std::cout << "SNR= " << SNR << ", ";
+        std::cout << "EsN0= " << EsN0 << ", ";
+        std::cout << "h_hat : abs= " << std::abs(h_hat) << " arg= " << std::arg(h_hat) << std::endl;
+    }
+
+    //Coefficient compensation------------------------------------------------------
+    std::cout << "Performing compensation..." << std::endl;
+    //Use the high SNR estimate because its more reliable. Set the digital gain to 1
+    std::complex<double> h_comp = h_hat/std::abs(h_hat);
+    //Phase Compensation
+    PhaseEq(tx_usrp, h_comp);
+
+    int D_eff = D_hat + 4;
+    compensateDelays(tx_usrp, D_eff);
+
+    // Testing----------------------------------------------------------------------
+    //Basic analog loopback test   
+    // Digital gain is [0.66,2]. Set signal amplitude to 1. 
+    double h_mag = std::abs(h_hat);
+    double total_gain = -20*std::log10(h_mag); //total gain needed in system to equalize 
+    tx_gain = 0;
+    rx_gain = 0;
+
+    double digital_gain = total_gain;
+    double lin_digital_gain = std::pow(10,digital_gain/20);
+    uint16_t tx_amp = static_cast<uint16_t>(std::round(lin_digital_gain*(std::pow(2,15)-1)));
+    mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
+
+    mode_bits = 0b11;
+    rx_ch_sel_bits = 0b01; 
+    tx_core_bits = 0b10; 
+    gpio_start_sel_bits = 0b00;
+
+    
+
+    // //Single pkt test
+    // //Write input pkt
+    // for(int i = 0; i*32 < mmio::kPktLen; i++) {
+    //     uint64_t cmd = 0x80000020 + i;
+
+    //     mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, 0xE12ACE94);
+    //     mmio::rd_mem_cmd(tx_usrp, 0x00000020+i ,true);
+    // }
+
+    // mmio::start_tx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
+
+    // while(true)
+    // {
+    //     //Run and check received pkt    
+    //     mmio::WrMmio(tx_usrp,0x0,0x0); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
+    //     bool pkt_valid = mmio::rd_mem_cmd(tx_usrp, mmio::kBbStatusAddr) & 0x2; //around 10 ms
+    //     if(pkt_valid)
+    //         break;
+    // }
+
+    // for(int i = 0; i*32 < mmio::kPktLen; i++) {
+    //     mmio::rd_mem_cmd(tx_usrp, 0x00000810+i ,true);
+    // }
+
+
+    double n_errors = 0; 
 
     //Generate input bits
     std::random_device rd;
@@ -606,117 +751,257 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // Define a distribution for generating uint32_t values
     std::uniform_int_distribution<uint32_t> dist;
     
-    // Single pkt test -------------------------------------------------
-    // // Generate a random pkt
-    // const int Num16BitSlices = mmio::kPktLen/32;
-    // uint32_t input_pkt[Num16BitSlices] = {0};
-    // uint32_t output_pkt[Num16BitSlices] = {0};
 
-    // // Generate a random uint32_t
-    // for(int i = 0; i < Num16BitSlices; i++)
-    // {
-    //     uint32_t randomValue = dist(mt);
-    //     //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
+    // Generate a random pkt
+    const int Num16BitSlices = mmio::kPktLen/32;
+    uint32_t input_pkt[Num16BitSlices] = {0};
+    uint32_t output_pkt[Num16BitSlices] = {0};
 
-    //     input_pkt[i] = randomValue;
+    // Generate a random uint32_t
+    for(int i = 0; i < Num16BitSlices; i++)
+    {
+        uint32_t randomValue = dist(mt);
+        //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
 
-    //     mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, randomValue);
-    // }
+        input_pkt[i] = 0x0;//randomValue;
 
-    // // start
-    // mmio::start_tx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
-    
-    // while(true)
-    // {
-    //     //Run and check received pkt    
-    //     mmio::WrMmio(tx_usrp,0x0,0x0); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
-    //     bool pkt_valid = mmio::rd_mem_cmd(tx_usrp, mmio::kBbStatusAddr) & 0x2; //around 10 ms
-    //     if(pkt_valid)
-    //         break;
-    // }
-
-    // // read results ---------------------------------------------
-    // for(int i = 0; i*32 < mmio::kPktLen; i++) {
-    //     output_pkt[i] = mmio::rd_mem_cmd(tx_usrp, mmio::kOutPktAddr+i);
-    //     //std::cout << std::hex << input_pkt[i] << std::endl;
-
-    //     uint32_t xor_result = output_pkt[i] ^ input_pkt[i];
-    //     while (xor_result > 0) {
-    //         n_errors += xor_result & 1;
-    //         xor_result >>= 1;
-    //     }
-
-    //     std::cout << std::dec << "Bit slice: " << i << std::endl;
-    //     std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
-    //     std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
-    // }
-
-    // mmio::ReadBBCore(tx_usrp);
-
-    int n_iter = 0;
-    double n_error = 0; 
-    const int kMaxIter = 1e6;
-    const int kTargetErr = 100;
-    for(int iter = 1; iter < kMaxIter; iter++ ) {
-        n_iter++;
-        // Generate a random pkt
-        const int Num16BitSlices = mmio::kPktLen/32;
-        uint32_t input_pkt[Num16BitSlices] = {0};
-        uint32_t output_pkt[Num16BitSlices] = {0};
-
-        // Generate a random uint32_t
-        for(int i = 0; i < Num16BitSlices; i++)
-        {
-            uint32_t randomValue = dist(mt);
-            //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
-
-            input_pkt[i] = randomValue;
-
-            mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, randomValue);
-        }
-
-        // start
-        mmio::start_tx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
-        
-        while(true)
-        {
-            //Run and check received pkt    
-            mmio::WrMmio(tx_usrp,0x0,0x0); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
-            bool pkt_valid = mmio::rd_mem_cmd(tx_usrp, mmio::kBbStatusAddr) & 0x2; //around 10 ms
-            if(pkt_valid)
-                break;
-        }
-
-        // read results ---------------------------------------------
-        for(int i = 0; i*32 < mmio::kPktLen; i++) {
-            output_pkt[i] = mmio::rd_mem_cmd(tx_usrp, mmio::kOutPktAddr+i);
-            //std::cout << std::hex << input_pkt[i] << std::endl;
-
-            uint32_t xor_result = output_pkt[i] ^ input_pkt[i];
-            while (xor_result > 0) {
-                n_error += xor_result & 1;
-                xor_result >>= 1;
-            }
-            std::cout << std::dec << "Bit slice: " << i << " Num errors: "<< n_error <<std::endl;
-            std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
-            std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
-
-        }
-
-        if(n_error > kTargetErr){
-            break;
-        }
-
-
+        mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, 0x0);
     }
 
-    double ber = n_error/(n_iter*mmio::kPktLen);
-    std::cout << "n_error = " << n_error << " num bits sent = " << n_iter*mmio::kPktLen << std::endl;
+    // start
+    mmio::start_tx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
+    
+    while(true)
+    {
+        //Run and check received pkt    
+        mmio::WrMmio(tx_usrp,0x0,0x0); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
+        bool pkt_valid = mmio::rd_mem_cmd(tx_usrp, mmio::kBbStatusAddr) & 0x2; //around 10 ms
+        if(pkt_valid)
+            break;
+    }
+
+    // read results ---------------------------------------------
+    for(int i = 0; i*32 < mmio::kPktLen; i++) {
+        output_pkt[i] = mmio::rd_mem_cmd(tx_usrp, mmio::kOutPktAddr+i);
+        //std::cout << std::hex << input_pkt[i] << std::endl;
+
+        uint32_t xor_result = output_pkt[i] ^ input_pkt[i];
+        while (xor_result > 0) {
+            n_errors += xor_result & 1;
+            xor_result >>= 1;
+        }
+
+        std::cout << std::dec << "Bit slice: " << i << " Num errors: "<< n_errors <<std::endl;
+        std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
+        std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
+    }
+
+    // ber_array.push_back(n_errors/(iter*mmio::kPktLen));
+    // n_bit_err_array.push_back(n_errors);
+    // n_iter_array.push_back(iter*mmio::kPktLen);
+    std::cout << std::dec << "Reached " << n_errors << std::endl;
+
+
+
 
 
     
 
 
+
+
+
+
+    
+    // std::vector<double> EsN0_array = {1, 2, 3};
+    // std::vector<double> ber_array, n_bit_err_array, n_iter_array;
+
+    // //Gain Control-----------------------------------------------------------------------------
+    // double target_EsN0 = 10;
+    // //for (const auto& target_EsN0 : EsN0_array) {
+
+    // double total_gain = target_EsN0-EsN0;
+
+    // // //Digital gain is [0.66,2]. First set tx gain to achieve certain snr. Then use analog gain to set signal amplitude to 1. Then, run estimation again and apply digital gain is for fine tuning
+    // // double h_mag = std::abs(h_hat);
+    // // //std::cout << "h_mag: " << h_mag; 
+    // // double total_gain = -20*std::log10(h_mag); //total gain needed in system to equalize 
+    // // double digital_gain = 0;
+    // tx_gain = 0;
+    // rx_gain = 0;
+
+    // double digital_gain = total_gain;
+    // double lin_digital_gain = std::pow(10,digital_gain/20);
+    // uint16_t tx_amp = static_cast<uint16_t>(std::round(lin_digital_gain*(std::pow(2,15)-1)));
+    // mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
+
+    // // mmio::wr_mem_cmd(tx_usrp,0x80000034'00000000  | static_cast<uint16_t>(tx_amp));
+
+    // mmio::rd_mem_cmd(tx_usrp,mmio::kSrcTxAmpAddr, true);
+
+    // //Set rx gain so that signal amplitude is 1
+    // double h_mag = std::abs(h_hat);
+    // h_mag = h_mag*lin_digital_gain;
+    // std::cout << "h_mag at receiver: " << h_mag << std::endl;
+
+    // rx_gain = -20*std::log10(h_mag);
+
+    // if(rx_gain < 0 || rx_gain > 31.5)
+    // {
+    //     std::cerr << "Calculated rx_gain " << rx_gain << " outside AFE range: 0-31.5dB";
+    //     return EXIT_FAILURE;
+    // }
+
+    // //set the receive rf gain ubx range: 0-31.5dB
+    // std::cout << boost::format("Setting RX Gain: %f dB...") % rx_gain << std::endl;
+    //     rx_usrp->set_rx_gain(rx_gain, 0); //only using channel 0
+    // std::cout << boost::format("Actual RX Gain: %f dB...") % rx_usrp->get_rx_gain(0) << std::endl;
+
+    // //TODO: compensate the 0.5 db mismatch here
+
+    // // //redo timing/flatfade estimation using the estimated delay to get the full preamble----------------------------------------
+    // // int D_test = D_hat;
+
+    // // for(int i = 0; i<1; i++){
+
+    // // auto ch_params = ch_estim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "");
+    // // D_hat = ch_params.D_hat;
+    // // h_hat = ch_params.h_hat;
+    // // SNR = calcSNR(h_hat, var);
+    // // EsN0 = calcEsN0(h_hat, 336, var);
+
+    // // std::cout << std::dec;
+    // // std::cout << "D_test= " << D_test << ", ";
+    // // std::cout << "D_hat= " << D_hat << ", ";
+    // // std::cout << "SNR= " << SNR << ", ";
+    // // std::cout << "EsN0= " << EsN0 << ", ";
+    // // std::cout << "h_hat : abs= " << std::abs(h_hat) << " arg= " << std::arg(h_hat) << std::endl;
+    // // }
+
+    // //BER test------------------------------------------------------------------------------------------------------
+    // mode_bits = 0b11;
+    // rx_ch_sel_bits = 0b01; 
+    // tx_core_bits = 0b10; 
+    // gpio_start_sel_bits = 0b00;
+
+    // double n_errors{0}; 
+
+    // const int kMaxIter = 1e6;
+    // const int kTargetErr = 100;
+    // //Generate input bits
+    // std::random_device rd;
+
+    // // Create a Mersenne Twister PRNG engine
+    // std::mt19937 mt(rd());
+
+    // // Define a distribution for generating uint32_t values
+    // std::uniform_int_distribution<uint32_t> dist;
+    
+    // for(int iter = 1; iter < kMaxIter; iter++ ) {
+    //     // Generate a random pkt
+    //     const int Num16BitSlices = mmio::kPktLen/32;
+    //     uint32_t input_pkt[Num16BitSlices] = {0};
+    //     uint32_t output_pkt[Num16BitSlices] = {0};
+
+    //     // Generate a random uint32_t
+    //     for(int i = 0; i < Num16BitSlices; i++)
+    //     {
+    //         uint32_t randomValue = dist(mt);
+    //         //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
+
+    //         input_pkt[i] = randomValue;
+
+    //         mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, randomValue);
+    //     }
+
+    //     // start
+    //     mmio::start_tx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
+        
+    //     while(true)
+    //     {
+    //         //Run and check received pkt    
+    //         mmio::WrMmio(tx_usrp,0x0,0x0); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
+    //         bool pkt_valid = mmio::rd_mem_cmd(tx_usrp, mmio::kBbStatusAddr) & 0x2; //around 10 ms
+    //         if(pkt_valid)
+    //             break;
+    //     }
+
+    //     // read results ---------------------------------------------
+    //     for(int i = 0; i*32 < mmio::kPktLen; i++) {
+    //         output_pkt[i] = mmio::rd_mem_cmd(tx_usrp, mmio::kOutPktAddr+i);
+    //         //std::cout << std::hex << input_pkt[i] << std::endl;
+
+    //         uint32_t xor_result = output_pkt[i] ^ input_pkt[i];
+    //         while (xor_result > 0) {
+    //             n_errors += xor_result & 1;
+    //             xor_result >>= 1;
+    //         }
+
+    //         // std::cout << std::dec << "Bit slice: " << i << std::endl;
+    //         // std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
+    //         // std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
+    //     }
+
+    //     if(n_errors > kTargetErr){
+    //         // ber_array.push_back(n_errors/(iter*mmio::kPktLen));
+    //         // n_bit_err_array.push_back(n_errors);
+    //         // n_iter_array.push_back(iter*mmio::kPktLen);
+    //         std::cout << std::dec << "Reached " << n_errors << " errors for EsN0 = " << target_EsN0 << " in " << iter << " iterations" << std::endl;
+    //         std::cout << "ber =" << n_errors/(iter*mmio::kPktLen) << std::endl;
+    //         break;
+    //     }
+    // }
+
+
+    //}
+
+    // std::cout << "Completed experiment with following BER results" << std::endl;
+
+    // // Print MATLAB command to instantiate an array with vector contents
+    // std::cout << "ber = ["; // Start MATLAB array definition
+    // // Loop through the vector and print each element
+    // for (size_t i = 0; i < ber_array.size(); ++i) {
+    //     std::cout << ber_array[i]; // Print the current element
+
+    //     // If not the last element, print a comma and space
+    //     if (i != ber_array.size() - 1) {
+    //         std::cout << ", ";
+    //     }
+    // }
+    // std::cout << "];" << std::endl; // End MATLAB array definition
+
+    // std::cout << "EsN0 = ["; // Start MATLAB array definition
+    // for (size_t i = 0; i < EsN0_array.size(); ++i) {
+    //     std::cout << EsN0_array[i]; // Print the current element
+
+    //     // If not the last element, print a comma and space
+    //     if (i != EsN0_array.size() - 1) {
+    //         std::cout << ", ";
+    //     }
+    // }
+    // std::cout << "];" << std::endl; // End MATLAB array definition
+
+    // std::cout << "n_bit_err = ["; // Start MATLAB array definition
+    // for (size_t i = 0; i < n_bit_err_array.size(); ++i) {
+    //     std::cout << n_bit_err_array[i]; // Print the current element
+
+    //     // If not the last element, print a comma and space
+    //     if (i != n_bit_err_array.size() - 1) {
+    //         std::cout << ", ";
+    //     }
+    // }
+    // std::cout << "];" << std::endl; // End MATLAB array definition    
+
+    // std::cout << "n_iter_array = ["; // Start MATLAB array definition
+    // for (size_t i = 0; i < n_iter_array.size(); ++i) {
+    //     std::cout << n_iter_array[i]; // Print the current element
+
+    //     // If not the last element, print a comma and space
+    //     if (i != n_iter_array.size() - 1) {
+    //         std::cout << ", ";
+    //     }
+    // }
+    // std::cout << "];" << std::endl; // End MATLAB array definition    
     //////////////////////////////////////////////////////////////////////////////////////////////////
 
 

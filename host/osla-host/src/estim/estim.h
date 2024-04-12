@@ -13,7 +13,7 @@ struct ChParams {
     ChParams() : D_hat(0), h_hat(0.0, 0.0) {} // Initializes D_hat to 0 and h_hat to (0, 0)
 };
 ChParams ch_estim(const uhd::usrp::multi_usrp::sptr tx_usrp, const int D_test, const std::uint32_t rx_ch_sel_bits, const std::uint32_t tx_core_bits, const std::uint32_t gpio_start_sel_bits, const int& NCapSamps, const std::string& file);
-double EstimNoise(const uhd::usrp::multi_usrp::sptr tx_usrp, int NCapSamps);
+double EstimNoise(const uhd::usrp::multi_usrp::sptr tx_usrp, const int NCapSamps, const uint32_t rx_ch_sel_bits = 0b01);
 double calcSNR(const std::complex<double>& h_hat, const double var);
 double calcEsN0(const std::complex<double>& h_hat, const int osr, const double var);
 
