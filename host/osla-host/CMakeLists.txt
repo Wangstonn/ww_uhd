@@ -55,10 +55,15 @@ link_directories(${Boost_LIBRARY_DIRS})
 ### Make the executable #######################################################
 add_executable(osla_host osla_host.cpp)
 
+# Add the preamble to the build directory
+configure_file( ${CMAKE_BINARY_DIR}/src/estim/preamble.mem preamble.mem COPYONLY)
+
 # WW - add c++ functions
 add_subdirectory(src/mmio)
 add_subdirectory(src/estim)
 target_link_libraries(osla_host mmio estim)
+
+add_subdirectory(tests)
 
 set(CMAKE_BUILD_TYPE "Release")
 message(STATUS "******************************************************************************")

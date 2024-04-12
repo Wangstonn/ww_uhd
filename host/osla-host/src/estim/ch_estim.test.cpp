@@ -559,6 +559,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         std::signal(SIGINT, &sig_int_handler);
         std::cout << "Press Ctrl + C to stop streaming..." << std::endl;
     }
+    //For early termination use Ctrl + Z
 
     // reset usrp time to prepare for transmit/receive
     std::cout << boost::format("Setting device timestamp to 0...") << std::endl;
@@ -566,12 +567,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
 
     //--------------------------------------------------
-    //WW Changes
+    //WW - OSLA-BPSK Operation
     //--------------------------------------------------
 
     //Preload some default threshold and angle settings
     //std::cout << "Writing to regs...\n";
-    InitBBCore(tx_usrp);
+    mmio::InitBBCore(tx_usrp);
     
     //Start tx and streaming
     // start transmit worker thread
@@ -589,52 +590,37 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, 0); //save_rx = 0 so that we dont create a huge file
     });
 
-    int NumPrmblSamps = pow(2,15);
-
+    //Measure noise multiple times incase there is interference
     for(int i = 0; i < 0; i++) {
         // Noise estimation---------------------------------------------------------------------------------------------------------
         std::cout << "Running noise estimation..." << std::endl;
-        start_tx(tx_usrp, 0x0, 0x1, 0x0, 0x0); //Mode zero, only listen at src (no tx)
-
-        //Read on chip acquired data and write to binary file to be parsed by matlab
-        std::vector<std::complex<double>> cap_samps;
-        read_sample_mem(tx_usrp, cap_samps, NumPrmblSamps,"");
-
-        // Estimate noise
-        std::complex<double> sum = std::accumulate(std::begin(cap_samps), std::end(cap_samps), std::complex<double>{0,0});
-        //long unsigned int size->double is a narrowing but hopefully our vectors dont have this size
-        std::complex<double> mu =  sum / std::complex<double>{static_cast<double>(cap_samps.size()),0};
-
-        double accum = 0;
-        std::for_each(std::begin(cap_samps), std::end(cap_samps), [&](const std::complex<double> d) {
-            accum += std::pow(std::abs(d - mu),2);
-        });
-
-        double var = accum / (cap_samps.size()-1);
+        double var = EstimNoise(tx_usrp, pow(2,15)); //use 2^15 samples to get a good estimate for the noise
         std::cout << "Estimated var= " << var << std::endl; //one time this gave me a negative....
+
     }
-
+    double var;
     std::cout << "Running noise estimation..." << std::endl;
-    start_tx(tx_usrp, 0x0, 0x1, 0x0, 0x0); //Mode zero, only listen at src (no tx)
+    // start_tx(tx_usrp, 0x0, 0x1, 0x0, 0x0); //Mode zero, only listen at src (no tx)
 
-    //Read on chip acquired data and write to binary file to be parsed by matlab
-    std::vector<std::complex<double>> cap_samps;
-    file = "usrp_samples.noise.dat";
-    read_sample_mem(tx_usrp, cap_samps, NumPrmblSamps , file);
+    // //Read on chip acquired data and write to binary file to be parsed by matlab
+    // std::vector<std::complex<double>> cap_samps;
+    // file = "usrp_samples.noise.dat";
+    // read_sample_mem(tx_usrp, cap_samps, NumPrmblSamps , file);
 
-    std::cout << "Samples written to file: "<< file << std::endl;
+    // std::cout << "Samples written to file: "<< file << std::endl;
 
-    // Estimate noise
-    std::complex<double> sum = std::accumulate(std::begin(cap_samps), std::end(cap_samps), std::complex<double>{0,0});
-    //long unsigned int size->double is a narrowing but hopefully our vectors dont have this size
-    std::complex<double> mu =  sum / std::complex<double>{static_cast<double>(cap_samps.size()),0};
+    // // Estimate noise
+    // std::complex<double> sum = std::accumulate(std::begin(cap_samps), std::end(cap_samps), std::complex<double>{0,0});
+    // //long unsigned int size->double is a narrowing but hopefully our vectors dont have this size
+    // std::complex<double> mu =  sum / std::complex<double>{static_cast<double>(cap_samps.size()),0};
 
-    double accum = 0;
-    std::for_each(std::begin(cap_samps), std::end(cap_samps), [&](const std::complex<double> d) {
-        accum += std::pow(std::abs(d - mu),2);
-    });
+    // double accum = 0;
+    // std::for_each(std::begin(cap_samps), std::end(cap_samps), [&](const std::complex<double> d) {
+    //     accum += std::pow(std::abs(d - mu),2);
+    // });
 
-    double var = accum / (cap_samps.size()-1);
+    // double var = accum / (cap_samps.size()-1);
+    var = EstimNoise(tx_usrp, pow(2,15)); //use 2^15 samples to get a good estimate for the noise
     std::cout << "Estimated var= " << var << std::endl; //one time this gave me a negative....
 
 
@@ -821,46 +807,44 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         std::cout << "h_hat : abs= " << std::abs(h_hat) << " arg= " << std::arg(h_hat) << std::endl;
     }
 
-    //Compensation-----------------------------------------------------------------------------------------------------------
-    std::cout << "Performing compensation..." << std::endl;
+    //Phase Compensation
     // Get the real and imaginary components of 1/h_hat
-    std::complex<double> reciprocal_h_hat = 1.0 / h_hat;
-    std::cout << reciprocal_h_hat << std::endl;
-    double dest_ch_eq_re = std::real(reciprocal_h_hat)*std::pow(2, 13);
-    double dest_ch_eq_im = -std::imag(reciprocal_h_hat)*std::pow(2, 13);
+    // std::complex<double> reciprocal_h_hat = 1.0 / h_hat;
+    // const int eq_frac = 13;
+    // std::cout << reciprocal_h_hat << std::endl;
+    // double dest_ch_eq_re = std::real(reciprocal_h_hat)*std::pow(2, eq_frac);
+    // double dest_ch_eq_im = -std::imag(reciprocal_h_hat)*std::pow(2, eq_frac); //because dest expects the phase of the channel, not the reciprocal
 
-    //covert to bit command
-    int16_t dest_ch_eq_re_int16, dest_ch_eq_im_int16, dest_ch_eq_re_int14, dest_ch_eq_im_int14;
-    dest_ch_eq_re_int16 = static_cast<int16_t>(std::round(dest_ch_eq_re));
-    dest_ch_eq_im_int16 = static_cast<int16_t>(std::round(dest_ch_eq_im));
 
-    // Apply saturation check
-    if (dest_ch_eq_re > INT16_MAX || dest_ch_eq_re < INT16_MIN) {
-        dest_ch_eq_re_int16 = (dest_ch_eq_re > INT16_MAX) ? INT16_MAX : INT16_MIN;
-        std::cout << "WARNING: dest_ch_eq saturated" << std::endl;
-    }
-    if (dest_ch_eq_im > INT16_MAX || dest_ch_eq_im < INT16_MIN) {
-        dest_ch_eq_im_int16 = (dest_ch_eq_im > INT16_MAX) ? INT16_MAX : INT16_MIN;
-        std::cout << "WARNING: dest_ch_eq saturated" << std::endl;
-    }
+    // //covert to bit command
+    // int16_t dest_ch_eq_re_int16 = static_cast<int16_t>(std::round(dest_ch_eq_re));
+    // int16_t dest_ch_eq_im_int16 = static_cast<int16_t>(std::round(dest_ch_eq_im));
 
-    dest_ch_eq_re_int14 = dest_ch_eq_re_int16 >> 2;
-    dest_ch_eq_im_int14 = dest_ch_eq_im_int16 >> 2;
-    // std::cout << std::hex << std::setw(4) ;
-    //std::cout << (dest_ch_eq_re_int16 >> 2) << std::endl;        //0x80520453,
-    //std::cout << (dest_ch_eq_im_int16 >> 2)  << std::endl;        //0x80533937,
-    // //3937 is approx f93d, since last two bits are ignored by device
-    
-    // std::cout << std::hex;
-    // std::cout << ((0x80000031 << 32)|dest_ch_eq_re_int14) << std::endl;
-    // std::cout << ((0x80000032 << 32)|dest_ch_eq_im_int14) << std::endl;
-    wr_mem_cmd(tx_usrp, ((0x80000031'00000000) | dest_ch_eq_re_int14));
-    wr_mem_cmd(tx_usrp, ((0x80000032'00000000) | dest_ch_eq_im_int14));
+    // // Apply saturation check
+    // if (dest_ch_eq_re > INT16_MAX || dest_ch_eq_re < INT16_MIN) {
+    //     dest_ch_eq_re_int16 = (dest_ch_eq_re > INT16_MAX) ? INT16_MAX : INT16_MIN;
+    //     std::cout << "WARNING: dest_ch_eq saturated" << std::endl;
+    // }
+    // if (dest_ch_eq_im > INT16_MAX || dest_ch_eq_im < INT16_MIN) {
+    //     dest_ch_eq_im_int16 = (dest_ch_eq_im > INT16_MAX) ? INT16_MAX : INT16_MIN;
+    //     std::cout << "WARNING: dest_ch_eq saturated" << std::endl;
+    // }
 
+    // mmio::WrMmio(tx_usrp, mmio::kDestChEqReAddr, static_cast<uint16_t>(dest_ch_eq_re_int16));
+    // mmio::WrMmio(tx_usrp, mmio::kDestChEqImAddr, static_cast<uint16_t>(dest_ch_eq_im_int16));
+
+    PhaseEq(tx_usrp, h_hat);
+
+    mmio::rd_mem_cmd(tx_usrp,mmio::kDestChEqReAddr, true);
+    mmio::rd_mem_cmd(tx_usrp,mmio::kDestChEqImAddr, true);
+
+    // mmio::wr_mem_cmd(tx_usrp, ((0x80000031'00000000) | static_cast<uint16_t>(dest_ch_eq_re_int16)));
+    // mmio::wr_mem_cmd(tx_usrp, ((0x80000032'00000000) | static_cast<uint16_t>(dest_ch_eq_im_int16)));
+    // mmio::rd_mem_cmd(tx_usrp,0x00000031, true);
+    // mmio::rd_mem_cmd(tx_usrp,0x00000032, true);
 
     int D_eff = D_hat + 4;
     compensateDelays(tx_usrp, D_eff);
-    
 
     //-----------------------------------------------------------------------------------------------------------
 
