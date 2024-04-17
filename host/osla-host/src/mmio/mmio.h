@@ -30,11 +30,10 @@ namespace mmio {
     constexpr std::uint32_t kBbStatusAddr{0x800}; 
 
 
-    uint32_t rd_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t cmd, bool verbose = false);
+    uint32_t RdMmio(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t addr, bool verbose =  false);
     void WrMmio(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t addr, const uint32_t data);
     void wr_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint64_t cmd);
-    void read_sample_mem(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std::complex<double>>& cap_samps, const int NCapSamps, const std::string& file);
-    //void read_samples_helper(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std::complex<double>>& cap_samps, std::ofstream& of_file);
+    std::vector<std::complex<double>> ReadSampleMem(const uhd::usrp::multi_usrp::sptr tx_usrp, const bool mem_sel, const int NCapSamps = pow(2,12), const std::string& file = "");
     void start_tx(uhd::usrp::multi_usrp::sptr tx_usrp, std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits);
     void InitBBCore (uhd::usrp::multi_usrp::sptr tx_usrp);
     void ReadBBCore (uhd::usrp::multi_usrp::sptr tx_usrp);

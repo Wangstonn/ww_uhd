@@ -46,19 +46,19 @@ namespace mmio {
 
         wr_mem_cmd(tx_usrp,0x80000000'00000000); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
 
-        //rd_mem_cmd(tx_usrp,0x00000001,1);
+        //RdMmio(tx_usrp,0x00000001,1);
 
         //std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 500 ms before tx is active
         
         //std::cout << "Start command issued...\n";
         wr_mem_cmd(tx_usrp, start_cmd);
-        //rd_mem_cmd(tx_usrp,0x00000001,1);
+        //RdMmio(tx_usrp,0x00000001,1);
         
         //should poll done until it flips to one, but this always seems to finish before its necessary. Also which bit to poll varies between test
 
         // std::cout << "Reading results...\n";
         // for(const auto& cmd : read_cmds) {
-        //     rd_mem_cmd(tx_usrp, cmd,true);
+        //     RdMmio(tx_usrp, cmd,true);
         // }
         // std::cout << "Done printing digital loopback results...\n";
     }
@@ -95,9 +95,14 @@ namespace mmio {
         0x00000800,
         0x00000810,
         0x00000811,
-        0x00000819,
-        0x02000000,
-        0x020003FF
+
+        0x00000819, //src samp cap counter
+        0x00000820, //dest samp cap counter
+
+        0x01000000, //src samp cap memory
+        0x0100FFFE,
+        0x02000000, //dest samp cap memory
+        0x0200FFFE
     };
 
     void InitBBCore (uhd::usrp::multi_usrp::sptr tx_usrp) {
@@ -108,38 +113,54 @@ namespace mmio {
 
     void ReadBBCore (uhd::usrp::multi_usrp::sptr tx_usrp) {
         for(const auto& cmd : read_cmds) {
-            rd_mem_cmd(tx_usrp, cmd,true);
+            RdMmio(tx_usrp, cmd,true);
         }
     }
-        
+    
+    const uint32_t kAddrMask = 0x0FFFFFFF;
     /**
-    *  Write a command to gpio-in and then reads the contents of gpio-out and prints it to the console 
-    */
-    uint32_t rd_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t cmd, bool verbose)
+     * Writes a command to the GPIO input and then reads the contents of the GPIO output,
+     * printing it to the console.
+     * 
+     * @param tx_usrp The USRP device to perform the GPIO operations.
+     * @param addr The address or memory to be accessed. Should be a 28 bit number.
+     * @param verbose Boolean indicating whether to print verbose output.
+     * @return The data read from the GPIO output.
+     * 
+     * This function writes a command to the specified address in the GPIO input and then reads
+     * the corresponding data from the GPIO output. It prints the address and data to the console
+     * if the `verbose` flag is set to true. If a write command is detected where a read command
+     * was expected, a warning message is printed to the standard error stream. It also checks if 
+     * the address was valid by checking that the fpga read back the address
+     */
+    uint32_t RdMmio(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t addr, bool verbose)
     {
-    if(cmd >> 31) //check to make sure cmd is a read command
-            std::cout << "WARNING: Write command used where read command was expected. cmd: " << cmd << std::endl;
+        uint32_t read_addr = addr & kAddrMask;
+        if (addr &  !kAddrMask) {
+            // Throw an error indicating that the variable exceeds 24 bits
+            std::cerr << "Error: 28-bit address expected. But read command had more than 28 bits." << std::endl;
+        }
 
-        uint32_t last_cmd;
-        last_cmd = tx_usrp->get_gpio_attr("FP0B", "READBACK"); 
+        uint32_t last_addr;
+        last_addr = tx_usrp->get_gpio_attr("FP0B", "READBACK"); 
 
         tx_usrp->set_gpio_attr("FP0A", "OUT", 0x0); 
-        tx_usrp->set_gpio_attr("FP0B", "OUT", cmd); 
+        tx_usrp->set_gpio_attr("FP0B", "OUT", read_addr); 
         //std::this_thread::sleep_for(std::chrono::nanoseconds(5)); //Arguably no delay is necessary per https://stackoverflow.com/questions/18071664/stdthis-threadsleep-for-and-nanoseconds 
 
 
-        uint32_t readback_cmd, data;
-        readback_cmd = tx_usrp->get_gpio_attr("FP0B", "READBACK"); 
+        uint32_t readback_addr, data;
+        readback_addr = tx_usrp->get_gpio_attr("FP0B", "READBACK"); 
         data = tx_usrp->get_gpio_attr("FP0A", "READBACK"); 
 
-        if (last_cmd == readback_cmd) {
-            readback_cmd = tx_usrp->get_gpio_attr("FP0B", "READBACK"); 
-            std::cerr << "ERROR: rd_mem_cmd readback_cmd = last_cmd" << std::endl;
+        if (last_addr == readback_addr) {
+            readback_addr = tx_usrp->get_gpio_attr("FP0B", "READBACK"); 
+            std::cerr << "ERROR: RdMmio readback_addr = last_addr" << std::endl;
         }
         // std::this_thread::sleep_for(std::chrono::nanoseconds(5));
 
         if(verbose)
-            std::cout << "Addr: " << std::hex << std::setw(8) << std::setfill('0') << readback_cmd << " data: " << std::hex << std::setw(8) << std::setfill('0') << data << std::endl; 
+            std::cout << "Addr: " << std::hex << std::setw(8) << std::setfill('0') << readback_addr << " data: " << std::hex << std::setw(8) << std::setfill('0') << data << std::endl; 
 
         return data;
     }
@@ -161,7 +182,7 @@ namespace mmio {
     void wr_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint64_t cmd)
     {
         if(cmd >> 63 == 0) //check to make sure cmd is a wr command
-            std::cout << std::hex << "WARNING: Read command use where write command was expected. cmd: " << std::setw(16) << std::setfill('0') << cmd << std::endl; //setw and setfill make sure preceding zeros are captured
+            std::cerr << std::hex << "WARNING: Read command use where write command was expected. cmd: " << std::setw(16) << std::setfill('0') << cmd << std::endl; //setw and setfill make sure preceding zeros are captured
 
         tx_usrp->set_gpio_attr("FP0A", "OUT", static_cast<uint32_t>(cmd)); 
         tx_usrp->set_gpio_attr("FP0B", "OUT", static_cast<uint32_t>(cmd >> 32)); 
@@ -183,20 +204,24 @@ namespace mmio {
     }
 
 
-    //Hardcode here because I dont anticipate switching between different mmios
-    const uint32_t PrmblStartAddr = 0x02000000;
+    //Sample Capture Memory Address limits
+    const uint32_t kSrcPrmblStartAddr = 0x01000000;
+    const uint32_t kSrcPrmblEndAddr = 0x0100FFFE;
+
+    const uint32_t kDestPrmblStartAddr = 0x02000000;
+    const uint32_t kDestPrmblEndAddr = 0x0200FFFE;
 
     /**
      * Reads the captured samples from the MMIO and writes them to a vector of complex doubles
      * and/or to an output file.
      * 
      * @param tx_usrp The USRP device to read samples from.
-     * @param cap_samps Reference to a vector of complex doubles where the samples will be stored.
-     * @param frac_len Number of bits used to represent the fractional part of the number. This depends on RX implementation!!
+     * @param mem_sel Selects which memory to read from. 0->src, 1->dest
      * @param NCapSamps The number of samples to read.
+     * @param frac_len Number of bits used to represent the fractional part of the number. This depends on RX implementation!!
      * @param of_file Reference to an ofstream object representing the output file.
      *                If this file is open, the samples will be written to it.
-     * @return None
+     * @return A vector of complex doubles containing the captured samples.
      *
      * This function reads NCapSamps samples from the specified USRP device.
      * For each sample, it constructs a 16-bit complex value from two 16-bit integers
@@ -205,13 +230,25 @@ namespace mmio {
      * representing the real and imaginary parts of the sample is written to the file.
      * The samples are converted to complex doubles and normalized by multiplying
      * by 2^-frac_len before being stored.
+     * If the specified number of samples exceeds the available memory address range,
+     * the function reads the maximum allowed number of samples and prints an error message.
      */
-    void read_samples_helper(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std::complex<double>>& cap_samps, const int frac_len, const int NCapSamps, std::ofstream& of_file) {
-        for(int i = 0; i < NCapSamps; i++) {
-            uint32_t cmd = 0;
-            cmd  = (cmd & ~addrBits) | (PrmblStartAddr+i);
-            cmd  = (cmd & ~cmdBits) | (0<<31);
-            uint32_t prmbl_samp = rd_mem_cmd(tx_usrp, cmd);
+    std::vector<std::complex<double>> ReadSampleHelper(const uhd::usrp::multi_usrp::sptr tx_usrp, const bool mem_sel, const int NCapSamps, const int frac_len, std::ofstream& of_file) {
+        
+        std::vector<std::complex<double>> cap_samps; // Define a vector to store the samples
+        
+        uint32_t start_addr = mem_sel ? kDestPrmblStartAddr : kSrcPrmblStartAddr;
+        uint32_t end_addr = start_addr + NCapSamps - 1; // Calculate the end address
+        uint32_t max_end_addr = mem_sel ? kDestPrmblEndAddr : kSrcPrmblEndAddr;
+        // Check if the end address exceeds the maximum address
+        if (end_addr > max_end_addr) {
+            std::cerr << "Error: Address range exceeds maximum allowed address. Reading maximum allowed instead." << std::endl;
+            end_addr = max_end_addr;
+        }
+
+
+        for(uint32_t addr = start_addr; addr <= end_addr; addr++) {
+            uint32_t prmbl_samp = RdMmio(tx_usrp, addr);
 
             int16_t prmbl_samp_I, prmbl_samp_Q; //integer because samples are signed
             prmbl_samp_I = static_cast<int16_t>(prmbl_samp >> 16);
@@ -229,6 +266,7 @@ namespace mmio {
             samp *= static_cast<std::complex<double>>(pow(2, -frac_len));
             cap_samps.push_back(samp);
         }
+        return cap_samps; // Return the vector containing the samples
     }
 
     /**
@@ -236,23 +274,30 @@ namespace mmio {
      * The MMIO is a very low bandwidth interface, so this is only suitable for small amounts of capture 
      * It would take XX hrs to read 10 million samples. Its good enough for a thousand samples or so. Otherwise streaming strobed data is recommended
      *
-     * @param file Name of file to write to. If empty/missing will not write to file.
-     * @param cap_samps vector that will be cleared and filled with captured IQ samples
+     * @param tx_usrp The USRP device to read samples from.
+     * @param mem_sel Selects which memory to read from. 0->src, 1->dest
      * @param NCapSamps number of samples to be captured. Max is 2**15
-     * @return void
+     * @param file Name of file to write to. If empty/missing will not write to file.
+     * @return A vector of complex doubles containing the captured samples.
      */
-    void read_sample_mem(const uhd::usrp::multi_usrp::sptr tx_usrp, std::vector<std::complex<double>>& cap_samps, const int NCapSamps = pow(2,12), const std::string& file = "") {
-        const int frac_len = 6; 
+    std::vector<std::complex<double>> ReadSampleMem(const uhd::usrp::multi_usrp::sptr tx_usrp, const bool mem_sel, const int NCapSamps , const std::string& file) {
+        //Want the double equivalent to the fixed point numbers seen
+        const int kDestFracLen = 6; //(14,4)
+        const int kSrcFracLen = 12; //(14,10)
+        int frac_len = mem_sel ? kDestFracLen : kSrcFracLen;
+
+        std::vector<std::complex<double>> cap_samps; // Define a vector to store the samples
+
         if (!file.empty()) {
             std::ofstream of_file(file, std::ios::binary | std::ios::trunc);
 
             if (!of_file.is_open()) {
                 std::cerr << "Unable to open file for appending." << std::endl;
-                return;
+                return cap_samps; //return empty vector if file cannot be opened
             }
 
             // Call the helper function for reading samples
-            read_samples_helper(tx_usrp, cap_samps, frac_len, NCapSamps, of_file);
+            cap_samps = ReadSampleHelper(tx_usrp, mem_sel, NCapSamps, frac_len, of_file);
 
             // Close the file
             of_file.close();
@@ -260,8 +305,10 @@ namespace mmio {
             // Call the helper function for reading samples without writing to the file
             std::ofstream of_file;
             //of_file.open("");
-            read_samples_helper(tx_usrp, cap_samps, frac_len, NCapSamps, of_file);
+            cap_samps = ReadSampleHelper(tx_usrp, mem_sel, NCapSamps, frac_len, of_file);
         }
+
+        return cap_samps; // Return the vector containing the samples
     }
 
 }

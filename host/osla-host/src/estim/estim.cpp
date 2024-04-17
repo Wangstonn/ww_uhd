@@ -31,6 +31,7 @@ ChParams ch_estim(const uhd::usrp::multi_usrp::sptr tx_usrp, const int D_test, c
     std::uint32_t mode_bits{0x0};
     mmio::start_tx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
 
+
     //Read data
     std::vector<std::complex<double>> cap_samps;
     mmio::read_sample_mem(tx_usrp, cap_samps, NCapSamps, file); 

@@ -650,7 +650,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         uint64_t cmd = 0x80000020 + i;
 
         mmio::wr_mem_cmd(tx_usrp, cmd << 32 | 0xE12ACE94);
-        mmio::rd_mem_cmd(tx_usrp, 0x00000020+i ,true);
+        mmio::RdMmio(tx_usrp, 0x00000020+i ,true);
     }
 
     std::cout << "Readback...\n";
@@ -672,25 +672,25 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     
     std::cout << "Start command issued...\n";
     //start_tx(tx_usrp, 0x0, 0x1, 0x2, 0x0); //wired loopback
-    mmio::start_tx(tx_usrp, 0x0, 0x0, 0x0, 0x0); //wired loopback
+    mmio::start_tx(tx_usrp, 0b11, 0b0, 0b0, 0b0); //digital loopback
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000)); //Need to sleep for at least 500 ms before tx is active
 
     std::cout << "Reading results...\n";
     mmio::ReadBBCore(tx_usrp);
     
     std::cout << "Done printing digital loopback results...\n";
 
-    
     //On-chip acquisition test
-    std::cout << "\nOn chip acquisition test...\n";
-    std::vector<std::complex<double>> cap_samps;
+    std::cout << "On chip acquisition test...\n";
+    std::vector<std::complex<double>> cap_samps = mmio::ReadSampleMem(tx_usrp, 1, pow(2,16)-1, "dest_file_samps.dat");
 
-    
-    mmio::read_sample_mem(tx_usrp, cap_samps, pow(2,12), "file_samps.dat");
     int i = 0;
-    for(const auto& samp : cap_samps) {
-        std::cout << std::dec << i << " " << samp << std::endl;
-        i++;
-    }//disable printout to look at mmio results
+    for(int i = 0; i < 5; i++) {
+        std::cout << std::dec << i << ": " << cap_samps[i] << std::endl;
+    } //disable printout to look at mmio results
+
+    cap_samps = mmio::ReadSampleMem(tx_usrp, 0, pow(2,16)-1, "src_file_samps.dat");
     
 
     // //Write input pkt
