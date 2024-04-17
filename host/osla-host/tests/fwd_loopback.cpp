@@ -692,8 +692,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     PhaseEq(tx_usrp, h_comp);
 
     std::cout << "h_hat: " << h_hat << std::endl;
-    mmio::rd_mem_cmd(tx_usrp,mmio::kDestChEqReAddr, true);
-    mmio::rd_mem_cmd(tx_usrp,mmio::kDestChEqImAddr, true);
+    mmio::RdMmio(tx_usrp,mmio::kDestChEqReAddr, true);
+    mmio::RdMmio(tx_usrp,mmio::kDestChEqImAddr, true);
     
     int D_eff = D_hat + 4;
     compensateDelays(tx_usrp, D_eff);
@@ -709,7 +709,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     uint16_t tx_amp = static_cast<uint16_t>(lin_digital_gain_int16);
     mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
-    mmio::rd_mem_cmd(tx_usrp,mmio::kSrcTxAmpAddr,true);
+    mmio::RdMmio(tx_usrp,mmio::kSrcTxAmpAddr,true);
 
     uint32_t mode_bits = 0b11;
 
@@ -777,14 +777,14 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         {
             //Run and check received pkt    
             mmio::WrMmio(tx_usrp,0x0,0x0); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
-            bool pkt_valid = mmio::rd_mem_cmd(tx_usrp, mmio::kBbStatusAddr) & 0x2; //around 10 ms
+            bool pkt_valid = mmio::RdMmio(tx_usrp, mmio::kBbStatusAddr) & 0x2; //around 10 ms
             if(pkt_valid)
                 break;
         }
 
         // read results ---------------------------------------------
         for(int i = 0; i*32 < mmio::kPktLen; i++) {
-            output_pkt[i] = mmio::rd_mem_cmd(tx_usrp, mmio::kOutPktAddr+i);
+            output_pkt[i] = mmio::RdMmio(tx_usrp, mmio::kOutPktAddr+i);
             //std::cout << std::hex << input_pkt[i] << std::endl;
 
             uint32_t xor_result = output_pkt[i] ^ input_pkt[i];
@@ -808,8 +808,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         }
     }
 
-    std::vector<std::complex<double>> cap_samps;
-    mmio::read_sample_mem(tx_usrp, cap_samps, std::pow(2,15), "../../tests/pkt_samps.dat"); 
+    std::vector<std::complex<double>> cap_samps = mmio::ReadSampleMem(tx_usrp, 1, std::pow(2,16)-1, "../../tests/fwd_alb_samps.dat"); 
+
+    mmio::ReadSampleMem(tx_usrp, 0, std::pow(2,16)-1, "../../tests/fb_alb_samps.dat"); 
 
 
     
