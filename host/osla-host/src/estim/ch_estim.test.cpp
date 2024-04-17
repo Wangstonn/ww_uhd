@@ -835,8 +835,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     PhaseEq(tx_usrp, h_hat);
 
-    mmio::rd_mem_cmd(tx_usrp,mmio::kDestChEqReAddr, true);
-    mmio::rd_mem_cmd(tx_usrp,mmio::kDestChEqImAddr, true);
+    mmio::RdMmio(tx_usrp,mmio::kDestChEqReAddr, true);
+    mmio::RdMmio(tx_usrp,mmio::kDestChEqImAddr, true);
 
     // mmio::wr_mem_cmd(tx_usrp, ((0x80000031'00000000) | static_cast<uint16_t>(dest_ch_eq_re_int16)));
     // mmio::wr_mem_cmd(tx_usrp, ((0x80000032'00000000) | static_cast<uint16_t>(dest_ch_eq_im_int16)));
