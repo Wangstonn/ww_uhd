@@ -693,8 +693,7 @@ module x300_core #(
    end
 
 
-
-   (* DONT_TOUCH = "yes" *) bb_core_iface #(
+   bb_core_iface #(
       .FpGpioWidth(FP_GPIO_WIDTH)
    ) bb_core_iface_i(
       .clk(radio_clk),
