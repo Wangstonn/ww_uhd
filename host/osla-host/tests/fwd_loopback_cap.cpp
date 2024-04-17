@@ -763,7 +763,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         uint32_t randomValue = dist(mt);
         //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
 
-        input_pkt[i] = 0x0;//randomValue;
+        input_pkt[i] = 0x5F000000;//randomValue;
 
         mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, 0x0);
     }
@@ -801,7 +801,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // n_iter_array.push_back(iter*mmio::kPktLen);
     std::cout << std::dec << "Reached " << n_errors << std::endl;
 
-    
+
 
     mmio::ReadSampleMem(tx_usrp, 1, std::pow(2,16)-1, "../../tests/fwd_alb_samps.dat"); 
 
