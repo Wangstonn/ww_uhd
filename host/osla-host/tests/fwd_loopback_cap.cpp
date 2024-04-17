@@ -742,15 +742,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     double n_errors = 0; 
 
-    //Generate input bits
-    std::random_device rd;
-
-    // Create a Mersenne Twister PRNG engine
-    std::mt19937 mt(rd());
-
-    // Define a distribution for generating uint32_t values
-    std::uniform_int_distribution<uint32_t> dist;
-    
 
     // Generate a random pkt
     const int Num16BitSlices = mmio::kPktLen/32;
@@ -760,12 +751,11 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // Generate a random uint32_t
     for(int i = 0; i < Num16BitSlices; i++)
     {
-        uint32_t randomValue = dist(mt);
-        //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
-
         input_pkt[i] = 0x5F000000;//randomValue;
 
-        mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, 0x0);
+        mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, input_pkt[i]);
+
+        mmio::RdMmio(tx_usrp, mmio::kInPktAddr+i, true);
     }
 
     // start
