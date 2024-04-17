@@ -649,7 +649,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     for(int i = 0; i*32 < PktLen; i++) {
         uint64_t cmd = 0x80000020 + i;
 
-        mmio::wr_mem_cmd(tx_usrp, cmd << 32 | 0xA12ACE94);
+        mmio::wr_mem_cmd(tx_usrp, cmd << 32 | 0x512ACE94);
         mmio::RdMmio(tx_usrp, 0x00000020+i ,true);
     }
 
@@ -683,14 +683,14 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     //On-chip acquisition test
     std::cout << "On chip acquisition test...\n";
-    std::vector<std::complex<double>> cap_samps = mmio::ReadSampleMem(tx_usrp, 1, pow(2,16)-1, "dest_samps.dat");
+    std::vector<std::complex<double>> cap_samps = mmio::ReadSampleMem(tx_usrp, 1, pow(2,16)-1, "dest_dlb_samps.dat");
 
     int i = 0;
     for(int i = 0; i < 5; i++) {
         std::cout << std::dec << i << ": " << cap_samps[i] << std::endl;
     } //disable printout to look at mmio results
 
-    cap_samps = mmio::ReadSampleMem(tx_usrp, 0, pow(2,16)-1, "src_samps.dat");
+    cap_samps = mmio::ReadSampleMem(tx_usrp, 0, pow(2,16)-1, "src_dlb_samps.dat");
     
 
     // //Write input pkt
