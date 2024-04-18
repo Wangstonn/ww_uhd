@@ -11,3 +11,7 @@ target_link_libraries(fwdLoopbackTest ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio e
 add_executable(fwdLoopbackCap fwd_loopback_cap.cpp)
 target_link_libraries(fwdLoopbackCap ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)
 
+add_executable(stream stream.cpp)
+target_link_libraries(stream ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)
+
+
