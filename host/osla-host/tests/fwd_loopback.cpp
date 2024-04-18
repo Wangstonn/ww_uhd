@@ -738,7 +738,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //     mmio::rd_mem_cmd(tx_usrp, 0x00000810+i ,true);
     // }
 
-
     double n_errors = 0; 
 
     const int kMaxIter = 1e5/mmio::kPktLen;
@@ -753,21 +752,23 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::uniform_int_distribution<uint32_t> dist;
     
     
-    for(int iter = 1; iter < kMaxIter; iter++ ) {
+    for(int iter = 1; iter < kMaxIter; iter++) {
         // Generate a random pkt
         const int Num16BitSlices = mmio::kPktLen/32;
         uint32_t input_pkt[Num16BitSlices] = {0};
         uint32_t output_pkt[Num16BitSlices] = {0};
 
         // Generate a random uint32_t
-        for(int i = 0; i < Num16BitSlices; i++)
+        for(int i = 0; i < Num16BitSlices/2; i++)
         {
             uint32_t randomValue = dist(mt);
             //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
 
-            input_pkt[i] = 0x0;//randomValue;
+            input_pkt[2*i] = 0x0F0F0F0F;//randomValue;
+            mmio::WrMmio(tx_usrp, mmio::kInPktAddr+2*i, input_pkt[2*i]);
 
-            mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, 0x0);
+            input_pkt[2*i+1] = 0x0F0F0F0E;//randomValue;
+            mmio::WrMmio(tx_usrp, mmio::kInPktAddr+2*i+1, input_pkt[2*i+1]);
         }
 
         // start
@@ -807,18 +808,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             break;
         }
     }
-
-    std::vector<std::complex<double>> cap_samps = mmio::ReadSampleMem(tx_usrp, 1, std::pow(2,16)-1, "../../tests/fwd_alb_samps.dat"); 
-
-    mmio::ReadSampleMem(tx_usrp, 0, std::pow(2,16)-1, "../../tests/fb_alb_samps.dat"); 
-
-
-    
-
-
-
-
-
 
     
     // std::vector<double> EsN0_array = {1, 2, 3};

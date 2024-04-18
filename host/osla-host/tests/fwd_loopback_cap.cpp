@@ -751,7 +751,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // Generate a random uint32_t
     for(int i = 0; i < Num16BitSlices; i++)
     {
-        input_pkt[i] = 0x5F000000;//randomValue;
+        input_pkt[i] = 0xFFFF0000;//randomValue;
 
         mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, input_pkt[i]);
 
@@ -771,6 +771,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     }
 
     // read results ---------------------------------------------
+    //for(int i = 0; i*32 < mmio::kPktLen; i++) {
     for(int i = 0; i*32 < mmio::kPktLen; i++) {
         output_pkt[i] = mmio::RdMmio(tx_usrp, mmio::kOutPktAddr+i);
         //std::cout << std::hex << input_pkt[i] << std::endl;

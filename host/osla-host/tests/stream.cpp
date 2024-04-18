@@ -246,8 +246,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("output reg", po::value<uint32_t>(&output_reg)->default_value(0), "output reg")
 
         //afe params
-        ("tx-freq", po::value<double>(&tx_freq)->default_value(.915e9), "transmit RF center frequency in Hz")
-        ("rx-freq", po::value<double>(&rx_freq)->default_value(.915e9), "receive RF center frequency in Hz")
+        ("tx-freq", po::value<double>(&tx_freq)->default_value(2.4e9), "transmit RF center frequency in Hz")
+        ("rx-freq", po::value<double>(&rx_freq)->default_value(2.4e9), "receive RF center frequency in Hz")
         ("tx-gain", po::value<double>(&tx_gain)->default_value(0), "gain for the transmit RF chain")
         ("rx-gain", po::value<double>(&rx_gain)->default_value(0), "gain for the receive RF chain")
         ("tx-bw", po::value<double>(&tx_bw)->default_value(160e6), "analog transmit filter bandwidth in Hz")
@@ -559,7 +559,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         std::signal(SIGINT, &sig_int_handler);
         std::cout << "Press Ctrl + C to stop streaming..." << std::endl;
     }
-//For early termination use Ctrl + Z
+    //For early termination use Ctrl + Z
 
     // reset usrp time to prepare for transmit/receive
     std::cout << boost::format("Setting device timestamp to 0...") << std::endl;
@@ -581,6 +581,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     });
     std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 500 ms before tx is active
 
+    file = "../../tests/stream_samps.dat";
+    total_num_samps = 1e5;
     // recv to file - supposedly sets registers on adc but I cant find anything about that. 
     // However, given how transmit_worker sets the tx settings (tx_running), its very possible that rx settings need to be set for proper operation
     // Ordinary operation of recv_to_file will lock out the rest of the c++ code, so try putting it in a thread so that it can execute indefinitely just like transmit_worker
@@ -588,133 +590,43 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //  Or separately call this after a run is complete to capture strobed data...
     std::thread recv_thread([&]() {
         recv_to_file<std::complex<double>>(
-            rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, 0); //save_rx = 0 so that we dont create a huge file
+            rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, 1); //save_rx = 0 so that we dont create a huge file
     });
 
-    //Basic digital loopback test
-    uint16_t mode_bits = 0b11;
-    uint16_t rx_ch_sel_bits = 0b00; 
-    uint16_t tx_core_bits = 0b00; 
-    uint16_t gpio_start_sel_bits = 0b00;
-
-    //Generate input bits
-    std::random_device rd;
-
-    // Create a Mersenne Twister PRNG engine
-    std::mt19937 mt(rd());
-
-    // Define a distribution for generating uint32_t values
-    std::uniform_int_distribution<uint32_t> dist;
-    
-    // Single pkt test -------------------------------------------------
-    // // Generate a random pkt
-    // const int Num16BitSlices = mmio::kPktLen/32;
-    // uint32_t input_pkt[Num16BitSlices] = {0};
-    // uint32_t output_pkt[Num16BitSlices] = {0};
-
-    // // Generate a random uint32_t
-    // for(int i = 0; i < Num16BitSlices; i++)
-    // {
-    //     uint32_t randomValue = dist(mt);
-    //     //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
-
-    //     input_pkt[i] = randomValue;
-
-    //     mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, randomValue);
-    // }
-
-    // // start
-    // mmio::start_tx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
-    
-    // while(true)
-    // {
-    //     //Run and check received pkt    
-    //     mmio::WrMmio(tx_usrp,0x0,0x0); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
-    //     bool pkt_valid = mmio::rd_mem_cmd(tx_usrp, mmio::kBbStatusAddr) & 0x2; //around 10 ms
-    //     if(pkt_valid)
-    //         break;
-    // }
-
-    // // read results ---------------------------------------------
-    // for(int i = 0; i*32 < mmio::kPktLen; i++) {
-    //     output_pkt[i] = mmio::rd_mem_cmd(tx_usrp, mmio::kOutPktAddr+i);
-    //     //std::cout << std::hex << input_pkt[i] << std::endl;
-
-    //     uint32_t xor_result = output_pkt[i] ^ input_pkt[i];
-    //     while (xor_result > 0) {
-    //         n_errors += xor_result & 1;
-    //         xor_result >>= 1;
-    //     }
-
-    //     std::cout << std::dec << "Bit slice: " << i << std::endl;
-    //     std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
-    //     std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
-    // }
-
-    // mmio::ReadBBCore(tx_usrp);
-
-    int n_iter = 0;
-    double n_error = 0; 
-    const int kMaxIter = 1e6;
-    const int kTargetErr = 100;
-    for(int iter = 1; iter < kMaxIter; iter++ ) {
-        n_iter++;
-        // Generate a random pkt
-        const int Num16BitSlices = mmio::kPktLen/32;
-        uint32_t input_pkt[Num16BitSlices] = {0};
-        uint32_t output_pkt[Num16BitSlices] = {0};
-
-        // Generate a random uint32_t
-        for(int i = 0; i < Num16BitSlices; i++)
-        {
-            uint32_t randomValue = dist(mt);
-            //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
-
-            input_pkt[i] = 0;
-
-            mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, input_pkt[i]);
-        }
-
-        // start
-        mmio::start_tx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
-        
-        while(true)
-        {
-            //Run and check received pkt    
-            mmio::WrMmio(tx_usrp,0x0,0x0); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
-            bool pkt_valid = mmio::RdMmio(tx_usrp, mmio::kBbStatusAddr) & 0x2; //around 10 ms
-            if(pkt_valid)
-                break;
-        }
-
-        // read results ---------------------------------------------
-        for(int i = 0; i*32 < mmio::kPktLen; i++) {
-            output_pkt[i] = mmio::RdMmio(tx_usrp, mmio::kOutPktAddr+i);
-            //std::cout << std::hex << input_pkt[i] << std::endl;
-
-            uint32_t xor_result = output_pkt[i] ^ input_pkt[i];
-            while (xor_result > 0) {
-                n_error += xor_result & 1;
-                xor_result >>= 1;
-            }
-            std::cout << std::dec << "Bit slice: " << i << " Num errors: "<< n_error <<std::endl;
-            std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
-            std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
-
-        }
-
-        if(n_error > kTargetErr){
-            break;
-        }
+    std::uint32_t mode_bits{0b00};
+    std::uint32_t rx_ch_sel_bits{0b01}; 
+    std::uint32_t tx_core_bits{0b10}; 
+    std::uint32_t gpio_start_sel_bits{0b00};
 
 
-    }
+    // Timing+flatfading estimation---------------------------------------------------------------------------------------------------------------------------
+    //Because our window is small, need to sweep multiple time intervals by adjusting source and dest delay. Assumes channel coherence is quite long
+    //Multiple tests have confirmed wired loopback delay with 8inch sma cable + attenuator is 119, so its find to just do one interval for now
+    std::cout << "Running delay+flatfading estimation..." << std::endl;
 
-    double ber = n_error/(n_iter*mmio::kPktLen);
-    std::cout << "n_error = " << n_error << " num bits sent = " << n_iter*mmio::kPktLen << std::endl;
+    auto start_time = std::chrono::high_resolution_clock::now();
+
+    int D_test = 113; //D_test is the delay between src and dest we set. This is the opposite of D_comp's logic
+
+    auto ch_params = ch_estim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "");
+    int D_hat = ch_params.D_hat;
+    std::complex<double> h_hat = ch_params.h_hat;
 
 
     
+    //std::cout << "r[max_idx] = " << r[max_idx] << ", "; 
+    
+    std::cout << "D_test_sweep = " << D_test << ", ";
+    std::cout << "D_hat_sweep" << " = " << D_hat << ", ";
+    std::cout << "h_hat_sweep" << " : abs= " << std::abs(h_hat) << " arg= " << std::arg(h_hat) << std::endl;
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+
+    // Calculate the elapsed time
+    auto duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time);
+
+    // Print the result and execution time
+    std::cout << "Execution time: " << duration.count() << " seconds" << std::endl;
 
 
     //////////////////////////////////////////////////////////////////////////////////////////////////
