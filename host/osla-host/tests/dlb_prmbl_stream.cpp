@@ -590,7 +590,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //  Or separately call this after a run is complete to capture strobed data...
     std::thread recv_thread([&]() {
         recv_to_file<std::complex<double>>(
-            rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, 1); //save_rx = 0 so that we dont create a huge file
+            rx_usrp, "sc16", otw, file, spb, total_num_samps, settling, rx_channel_nums, 1); //save_rx = 0 so that we dont create a huge file
     });
 
     std::uint32_t mode_bits{0b00};
