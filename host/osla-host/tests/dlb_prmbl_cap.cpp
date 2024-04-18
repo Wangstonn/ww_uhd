@@ -246,8 +246,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("output reg", po::value<uint32_t>(&output_reg)->default_value(0), "output reg")
 
         //afe params
-        ("tx-freq", po::value<double>(&tx_freq)->default_value(2.4e9), "transmit RF center frequency in Hz")
-        ("rx-freq", po::value<double>(&rx_freq)->default_value(2.4e9), "receive RF center frequency in Hz")
+        ("tx-freq", po::value<double>(&tx_freq)->default_value(.915e9), "transmit RF center frequency in Hz")
+        ("rx-freq", po::value<double>(&rx_freq)->default_value(.915e9), "receive RF center frequency in Hz")
         ("tx-gain", po::value<double>(&tx_gain)->default_value(0), "gain for the transmit RF chain")
         ("rx-gain", po::value<double>(&rx_gain)->default_value(0), "gain for the receive RF chain")
         ("tx-bw", po::value<double>(&tx_bw)->default_value(160e6), "analog transmit filter bandwidth in Hz")
@@ -559,7 +559,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         std::signal(SIGINT, &sig_int_handler);
         std::cout << "Press Ctrl + C to stop streaming..." << std::endl;
     }
-    //For early termination use Ctrl + Z
+//For early termination use Ctrl + Z
 
     // reset usrp time to prepare for transmit/receive
     std::cout << boost::format("Setting device timestamp to 0...") << std::endl;
@@ -581,8 +581,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     });
     std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 500 ms before tx is active
 
-    file = "../../tests/stream_samps.dat";
-    total_num_samps = 1e5;
     // recv to file - supposedly sets registers on adc but I cant find anything about that. 
     // However, given how transmit_worker sets the tx settings (tx_running), its very possible that rx settings need to be set for proper operation
     // Ordinary operation of recv_to_file will lock out the rest of the c++ code, so try putting it in a thread so that it can execute indefinitely just like transmit_worker
@@ -590,7 +588,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //  Or separately call this after a run is complete to capture strobed data...
     std::thread recv_thread([&]() {
         recv_to_file<std::complex<double>>(
-            rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, 1); //save_rx = 0 so that we dont create a huge file
+            rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, 0); //save_rx = 0 so that we dont create a huge file
     });
 
     std::uint32_t mode_bits{0b00};
@@ -608,7 +606,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     int D_test = 113; //D_test is the delay between src and dest we set. This is the opposite of D_comp's logic
 
-    auto ch_params = ch_estim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "");
+    file = "../../data/dlb_prmbl_cap.dat";
+    auto ch_params = ch_estim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,16)-1, file);
     int D_hat = ch_params.D_hat;
     std::complex<double> h_hat = ch_params.h_hat;
 
@@ -627,6 +626,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     // Print the result and execution time
     std::cout << "Execution time: " << duration.count() << " seconds" << std::endl;
+
+    
 
 
     //////////////////////////////////////////////////////////////////////////////////////////////////
