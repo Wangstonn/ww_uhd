@@ -594,8 +594,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     });
 
     std::uint32_t mode_bits{0b00};
-    std::uint32_t rx_ch_sel_bits{0b01}; 
-    std::uint32_t tx_core_bits{0b10}; 
+    std::uint32_t rx_ch_sel_bits{0b00}; 
+    std::uint32_t tx_core_bits{0b00}; 
     std::uint32_t gpio_start_sel_bits{0b00};
 
 
