@@ -2,23 +2,22 @@
 % Author: Winston Wang
 % email: wangston@umich.edu
 % 12/13/23
-%addpath('..\..\..\..\fp_emulator\')
-addpath('..\..\..\..\\')
-clearvars; close all; clc;
+
+clearvars; close all; clc; fclose('all');
 
 %% Plot the samples
 
 % Read data
 % format depends on CPU Data Format Specification
 % https://files.ettus.com/manual/page_configuration.html 
-fid = fopen("usrp_samples.dat");
+fid = fopen("src_dlb_samps.dat");
 data = fread(fid, [2, inf], 'int16');
 fclose(fid);
 %data is 2x#samples captured. I corresponds to the first row, Q second
 %The binary file format is simply a single line with I and Q alternating
 %e.g I1 Q1 I2 Q2 I3 Q3...
-
-d = (data(1,:)+j*data(2,:))*2^-8; %dest fixed point is 16,8
+AdcFrac = 6;
+d = (data(1,:)+j*data(2,:))*2^-AdcFrac; %dest fixed point is 16,8
 N_w = length(d); %length of window
 
 figure(); grid on;
@@ -42,11 +41,11 @@ ylabel("|fft(X)|")
 % qqplot(real(d)); %see if its just noise
 %% Processing 
 % read preamble
-fid = fopen("../../../matlab/mlsr/preamble.mem");
+fid = fopen("preamble.mem");
 preamble_bits = fscanf(fid, '%1d')';
 fclose(fid);
 
-prmbl_amp = 1;
+prmbl_amp = 1-2^-15;
 prmbl_samps = repelem(2*(preamble_bits-.5)*prmbl_amp,32);
 N_prmbl = length(prmbl_samps);
 
@@ -55,7 +54,8 @@ N_prmbl = length(prmbl_samps);
 % sigma_n = sqrt(N_prmbl/(2*EsN0));
 % 
 % d = prmbl_samps + sigma_n*randn(1,N_prmbl)+j*sigma_n*randn(1,N_prmbl);
-d = prmbl_samps;
+% d = prmbl_samps;
+
 N_samps_cap = length(d);
 
 % cross correllation
