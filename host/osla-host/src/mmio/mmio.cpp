@@ -276,7 +276,7 @@ namespace mmio {
      *
      * @param tx_usrp The USRP device to read samples from.
      * @param mem_sel Selects which memory to read from. 0->src, 1->dest
-     * @param NCapSamps number of samples to be captured. Max is 2**15
+     * @param NCapSamps number of samples to be captured. Max is 2**16-1
      * @param file Name of file to write to. If empty/missing will not write to file.
      * @return A vector of complex doubles containing the captured samples.
      */
