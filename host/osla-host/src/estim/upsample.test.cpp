@@ -18,11 +18,11 @@ int main() {
 
     // Upsample doubles by duplicating each sample 2 times
     int N = 2;
-    std::vector<double> upsampledVectorDoubles = upsample(originalVectorDoubles, N);
+    std::vector<double> upsampledVectorDoubles = estim::Upsample(originalVectorDoubles, N);
 
     // Upsample complex doubles by duplicating each sample 3 times
     N = 3;
-    std::vector<std::complex<double>> upsampledVectorComplexDoubles = upsample(originalVectorComplexDoubles, N);
+    std::vector<std::complex<double>> upsampledVectorComplexDoubles = estim::Upsample(originalVectorComplexDoubles, N);
 
     // Output the original and upsampled vectors
     std::cout << "Original Vector (Doubles): ";

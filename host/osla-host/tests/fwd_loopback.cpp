@@ -570,6 +570,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //WW - OSLA-BPSK Operation
     //--------------------------------------------------
 
+    tx_usrp->set_rx_dc_offset(true);
+
     //Preload some default threshold and angle settings
     //std::cout << "Writing to regs...\n";
     mmio::InitBBCore(tx_usrp);
@@ -600,14 +602,14 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     for(int i = 0; i < 0; i++) {
         // Noise estimation---------------------------------------------------------------------------------------------------------
         std::cout << "Running noise estimation..." << std::endl;
-        double var = EstimNoise(tx_usrp, pow(2,12),rx_ch_sel_bits); //use 2^15 samples to get a good estimate for the noise
+        double var = estim::EstimNoise(tx_usrp, pow(2,12),rx_ch_sel_bits); //use 2^15 samples to get a good estimate for the noise
         std::cout << "Estimated var= " << var << std::endl; //one time this gave me a negative....
     
     }
     //noise estimation
     double var;
     std::cout << "Running noise estimation..." << std::endl;
-    var = EstimNoise(tx_usrp, pow(2,15),rx_ch_sel_bits); //use 2^15 samples to get a good estimate for the noise
+    var = estim::EstimNoise(tx_usrp, pow(2,15),rx_ch_sel_bits); //use 2^15 samples to get a good estimate for the noise
     std::cout << "Estimated var= " << var << std::endl; //one time this gave me a negative....
 
     // Timing+flatfading estimation---------------------------------------------------------------------------------------------------------------------------
@@ -628,11 +630,11 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
         int D_test = interval_idx * DelaySweepInterval; //D_test is the delay between src and dest we set. This is the opposite of D_comp's logic
 
-        auto ch_params = ch_estim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "");
+        auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "");
         int D_hat = ch_params.D_hat;
         std::complex<double> h_hat = ch_params.h_hat;
 
-        double SNR = calcSNR(h_hat, var);
+        double SNR = estim::CalcSNR(h_hat, var);
 
         D_test_sweep.push_back(D_test);
         D_hat_sweep.push_back(D_hat);
@@ -670,11 +672,11 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         //redo timing/flatfade estimation using the estimated delay to get the full preamble----------------------------------------
         int D_test = D_hat;
         
-        auto ch_params = ch_estim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "../../tests/lb_samps.dat");
+        auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "");
         D_hat = ch_params.D_hat;
         h_hat = ch_params.h_hat;
-        SNR = calcSNR(h_hat, var);
-        EsN0 = calcEsN0(h_hat, 336, var);
+        SNR = estim::CalcSNR(h_hat, var);
+        EsN0 = estim::CalcEsN0(h_hat, 336, var);
 
         std::cout << std::dec;
         std::cout << "D_test= " << D_test << ", ";
@@ -689,14 +691,14 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //Use the high SNR estimate because its more reliable. Set the digital gain to 1
     std::complex<double> h_comp = h_hat/std::abs(h_hat);
     //Phase Compensation
-    PhaseEq(tx_usrp, h_comp);
+    estim::PhaseEq(tx_usrp, h_comp);
 
     std::cout << "h_hat: " << h_hat << std::endl;
     mmio::RdMmio(tx_usrp,mmio::kDestChEqReAddr, true);
     mmio::RdMmio(tx_usrp,mmio::kDestChEqImAddr, true);
     
     int D_eff = D_hat + 4;
-    compensateDelays(tx_usrp, D_eff);
+    estim::CompensateDelays(tx_usrp, D_eff);
 
     // Testing----------------------------------------------------------------------
     //Basic analog loopback test   
@@ -712,7 +714,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     mmio::RdMmio(tx_usrp,mmio::kSrcTxAmpAddr,true);
 
     uint32_t mode_bits = 0b11;
-
+    tx_usrp->set_rx_dc_offset(false);
 
     // //Single pkt test
     // //Write input pkt
@@ -759,20 +761,16 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         uint32_t output_pkt[Num16BitSlices] = {0};
 
         // Generate a random uint32_t
-        for(int i = 0; i < Num16BitSlices/2; i++)
+        for(int i = 0; i < Num16BitSlices; i++)
         {
             uint32_t randomValue = dist(mt);
             //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
-
-            input_pkt[2*i] = 0x0F0F0F0F;//randomValue;
-            mmio::WrMmio(tx_usrp, mmio::kInPktAddr+2*i, input_pkt[2*i]);
-
-            input_pkt[2*i+1] = 0x0F0F0F0E;//randomValue;
-            mmio::WrMmio(tx_usrp, mmio::kInPktAddr+2*i+1, input_pkt[2*i+1]);
+            input_pkt[i] = randomValue;
+            mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, input_pkt[i]);
         }
 
         // start
-        mmio::start_tx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
+        mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
         
         while(true)
         {

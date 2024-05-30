@@ -594,7 +594,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     for(int i = 0; i < 0; i++) {
         // Noise estimation---------------------------------------------------------------------------------------------------------
         std::cout << "Running noise estimation..." << std::endl;
-        double var = EstimNoise(tx_usrp, pow(2,15)); //use 2^15 samples to get a good estimate for the noise
+        double var = estim::EstimNoise(tx_usrp, pow(2,15)); //use 2^15 samples to get a good estimate for the noise
         std::cout << "Estimated var= " << var << std::endl; //one time this gave me a negative....
 
     }
@@ -620,7 +620,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // });
 
     // double var = accum / (cap_samps.size()-1);
-    var = EstimNoise(tx_usrp, pow(2,15)); //use 2^15 samples to get a good estimate for the noise
+    var = estim::EstimNoise(tx_usrp, pow(2,15)); //use 2^15 samples to get a good estimate for the noise
     std::cout << "Estimated var= " << var << std::endl; //one time this gave me a negative....
 
 
@@ -754,11 +754,11 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         // double EsN0 = 10*std::log10(std::pow(prmbl_amp*std::abs(h_hat),2)/(var*2));
 
         
-        auto ch_params = ch_estim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "");
+        auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "");
         int D_hat = ch_params.D_hat;
         std::complex<double> h_hat = ch_params.h_hat;
 
-        double EsN0 = calcSNR(h_hat, var);
+        double EsN0 = estim::CalcSNR(h_hat, var);
 
         D_test_sweep.push_back(D_test);
         D_hat_sweep.push_back(D_hat);
@@ -795,10 +795,10 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         //redo timing/flatfade estimation using the estimated delay to get the full preamble----------------------------------------
         int D_test = D_hat;
 
-        auto ch_params = ch_estim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "");
+        auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "");
         D_hat = ch_params.D_hat;
         h_hat = ch_params.h_hat;
-        double EsN0 = calcSNR(h_hat, var);
+        double EsN0 = estim::CalcSNR(h_hat, var);
 
         std::cout << std::dec;
         std::cout << "D_test= " << D_test << ", ";
@@ -833,7 +833,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // mmio::WrMmio(tx_usrp, mmio::kDestChEqReAddr, static_cast<uint16_t>(dest_ch_eq_re_int16));
     // mmio::WrMmio(tx_usrp, mmio::kDestChEqImAddr, static_cast<uint16_t>(dest_ch_eq_im_int16));
 
-    PhaseEq(tx_usrp, h_hat);
+    estim::PhaseEq(tx_usrp, h_hat);
 
     mmio::RdMmio(tx_usrp,mmio::kDestChEqReAddr, true);
     mmio::RdMmio(tx_usrp,mmio::kDestChEqImAddr, true);
@@ -844,7 +844,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // mmio::rd_mem_cmd(tx_usrp,0x00000032, true);
 
     int D_eff = D_hat + 4;
-    compensateDelays(tx_usrp, D_eff);
+    estim::CompensateDelays(tx_usrp, D_eff);
+
+    //mmio::ReadBBCore(tx_usrp);
 
     //-----------------------------------------------------------------------------------------------------------
 
