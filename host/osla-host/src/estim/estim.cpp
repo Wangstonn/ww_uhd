@@ -12,6 +12,40 @@ namespace estim {
     const double prmbl_amp = (1 - std::pow(2, -15));
 
     /**
+     * Estimates the number of captured samples given the window size, preamble size, and delay.
+     *
+     * @param N_w The number of captured samples in the window.
+     * @param N_prmbl The number of preamble samples.
+     * @param D_hat The estimated delay.
+     * @return The number of captured samples based on the window size, preamble size, and delay.
+     *
+     * This function estimates the number of samples captured (N_samps) by comparing the number of captured samples in the window (N_w)
+     * with the number of preamble samples (N_prmbl) and adjusting for the estimated delay (D_hat). The calculation varies depending on
+     * whether N_w is greater than or less than N_prmbl, and further adjustments are made based on the value of D_hat.
+     */
+    int EstimNSampCap(const int N_w, const int N_prmbl, const int D_hat) {
+        int N_samps;
+        if(N_w > N_prmbl) {
+            if (D_hat < 0)
+                N_samps = std::max(0, N_prmbl + D_hat);
+            else  if (D_hat < (N_w - N_prmbl))
+                N_samps = N_prmbl;
+            else
+                N_samps = std::max(0, N_prmbl-(D_hat-(N_w - N_prmbl)));
+        }
+        else {
+            if (D_hat < 0)
+                N_samps = std::max(0, N_w + D_hat);
+            else  if (D_hat < (N_prmbl - N_w))
+                N_samps = N_w;
+            else
+                N_samps = std::max(0, N_w-(D_hat-(N_prmbl - N_w)));
+        }
+
+        return N_samps;
+    }
+
+    /**
      * @brief Estimates channel characteristics based on captured samples.
      * 
      * This function estimates channel coefficient h_hat and delay d_hat.
@@ -109,15 +143,22 @@ namespace estim {
         // }
         
 
-        // Our estimate depends on the number of samples captured in the capture window (of size N_w)
-        int N_prmbl_samps_cap = 0;
-        if (D_hat > 0) {
-            N_prmbl_samps_cap = N_w - D_hat;
-        } else if (D_hat < N_w - N_prmbl) {
-            N_prmbl_samps_cap = N_prmbl + D_hat;
-        } else {
-            N_prmbl_samps_cap = std::min(N_w,N_prmbl);
+        // // Our estimate depends on the number of samples captured in the capture window (of size N_w)
+        // int N_prmbl_samps_cap = 0;
+        // if (D_hat > 0) {
+        //     N_prmbl_samps_cap = N_w - D_hat;
+        // } else if (D_hat < N_w - N_prmbl) {
+        //     N_prmbl_samps_cap = N_prmbl + D_hat;
+        // } else {
+        //     N_prmbl_samps_cap = std::min(N_w,N_prmbl);
+        // }
+
+        int N_prmbl_samps_cap = EstimNSampCap(N_w, N_prmbl, D_hat); //Find how many samples were captured for coefficient estimation
+
+        if (N_prmbl_samps_cap == 0) {
+            std::cerr << "Error: No samples captured" << std::endl;
         }
+
 
         // Calculate h_hat, h_hat_mag, and phi_hat
         std::complex<double> h_hat;
@@ -231,7 +272,6 @@ namespace estim {
         //std::cout << reciprocal_h_hat << std::endl;
         double dest_ch_eq_re = std::real(reciprocal_h_hat)*std::pow(2, kEqFrac);
         double dest_ch_eq_im = -std::imag(reciprocal_h_hat)*std::pow(2, kEqFrac); //because dest expects the phase of the channel, not the reciprocal
-
 
         //covert to bit command
         int16_t dest_ch_eq_re_int16 = static_cast<int16_t>(std::round(dest_ch_eq_re));

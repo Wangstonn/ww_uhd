@@ -719,7 +719,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     double ber = n_error/(n_iter*mmio::kPktLen);
     std::cout << "n_error = " << n_error << " num bits sent = " << n_iter*mmio::kPktLen << std::endl;
 
-
+    mmio::ReadSampleMem(tx_usrp, 1, std::pow(2,16)-1, "../../data/fwd_dlb_samps.dat"); 
     
 
 

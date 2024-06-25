@@ -5,6 +5,11 @@
 #include <uhd/usrp/multi_usrp.hpp>
 
 namespace estim {
+    //Device params used in estimating SNR
+    constexpr int kFwOsr = 336;
+    constexpr int kFbOsr = 16; 
+    constexpr int kNChips = 32; //average number of chips per symbol
+
     void XcorrSlow(const std::vector<std::complex<double>>& x, const std::vector<std::complex<double>>& y, std::vector<std::complex<double>>& r, std::vector<int>& lags);
     struct ChParams {
         int D_hat; //delay of the channel

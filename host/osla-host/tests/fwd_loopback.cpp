@@ -571,9 +571,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //--------------------------------------------------
 
     tx_usrp->set_rx_dc_offset(true);
-
     //Preload some default threshold and angle settings
-    //std::cout << "Writing to regs...\n";
     mmio::InitBBCore(tx_usrp);
         
     //Start tx and streaming
@@ -598,14 +596,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::uint32_t rx_ch_sel_bits{0b01}; 
     std::uint32_t gpio_start_sel_bits{0b00};
 
-    //Measure noise multiple times incase there is interference
-    for(int i = 0; i < 0; i++) {
-        // Noise estimation---------------------------------------------------------------------------------------------------------
-        std::cout << "Running noise estimation..." << std::endl;
-        double var = estim::EstimNoise(tx_usrp, pow(2,12),rx_ch_sel_bits); //use 2^15 samples to get a good estimate for the noise
-        std::cout << "Estimated var= " << var << std::endl; //one time this gave me a negative....
-    
-    }
     //noise estimation
     double var;
     std::cout << "Running noise estimation..." << std::endl;
@@ -686,59 +676,106 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         std::cout << "h_hat : abs= " << std::abs(h_hat) << " arg= " << std::arg(h_hat) << std::endl;
     }
 
-    //Coefficient compensation------------------------------------------------------
+
+    // Testing----------------------------------------------------------------------
+    //analog loopback test at specific snr  
+    double tx_gain_base = tx_usrp->get_tx_gain(0); //base tx gain used for smaple capture
+    //assume tx amp is max
+    //assume rx gain is 0
+    std::complex<double> h_phase = h_hat/std::abs(h_hat); //save the unit magnitude component
+
+    //Set operating EsN0
+    double target_EsN0 = 6; //in dB //max is 30 for wired, works for 7
+    double target_gain = target_EsN0-EsN0; //Target gain needed to test system
+    std::cout << "target gain:" << target_gain << std::endl;
+    //if target gain > 0, boost tx gain.
+    if(target_gain > 0) {
+        tx_gain = tx_gain_base + std::ceil(target_gain * 2) / 2.0; //round up to nearest half integer. Then decrease tx amp to achieve desired EsN0
+        if(tx_gain > 31.5){
+            std::cerr << "Error: target EsN0 is out of tx_gain range. The maximum tx power is not enough"  << std::endl;
+            return EXIT_FAILURE;
+        }
+
+        std::cout << boost::format("Setting TX Gain: %f dB...") % tx_gain << std::endl;
+        tx_usrp->set_tx_gain(tx_gain, 0); //only using channel 0
+        std::cout << boost::format("Actual TX Gain: %f dB...") % tx_usrp->get_tx_gain(0) << std::endl << std::endl;
+
+        //decrease tx_amp to achieve desired EsN0
+        double lin_digital_gain = std::pow(10,(target_gain-(tx_gain-tx_gain_base))/20);
+        uint16_t tx_amp = static_cast<uint16_t>(std::round(lin_digital_gain*(std::pow(2,15)-1)));
+        mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
+
+    } else {
+        tx_gain = std::max(std::ceil((tx_gain_base + target_gain) * 2) / 2.0, 0.0); //decrease tx_gain until just above target, then decrease tx amp
+        std::cout << boost::format("Setting TX Gain: %f dB...") % tx_gain << std::endl;
+        tx_usrp->set_tx_gain(tx_gain, 0); //only using channel 0
+        std::cout << boost::format("Actual TX Gain: %f dB...") % tx_usrp->get_tx_gain(0) << std::endl << std::endl;
+        
+        double lin_digital_gain = std::pow(10,(target_gain-(tx_gain-tx_gain_base))/20);
+        uint16_t tx_amp = static_cast<uint16_t>(std::round(lin_digital_gain*(std::pow(2,15)-1)));
+        std::cout << std::hex << "tx_amp:" << tx_amp << std::endl;
+        mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
+
+        if(tx_amp == 0) {
+            std::cerr << "Error: tx_amp is zero. The tx power is too strong"  << std::endl;
+            return EXIT_FAILURE;
+        }
+    }
+    //Rounding will not have a significant impact. rouding introduces an error of .5 for a signal with max value 2^16-1. Consider 2^8. Adding 1 to it has 
+    // adds .01 db. This has a bigger impact if tx_amp is very low, but that only occurs in the case that we have A LOT of tx power (aka a very clean channel).
+    // This wont occur in any case with tx_amp > 0 since then tx-amp will be decreased by at most 3db (to 2^8).
+
+    //Set rx gain so that signal is amplitude 1
+    //Digital gain is [0.66,2]. 
+    //First set tx gain to achieve higher than target SNR. Then use analog gain/tx amplitude/digital gain to set signal amplitude to 1. 
+    double h_mag = std::abs(h_hat);
+    std::cout << "h_hat: " << h_hat << std::endl;
+    double h_mag_comp;
+    double target_rx_gain = -(20*std::log10(h_mag) + target_gain); //total gain needed in system to equalize 
+    std::cout << std::dec << "target_rx_gain: " << target_rx_gain << std::endl;
+
+    if(target_rx_gain > 0) {
+        rx_gain = std::ceil(target_rx_gain * 2) / 2.0;
+        if (rx_gain > 31.5) {
+            std::cerr << "Error: target EsN0 is out of rx_gain range. The maximum tx power is not enough or the channel is not noisy enough"  << std::endl;
+            return EXIT_FAILURE;
+        }
+        std::cout << boost::format("Setting RX Gain: %f dB...") % rx_gain << std::endl;
+        rx_usrp->set_rx_gain(rx_gain, 0); //only using channel 0
+        std::cout << boost::format("Actual RX Gain: %f dB...") % rx_usrp->get_rx_gain(0) << std::endl << std::endl;
+    } 
+    else {
+        rx_gain = 0;
+        std::cout << boost::format("Setting RX Gain: %f dB...") % rx_gain << std::endl;
+        rx_usrp->set_rx_gain(rx_gain, 0); //only using channel 0
+        std::cout << boost::format("Actual RX Gain: %f dB...") % rx_usrp->get_rx_gain(0) << std::endl << std::endl;
+    }
+
+    h_mag_comp = std::pow(10,(target_rx_gain-rx_gain)/20);
+    std::cout << "h_mag_comp: " << h_mag_comp << std::endl;
+
+    if(h_mag_comp < 2.0/3.0 || h_mag_comp > 2) {
+        std::cerr << "Error: Digital compensation of h_mag is out of rand [0.66,2]. rx-gain is not set correctly or signal power is too high"  << std::endl;
+        return EXIT_FAILURE;
+    }
+    
+    //Coefficient compensation
     std::cout << "Performing compensation..." << std::endl;
     //Use the high SNR estimate because its more reliable. Set the digital gain to 1
-    std::complex<double> h_comp = h_hat/std::abs(h_hat);
-    //Phase Compensation
-    estim::PhaseEq(tx_usrp, h_comp);
-
+    h_hat = 1/h_mag_comp*h_phase; //Calculate current channel coefficient (with tx/rx gains)
     std::cout << "h_hat: " << h_hat << std::endl;
+    //Phase Compensation
+    estim::PhaseEq(tx_usrp, h_hat); 
+
     mmio::RdMmio(tx_usrp,mmio::kDestChEqReAddr, true);
     mmio::RdMmio(tx_usrp,mmio::kDestChEqImAddr, true);
     
     int D_eff = D_hat + 4;
     estim::CompensateDelays(tx_usrp, D_eff);
 
-    // Testing----------------------------------------------------------------------
-    //Basic analog loopback test   
-    // Digital gain is [0.66,2]. Set signal amplitude to 1. 
-    double h_mag = std::abs(h_hat);
-    double lin_digital_gain = 1/h_mag; //total gain needed in system to equalize 
-    std::cout << "h_mag: " << h_mag << std::endl;
-    std::cout << "lin_digital_gain: " << lin_digital_gain << std::endl;
-    int16_t lin_digital_gain_int16 = (std::round(lin_digital_gain*(std::pow(2,15))) > INT16_MAX) ? INT16_MAX : std::round(lin_digital_gain*(std::pow(2,15)));
 
-    uint16_t tx_amp = static_cast<uint16_t>(lin_digital_gain_int16);
-    mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
-    mmio::RdMmio(tx_usrp,mmio::kSrcTxAmpAddr,true);
-
-    uint32_t mode_bits = 0b11;
-    tx_usrp->set_rx_dc_offset(false);
-
-    // //Single pkt test
-    // //Write input pkt
-    // for(int i = 0; i*32 < mmio::kPktLen; i++) {
-    //     uint64_t cmd = 0x80000020 + i;
-
-    //     mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, 0xE12ACE94);
-    //     mmio::rd_mem_cmd(tx_usrp, 0x00000020+i ,true);
-    // }
-
-    // mmio::start_tx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
-
-    // while(true)
-    // {
-    //     //Run and check received pkt    
-    //     mmio::WrMmio(tx_usrp,0x0,0x0); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
-    //     bool pkt_valid = mmio::rd_mem_cmd(tx_usrp, mmio::kBbStatusAddr) & 0x2; //around 10 ms
-    //     if(pkt_valid)
-    //         break;
-    // }
-
-    // for(int i = 0; i*32 < mmio::kPktLen; i++) {
-    //     mmio::rd_mem_cmd(tx_usrp, 0x00000810+i ,true);
-    // }
+    //Run test------------------------------------------------------------------------------------
+    std::uint32_t mode_bits{0b11};
 
     double n_errors = 0; 
 
@@ -769,6 +806,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, input_pkt[i]);
         }
 
+        tx_usrp->set_rx_dc_offset(false);
+        tx_usrp->set_rx_dc_offset(true);
+        tx_usrp->set_rx_dc_offset(false);
         // start
         mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
         
@@ -798,9 +838,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         }
 
         if(n_errors > kTargetErr){
-            // ber_array.push_back(n_errors/(iter*mmio::kPktLen));
-            // n_bit_err_array.push_back(n_errors);
-            // n_iter_array.push_back(iter*mmio::kPktLen);
             std::cout << std::dec << "Reached " << n_errors  << " in " << iter << " iterations" << std::endl;
             std::cout << "ber =" << n_errors/(iter*mmio::kPktLen) << std::endl;
             break;
@@ -811,67 +848,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // std::vector<double> EsN0_array = {1, 2, 3};
     // std::vector<double> ber_array, n_bit_err_array, n_iter_array;
 
-    // //Gain Control-----------------------------------------------------------------------------
-    // double target_EsN0 = 10;
-    // //for (const auto& target_EsN0 : EsN0_array) {
 
-    // double total_gain = target_EsN0-EsN0;
-
-    // // //Digital gain is [0.66,2]. First set tx gain to achieve certain snr. Then use analog gain to set signal amplitude to 1. Then, run estimation again and apply digital gain is for fine tuning
-    // // double h_mag = std::abs(h_hat);
-    // // //std::cout << "h_mag: " << h_mag; 
-    // // double total_gain = -20*std::log10(h_mag); //total gain needed in system to equalize 
-    // // double digital_gain = 0;
-    // tx_gain = 0;
-    // rx_gain = 0;
-
-    // double digital_gain = total_gain;
-    // double lin_digital_gain = std::pow(10,digital_gain/20);
-    // uint16_t tx_amp = static_cast<uint16_t>(std::round(lin_digital_gain*(std::pow(2,15)-1)));
-    // mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
-
-    // // mmio::wr_mem_cmd(tx_usrp,0x80000034'00000000  | static_cast<uint16_t>(tx_amp));
-
-    // mmio::rd_mem_cmd(tx_usrp,mmio::kSrcTxAmpAddr, true);
-
-    // //Set rx gain so that signal amplitude is 1
-    // double h_mag = std::abs(h_hat);
-    // h_mag = h_mag*lin_digital_gain;
-    // std::cout << "h_mag at receiver: " << h_mag << std::endl;
-
-    // rx_gain = -20*std::log10(h_mag);
-
-    // if(rx_gain < 0 || rx_gain > 31.5)
-    // {
-    //     std::cerr << "Calculated rx_gain " << rx_gain << " outside AFE range: 0-31.5dB";
-    //     return EXIT_FAILURE;
-    // }
-
-    // //set the receive rf gain ubx range: 0-31.5dB
-    // std::cout << boost::format("Setting RX Gain: %f dB...") % rx_gain << std::endl;
-    //     rx_usrp->set_rx_gain(rx_gain, 0); //only using channel 0
-    // std::cout << boost::format("Actual RX Gain: %f dB...") % rx_usrp->get_rx_gain(0) << std::endl;
-
-    // //TODO: compensate the 0.5 db mismatch here
-
-    // // //redo timing/flatfade estimation using the estimated delay to get the full preamble----------------------------------------
-    // // int D_test = D_hat;
-
-    // // for(int i = 0; i<1; i++){
-
-    // // auto ch_params = ch_estim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "");
-    // // D_hat = ch_params.D_hat;
-    // // h_hat = ch_params.h_hat;
-    // // SNR = calcSNR(h_hat, var);
-    // // EsN0 = calcEsN0(h_hat, 336, var);
-
-    // // std::cout << std::dec;
-    // // std::cout << "D_test= " << D_test << ", ";
-    // // std::cout << "D_hat= " << D_hat << ", ";
-    // // std::cout << "SNR= " << SNR << ", ";
-    // // std::cout << "EsN0= " << EsN0 << ", ";
-    // // std::cout << "h_hat : abs= " << std::abs(h_hat) << " arg= " << std::arg(h_hat) << std::endl;
-    // // }
 
     // //BER test------------------------------------------------------------------------------------------------------
     // mode_bits = 0b11;
@@ -998,25 +975,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // }
     // std::cout << "];" << std::endl; // End MATLAB array definition    
     //////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-    // // recv to file
-    // bool rx_save = save_file != 0;
-    // if (type == "double")
-    //     recv_to_file<std::complex<double>>(
-    //         rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
-    // else if (type == "float")
-    //     recv_to_file<std::complex<float>>(
-    //         rx_usrp, "fc32", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
-    // else if (type == "short")
-    //     recv_to_file<std::complex<short>>(
-    //         rx_usrp, "sc16", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
-    // else {
-    //     // clean up transmit worker
-    //     stop_signal_called = true;
-    //     transmit_thread.join();
-    //     throw std::runtime_error("Unknown type " + type);
-    // }
 
     // clean up transmit worker
     stop_signal_called = true;

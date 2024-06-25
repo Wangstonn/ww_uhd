@@ -20,6 +20,7 @@ namespace mmio {
     constexpr uint32_t kDestChEqReAddr = 0x31;
     constexpr uint32_t kDestChEqImAddr = 0x32;
     constexpr uint32_t kSrcTxAmpAddr = 0x34;
+    constexpr uint32_t kMaxSrcTxAmp = 0x7FFF; //	UINT_MAX
 
     constexpr int kPktLen = 256;
     constexpr uint32_t kInPktAddr = 0x20;
