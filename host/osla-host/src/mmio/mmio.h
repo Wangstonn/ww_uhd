@@ -28,13 +28,16 @@ namespace mmio {
     //Useful read commands
     //constexpr std::uint32_t isDone{0x08000001}; //src done tx
     constexpr std::uint32_t kBbStatusAddr{0x800}; 
+    constexpr std::uint32_t kSrcCapIdxAddr{0x819};
+    constexpr std::uint32_t kDestCapIdxAddr{0x820}; 
+    
 
 
-    uint32_t RdMmio(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t addr, bool verbose =  false);
+    uint32_t RdMmio(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t addr, bool verbose = false);
     void WrMmio(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t addr, const uint32_t data);
     void wr_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint64_t cmd);
     std::vector<std::complex<double>> ReadSampleMem(const uhd::usrp::multi_usrp::sptr tx_usrp, const bool mem_sel, const int NCapSamps = pow(2,12), const std::string& file = "");
-    void start_tx(uhd::usrp::multi_usrp::sptr tx_usrp, std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits);
+    void StartTx(uhd::usrp::multi_usrp::sptr tx_usrp, std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits);
     void InitBBCore (uhd::usrp::multi_usrp::sptr tx_usrp);
     void ReadBBCore (uhd::usrp::multi_usrp::sptr tx_usrp);
 }

@@ -607,7 +607,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     int D_test = 113; //D_test is the delay between src and dest we set. This is the opposite of D_comp's logic
 
     file = "../../data/dlb_prmbl_cap.dat";
-    auto ch_params = ch_estim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,16)-1, file);
+    auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,14)-1, file);
     int D_hat = ch_params.D_hat;
     std::complex<double> h_hat = ch_params.h_hat;
 

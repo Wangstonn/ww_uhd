@@ -31,7 +31,7 @@ namespace mmio {
                 ex: mode 1 =>dest gpio start
                 ex: mode 2 =>src gpio start
     */
-    void start_tx(uhd::usrp::multi_usrp::sptr tx_usrp, std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits) {
+    void StartTx(uhd::usrp::multi_usrp::sptr tx_usrp, std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits) {
         std::uint32_t mode_bits_shift{mode_bits << 2};
         std::uint32_t rx_ch_sel_bits_shift{rx_ch_sel_bits << 4}; 
         std::uint32_t tx_core_bits_shift{tx_core_bits << 6}; 
@@ -205,11 +205,14 @@ namespace mmio {
 
 
     //Sample Capture Memory Address limits
-    const uint32_t kSrcPrmblStartAddr = 0x01000000;
-    const uint32_t kSrcPrmblEndAddr = 0x0100FFFE;
+    const uint32_t kSrcCapStartAddr = 0x01000000;
+    const uint32_t kSrcCapEndAddr = 0x0100FFFE;
 
-    const uint32_t kDestPrmblStartAddr = 0x02000000;
-    const uint32_t kDestPrmblEndAddr = 0x0200FFFE;
+    const uint32_t kDestCapStartAddr = 0x02000000;
+    const uint32_t kDestCapEndAddr = 0x0200FFFE;
+    //Warning: in some cases, capture will not fully fill the memory. It is important to verify that the index being read is less than DestCapIdx.
+    // otherwise, UNINTIALIZED memory will be read, given nonsensical results. Futhermore, verify that the device has completed operation. Otherwise,
+    // the output may be the current memory value being written!
 
     /**
      * Reads the captured samples from the MMIO and writes them to a vector of complex doubles
@@ -237,18 +240,23 @@ namespace mmio {
         
         std::vector<std::complex<double>> cap_samps; // Define a vector to store the samples
         
-        uint32_t start_addr = mem_sel ? kDestPrmblStartAddr : kSrcPrmblStartAddr;
+        uint32_t start_addr = mem_sel ? kDestCapStartAddr : kSrcCapStartAddr;
         uint32_t end_addr = start_addr + NCapSamps - 1; // Calculate the end address
-        uint32_t max_end_addr = mem_sel ? kDestPrmblEndAddr : kSrcPrmblEndAddr;
+        uint32_t max_end_addr = mem_sel ? kDestCapEndAddr : kSrcCapEndAddr;
+
+        uint32_t idx_addr = mem_sel ? mmio::kDestCapIdxAddr : mmio::kSrcCapIdxAddr;
         // Check if the end address exceeds the maximum address
         if (end_addr > max_end_addr) {
-            std::cerr << "Error: Address range exceeds maximum allowed address. Reading maximum allowed instead." << std::endl;
+            std::cerr << "Warning: Address range exceeds maximum allowed address. Reading maximum allowed instead." << std::endl;
             end_addr = max_end_addr;
         }
 
+        // Check how many sample were written and only read those
+        end_addr = std::min(start_addr + mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr)-1,end_addr);
 
         for(uint32_t addr = start_addr; addr <= end_addr; addr++) {
             uint32_t prmbl_samp = RdMmio(tx_usrp, addr);
+            //std::cout<< std::hex << "addr: " << addr << " data: " << prmbl_samp << std::endl;
 
             int16_t prmbl_samp_I, prmbl_samp_Q; //integer because samples are signed
             prmbl_samp_I = static_cast<int16_t>(prmbl_samp >> 16);
@@ -276,7 +284,7 @@ namespace mmio {
      *
      * @param tx_usrp The USRP device to read samples from.
      * @param mem_sel Selects which memory to read from. 0->src, 1->dest
-     * @param NCapSamps number of samples to be captured. Max is 2**15
+     * @param NCapSamps number of samples to be captured. Max is 2**16-1
      * @param file Name of file to write to. If empty/missing will not write to file.
      * @return A vector of complex doubles containing the captured samples.
      */
@@ -304,7 +312,6 @@ namespace mmio {
         } else {
             // Call the helper function for reading samples without writing to the file
             std::ofstream of_file;
-            //of_file.open("");
             cap_samps = ReadSampleHelper(tx_usrp, mem_sel, NCapSamps, frac_len, of_file);
         }
 

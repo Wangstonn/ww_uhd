@@ -239,7 +239,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("settling", po::value<double>(&settling)->default_value(double(0.2)), "settling time (seconds) before receiving")
         ("spb", po::value<size_t>(&spb)->default_value(10000), "samples per buffer, 0 for default")
         ("tx-rate", po::value<double>(&tx_rate)->default_value(6.25e6), "rate of transmit outgoing samples") //Data rate of host data
-        ("rx-rate", po::value<double>(&rx_rate)->default_value(6.25e6), "rate of receive incoming samples") //Data rate of streaming
+        ("rx-rate", po::value<double>(&rx_rate)->default_value(200e6), "rate of receive incoming samples") //Data rate of streaming
         
         //user specified arguments
         ("input reg", po::value<uint32_t>(&input_reg)->default_value(0), "input reg")
@@ -582,7 +582,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 500 ms before tx is active
 
     file = "../../data/dlb_prmbl_stream.dat";
-    total_num_samps = pow(2,16)-1;
+    total_num_samps = pow(2,20)-1;
     // recv to file - supposedly sets registers on adc but I cant find anything about that. 
     // However, given how transmit_worker sets the tx settings (tx_running), its very possible that rx settings need to be set for proper operation
     // Ordinary operation of recv_to_file will lock out the rest of the c++ code, so try putting it in a thread so that it can execute indefinitely just like transmit_worker

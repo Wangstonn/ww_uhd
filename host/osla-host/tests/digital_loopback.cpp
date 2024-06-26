@@ -597,14 +597,14 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     uint16_t tx_core_bits = 0b00; 
     uint16_t gpio_start_sel_bits = 0b00;
 
-    //Generate input bits
-    std::random_device rd;
+    // //Generate input bits
+    // std::random_device rd;
 
-    // Create a Mersenne Twister PRNG engine
-    std::mt19937 mt(rd());
+    // // Create a Mersenne Twister PRNG engine
+    // std::mt19937 mt(rd());
 
-    // Define a distribution for generating uint32_t values
-    std::uniform_int_distribution<uint32_t> dist;
+    // // Define a distribution for generating uint32_t values
+    // std::uniform_int_distribution<uint32_t> dist;
     
     // Single pkt test -------------------------------------------------
     // // Generate a random pkt
@@ -624,7 +624,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // }
 
     // // start
-    // mmio::start_tx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
+    // mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
     
     // while(true)
     // {
@@ -651,11 +651,11 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //     std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
     // }
 
-    // mmio::ReadBBCore(tx_usrp);
+    mmio::ReadBBCore(tx_usrp);
 
     int n_iter = 0;
     double n_error = 0; 
-    const int kMaxIter = 1e6;
+    const int kMaxIter = 3;
     const int kTargetErr = 100;
     for(int iter = 1; iter < kMaxIter; iter++ ) {
         n_iter++;
@@ -667,16 +667,16 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         // Generate a random uint32_t
         for(int i = 0; i < Num16BitSlices; i++)
         {
-            uint32_t randomValue = dist(mt);
+            // uint32_t randomValue = dist(mt);
             //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
 
-            input_pkt[i] = 0;
+            input_pkt[i] = 0xFFFF00FF;
 
             mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, input_pkt[i]);
         }
 
         // start
-        mmio::start_tx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
+        mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
         
         while(true)
         {
@@ -703,10 +703,16 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
         }
 
-        if(n_error > kTargetErr){
-            break;
-        }
+        // if(n_error > kTargetErr){
+        //     break;
+        // }
 
+        std::cout << std::dec << "Reached " << n_error << " errors"<< std::endl;
+
+        mmio::ReadBBCore(tx_usrp);
+
+        mmio::ReadSampleMem(tx_usrp, 1, std::pow(2,16)-1, "../../data/fwd_dlb_samps.dat"); 
+        //mmio::ReadSampleMem(tx_usrp, 0, std::pow(2,16)-1, "../../data/fb_dlb_samps.dat");
 
     }
 
