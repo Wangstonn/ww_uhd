@@ -599,7 +599,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //noise estimation
     double var;
     std::cout << "Running noise estimation..." << std::endl;
-    var = estim::EstimNoise(tx_usrp, pow(2,15),rx_ch_sel_bits); //use 2^15 samples to get a good estimate for the noise
+    var = estim::EstimNoise(tx_usrp, mmio::kCapMaxNumSamps,rx_ch_sel_bits); //use 2^15 samples to get a good estimate for the noise
+    mmio::ReadSampleMem(tx_usrp, 1, std::pow(2,16)-1, "../../data/fwd_alb_noise_samps.dat"); 
+    std::cout << "Sample written to fwd_alb_noise_samps.dat" << std:: endl; 
     std::cout << "Estimated var= " << var << std::endl; //one time this gave me a negative....
 
     // Timing+flatfading estimation---------------------------------------------------------------------------------------------------------------------------
@@ -662,7 +664,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         //redo timing/flatfade estimation using the estimated delay to get the full preamble----------------------------------------
         int D_test = D_hat;
         
-        auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,16)-1, "../../data/fwd_alb_prmbl_samps.dat");
+        auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, mmio::kCapMaxNumSamps, "../../data/fwd_alb_prmbl_samps.dat");
         D_hat = ch_params.D_hat;
         h_hat = ch_params.h_hat;
         SNR = estim::CalcSNR(h_hat, var);

@@ -69,13 +69,14 @@ namespace mmio {
         0x80000001'00000001,
         0x80000010'00001000,
         0x80000011'00000000,
+        0x80000012'00007FFF,
         0x80000020'E12ACE94,
         0x80000021'E12ACE94,
         0x80000030'27100000,
         0x80000031'00002000,
         0x80000032'00000000,
         0x80000033'00000075,
-        0x80000034'00007FFF
+        0x80000034'00000000
     };
 
     //Readback input bit, phase, and threshold settings, valid and done, and pkt out
@@ -84,6 +85,7 @@ namespace mmio {
         0x00000001,
         0x00000010,
         0x00000011,
+        0x00000012,
         0x00000020,
         0x00000021,
         0x00000030,
@@ -100,9 +102,9 @@ namespace mmio {
         0x00000820, //dest samp cap counter
 
         0x01000000, //src samp cap memory
-        0x0100FFFE,
+        0x0100FFFF,
         0x02000000, //dest samp cap memory
-        0x0200FFFE
+        0x0200FFFF
     };
 
     void InitBBCore (uhd::usrp::multi_usrp::sptr tx_usrp) {
@@ -206,10 +208,10 @@ namespace mmio {
 
     //Sample Capture Memory Address limits
     const uint32_t kSrcCapStartAddr = 0x01000000;
-    const uint32_t kSrcCapEndAddr = 0x0100FFFE;
+    const uint32_t kSrcCapEndAddr = 0x0100FFFF;
 
     const uint32_t kDestCapStartAddr = 0x02000000;
-    const uint32_t kDestCapEndAddr = 0x0200FFFE;
+    const uint32_t kDestCapEndAddr = 0x0200FFFF;
     //Warning: in some cases, capture will not fully fill the memory. It is important to verify that the index being read is less than DestCapIdx.
     // otherwise, UNINTIALIZED memory will be read, given nonsensical results. Futhermore, verify that the device has completed operation. Otherwise,
     // the output may be the current memory value being written!
@@ -252,7 +254,7 @@ namespace mmio {
         }
 
         // Check how many sample were written and only read those
-        end_addr = std::min(start_addr + mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr)-1,end_addr);
+        end_addr = std::min(start_addr + mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr),end_addr); //samp_cap_idx displays next memory address to be written
 
         for(uint32_t addr = start_addr; addr <= end_addr; addr++) {
             uint32_t prmbl_samp = RdMmio(tx_usrp, addr);
@@ -284,7 +286,7 @@ namespace mmio {
      *
      * @param tx_usrp The USRP device to read samples from.
      * @param mem_sel Selects which memory to read from. 0->src, 1->dest
-     * @param NCapSamps number of samples to be captured. Max is 2**16-1
+     * @param NCapSamps number of samples to be captured. Max is 2**16
      * @param file Name of file to write to. If empty/missing will not write to file.
      * @return A vector of complex doubles containing the captured samples.
      */

@@ -662,7 +662,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         //redo timing/flatfade estimation using the estimated delay to get the full preamble----------------------------------------
         int D_test = D_hat;
         
-        auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "");
+        auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, mmio::kCapMaxNumSamps, "");
         D_hat = ch_params.D_hat;
         h_hat = ch_params.h_hat;
         SNR = estim::CalcSNR(h_hat, var);
@@ -685,7 +685,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::complex<double> h_phase = h_hat/std::abs(h_hat); //save the unit magnitude component
 
     //Set operating EsN0
-    double target_EsN0 = 6; //in dB //max is 30 for wired, works for 7
+    double target_EsN0 = 2; //in dB. max is 30 for wired, works for 7
     double target_gain = target_EsN0-EsN0; //Target gain needed to test system
     std::cout << "target gain:" << target_gain << std::endl;
     //if target gain > 0, boost tx gain.
@@ -779,7 +779,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     double n_errors = 0; 
 
-    const int kMaxIter = 1e5/mmio::kPktLen;
+    const int kMaxIter = std::ceil(1e5/mmio::kPktLen);
     const int kTargetErr = 100;
     //Generate input bits
     std::random_device rd;
@@ -790,8 +790,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // Define a distribution for generating uint32_t values
     std::uniform_int_distribution<uint32_t> dist;
     
-    
-    for(int iter = 1; iter < kMaxIter; iter++) {
+    int n_iters = kMaxIter;
+    for(int iter = 1; iter <= kMaxIter; iter++) {
         // Generate a random pkt
         const int Num16BitSlices = mmio::kPktLen/32;
         uint32_t input_pkt[Num16BitSlices] = {0};
@@ -807,8 +807,11 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         }
 
         tx_usrp->set_rx_dc_offset(false);
+        //std::this_thread::sleep_for(std::chrono::milliseconds(10000)); //Test DC offset stability
         tx_usrp->set_rx_dc_offset(true);
+        std::this_thread::sleep_for(std::chrono::milliseconds(40)); //DC offset calibration time, minimum is 33.6 ms
         tx_usrp->set_rx_dc_offset(false);
+
         // start
         mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
         
@@ -837,16 +840,21 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
         }
 
+        n_iters = iter;
         if(n_errors > kTargetErr){
-            std::cout << std::dec << "Reached " << n_errors  << " in " << iter << " iterations" << std::endl;
-            std::cout << "ber =" << n_errors/(iter*mmio::kPktLen) << std::endl;
             break;
         }
     }
 
-    
+    std::cout << std::dec << "Reached " << n_errors  << " in " << n_iters << " iterations" << std::endl;
+    std::cout << "ber = " << n_errors/(n_iters*mmio::kPktLen) << std::endl;
     // std::vector<double> EsN0_array = {1, 2, 3};
     // std::vector<double> ber_array, n_bit_err_array, n_iter_array;
+
+    mmio::ReadSampleMem(tx_usrp, 1, std::pow(2,16)-1, "../../data/fwd_alb_samps.dat"); 
+    std::cout << "Sample written to fwd_alb_samps.dat" << std:: endl; 
+
+    mmio::ReadSampleMem(tx_usrp, 0, std::pow(2,16)-1, "../../data/fb_alb_samps.dat"); 
 
 
 

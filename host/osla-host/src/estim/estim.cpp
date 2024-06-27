@@ -155,7 +155,7 @@ namespace estim {
 
         int N_prmbl_samps_cap = EstimNSampCap(N_w, N_prmbl, D_hat); //Find how many samples were captured for coefficient estimation
 
-        if (N_prmbl_samps_cap == 0) {
+        if (N_prmbl_samps_cap <= 0) {
             std::cerr << "Error: No samples captured" << std::endl;
         }
 
@@ -251,8 +251,8 @@ namespace estim {
             dest_delay = D_hat;
             src_delay = 0;
         }
-        mmio::wr_mem_cmd(tx_usrp, (mmio::src_delay_cmd << 32) | src_delay);
-        mmio::wr_mem_cmd(tx_usrp, (mmio::dest_delay_cmd << 32) | dest_delay);
+        mmio::wr_mem_cmd(tx_usrp, (mmio::kSrcDelayAddr << 32) | src_delay);
+        mmio::wr_mem_cmd(tx_usrp, (mmio::kDestDelayAddr << 32) | dest_delay);
     }
 
 
