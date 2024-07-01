@@ -2,8 +2,8 @@
 configure_file( ${CMAKE_BINARY_DIR}/src/estim/preamble.mem preamble.mem COPYONLY)
 
 # Add executables
-add_executable(digitalLoopbackTest digital_loopback.cpp)
-target_link_libraries(digitalLoopbackTest ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)
+add_executable(dlbTest dlb_test.cpp)
+target_link_libraries(dlbTest ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)
 
 # add_executable(dlbPrmblStream dlb_prmbl_stream.cpp)
 # target_link_libraries(dlbPrmblStream ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)
@@ -20,7 +20,7 @@ target_link_libraries(fwdAlbCap ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)
 add_executable(fwdAlbDebug fwd_alb_debug.cpp)
 target_link_libraries(fwdAlbDebug ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)
 
-add_executable(fwdLoopbackTest fwd_loopback.cpp)
-target_link_libraries(fwdLoopbackTest ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)
+add_executable(fwdAlbTest fwd_alb_test.cpp)
+target_link_libraries(fwdAlbTest ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)
 
 

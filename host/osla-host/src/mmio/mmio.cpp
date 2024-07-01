@@ -44,6 +44,10 @@ namespace mmio {
         //write rst command to device in case we run this multiple times. I forgot this but acqusition went fine...
         wr_mem_cmd(tx_usrp, rst_cmd);
 
+        tx_usrp->set_rx_dc_offset(true);
+        std::this_thread::sleep_for(std::chrono::milliseconds(40)); //DC offset calibration time, minimum is 33.6 ms
+        tx_usrp->set_rx_dc_offset(false);
+
         wr_mem_cmd(tx_usrp,0x80000000'00000000); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
 
         //RdMmio(tx_usrp,0x00000001,1);
@@ -104,6 +108,7 @@ namespace mmio {
         0x01000000, //src samp cap memory
         0x0100FFFF,
         0x02000000, //dest samp cap memory
+        0x02002100,
         0x0200FFFF
     };
 
@@ -205,6 +210,11 @@ namespace mmio {
         wr_mem_cmd(tx_usrp, cmd);
     }
 
+    void ClearAddrBuffer (uhd::usrp::multi_usrp::sptr tx_usrp) {
+        WrMmio(tx_usrp,0,0); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
+    }
+    
+
 
     //Sample Capture Memory Address limits
     const uint32_t kSrcCapStartAddr = 0x01000000;
@@ -254,7 +264,7 @@ namespace mmio {
         }
 
         // Check how many sample were written and only read those
-        end_addr = std::min(start_addr + mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr),end_addr); //samp_cap_idx displays next memory address to be written
+        end_addr = std::min(start_addr + mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr)-1,end_addr); //samp_cap_idx displays the last written memory address. Seems to be bugged but I cant find the problem
 
         for(uint32_t addr = start_addr; addr <= end_addr; addr++) {
             uint32_t prmbl_samp = RdMmio(tx_usrp, addr);

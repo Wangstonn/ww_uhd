@@ -649,7 +649,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     for(int i = 0; i*32 < PktLen; i++) {
         uint64_t cmd = 0x80000020 + i;
 
-        mmio::wr_mem_cmd(tx_usrp, cmd << 32 | 0x512ACE94);
+        mmio::wr_mem_cmd(tx_usrp, cmd << 32 | 0xE12ACE94);
         mmio::RdMmio(tx_usrp, 0x00000020+i ,true);
     }
 
@@ -658,6 +658,17 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //     rd_mem_cmd(tx_usrp, cmd,true);
     // }
     mmio::ReadBBCore(tx_usrp);
+
+    //Test individual write commands
+    mmio::WrMmio(tx_usrp, mmio::kDestNumBitShift, 0x1); //shift dest rx by 3 to the left (multiply by 8)
+    mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,0x7FFF >> 1);
+
+    std::cout << "Readback...\n";
+    // for(const auto& cmd : read_cmds) {
+    //     rd_mem_cmd(tx_usrp, cmd,true);
+    // }
+    mmio::ReadBBCore(tx_usrp);
+
 
     std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 500 ms before tx is active
     
@@ -672,7 +683,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     
     std::cout << "Start command issued...\n";
     //start_tx(tx_usrp, 0x0, 0x1, 0x2, 0x0); //wired loopback
-    mmio::start_tx(tx_usrp, 0b11, 0b0, 0b0, 0b0); //digital loopback
+    mmio::StartTx(tx_usrp, 0b11, 0b0, 0b0, 0b0); //digital loopback
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1000)); //Need to sleep for at least 500 ms before tx is active
 

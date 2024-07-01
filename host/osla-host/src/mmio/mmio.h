@@ -32,7 +32,7 @@ namespace mmio {
     constexpr std::uint32_t kBbStatusAddr{0x800}; 
     constexpr std::uint32_t kSrcCapIdxAddr{0x819};
     constexpr std::uint32_t kDestCapIdxAddr{0x820}; 
-    constexpr int kCapMaxNumSamps = std::pow(2,16); 
+    constexpr int kCapMaxNumSamps = std::pow(2,16); //RTL BUGGED SO IT CAN ONLY READ std::pow(2,16)-1 SAMPLES
     
 
 
@@ -43,6 +43,7 @@ namespace mmio {
     void StartTx(uhd::usrp::multi_usrp::sptr tx_usrp, std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits);
     void InitBBCore (uhd::usrp::multi_usrp::sptr tx_usrp);
     void ReadBBCore (uhd::usrp::multi_usrp::sptr tx_usrp);
+    void ClearAddrBuffer (uhd::usrp::multi_usrp::sptr tx_usrp);
 }
 
 #endif  // MMIO_H

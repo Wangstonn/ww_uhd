@@ -289,6 +289,18 @@ namespace estim {
 
         mmio::WrMmio(tx_usrp, mmio::kDestChEqReAddr, static_cast<uint16_t>(dest_ch_eq_re_int16));
         mmio::WrMmio(tx_usrp, mmio::kDestChEqImAddr, static_cast<uint16_t>(dest_ch_eq_im_int16));
+
+        auto dest_ch_eq_re_int16_mem = mmio::RdMmio(tx_usrp,mmio::kDestChEqReAddr,true);
+        if (static_cast<uint16_t>(dest_ch_eq_re_int16) != dest_ch_eq_re_int16_mem) {
+            std::cout << std::hex << "Attempted to set dest_ch_eq_re_int16 = " << dest_ch_eq_re_int16 << std::endl;
+            std::cout << std::hex << "Actual value: " << dest_ch_eq_re_int16_mem << std::endl;
+        }
+
+        auto dest_ch_eq_im_int16_mem = mmio::RdMmio(tx_usrp,mmio::kDestChEqImAddr,true);
+        if (static_cast<uint16_t>(dest_ch_eq_im_int16) != dest_ch_eq_im_int16_mem) {
+            std::cout << std::hex << "Attempted to set dest_ch_eq_im_int16 = " << dest_ch_eq_im_int16 << std::endl;
+            std::cout << std::hex << "Actual value: " << dest_ch_eq_im_int16_mem << std::endl;
+        }
     }
 
     /**

@@ -662,7 +662,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         //redo timing/flatfade estimation using the estimated delay to get the full preamble----------------------------------------
         int D_test = D_hat;
         
-        auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, mmio::kCapMaxNumSamps, "");
+        auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,14), "");
         D_hat = ch_params.D_hat;
         h_hat = ch_params.h_hat;
         SNR = estim::CalcSNR(h_hat, var);
@@ -707,7 +707,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::complex<double> h_phase = h_hat/std::abs(h_hat); //save the unit magnitude component
 
     //Set operating EsN0
-    double target_EsN0 = 5; //in dB
+    double target_EsN0 = 30; //in dB
     std::cout << "Target Es_N0 = " << target_EsN0 << std::endl;
     double target_gain = target_EsN0-EsN0; //Target gain needed to test system
     std::cout << "target gain:" << target_gain << std::endl;
@@ -754,9 +754,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     double h_mag = std::abs(h_hat);
     std::cout << "h_hat: " << h_hat << std::endl;
     double h_mag_comp;
-    mmio::WrMmio(tx_usrp, mmio::kDestNumBitShift, 0x3); //shift dest rx by 3 to the left (multiply by 8)
+    mmio::WrMmio(tx_usrp, mmio::kDestNumBitShift, 0x0); //shift dest rx by 3 to the left (multiply by 8)
 
-    double target_rx_gain = -(20*std::log10(h_mag) + target_gain) - 20*std::log10(8); //total gain needed in system to equalize 
+    double target_rx_gain = -(20*std::log10(h_mag) + target_gain) - 20*std::log10(1); //total gain needed in system to equalize 
     std::cout << std::dec << "target_rx_gain: " << target_rx_gain << std::endl;
 
     if(target_rx_gain > 0) {
@@ -812,7 +812,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // Generate a random uint32_t
     for(int i = 0; i < Num16BitSlices; i++)
     {
-        input_pkt[i] = 0x0;
+        input_pkt[i] = 0xFFFFFFFF;
 
         mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, input_pkt[i]);
 
@@ -821,10 +821,10 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     //tx_usrp->set_rx_dc_offset(false);
     //std::this_thread::sleep_for(std::chrono::milliseconds(10000)); //Test DC offset stability
-    tx_usrp->set_rx_dc_offset(true);
-    std::this_thread::sleep_for(std::chrono::milliseconds(40)); //DC offset calibration time, minimum is 33.6 ms
-    tx_usrp->set_rx_dc_offset(false);
-    // start
+    // tx_usrp->set_rx_dc_offset(true);
+    // std::this_thread::sleep_for(std::chrono::milliseconds(40)); //DC offset calibration time, minimum is 33.6 ms
+    // tx_usrp->set_rx_dc_offset(false);
+
     mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
     
     while(true)
@@ -852,12 +852,15 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
     }
 
+    mmio::ReadBBCore(tx_usrp);
+
     std::cout << std::dec << "Reached " << n_errors << " errors"<< std::endl;
 
-    mmio::ReadSampleMem(tx_usrp, 1, std::pow(2,16)-1, "../../data/fwd_alb_samps.dat"); 
+    mmio::ReadSampleMem(tx_usrp, 1, std::pow(2,16), "../../data/fwd_alb_samps.dat"); 
     std::cout << "Sample written to fwd_alb_samps.dat" << std:: endl; 
     
-    mmio::ReadSampleMem(tx_usrp, 0, std::pow(2,16)-1, "../../data/fb_alb_samps.dat"); 
+    mmio::ReadSampleMem(tx_usrp, 0, std::pow(2,16), "../../data/fb_alb_samps.dat"); 
+    
 
     //----------------------------------------------------------------------------------
     // clean up transmit worker
