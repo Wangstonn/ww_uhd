@@ -569,6 +569,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //--------------------------------------------------
     //WW - OSLA-BPSK Operation
     //--------------------------------------------------
+    //This file captures digital loopback preamble samples
+
 
     //Preload some default threshold and angle settings
     //std::cout << "Writing to regs...\n";
@@ -626,6 +628,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // Print the result and execution time
     std::cout << "Execution time: " << duration.count() << " seconds" << std::endl;
 
+
+    
     
 
 

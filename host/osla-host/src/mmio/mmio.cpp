@@ -73,7 +73,7 @@ namespace mmio {
         0x80000001'00000001,
         0x80000010'00001000,
         0x80000011'00000000,
-        0x80000012'00007FFF,
+        0x80000012'0000FFFF,
         0x80000020'E12ACE94,
         0x80000021'E12ACE94,
         0x80000030'27100000,
@@ -116,12 +116,14 @@ namespace mmio {
         for(const auto& cmd : write_cmds) {
             wr_mem_cmd(tx_usrp, cmd);
         }
+        mmio::ClearAddrBuffer(tx_usrp); //reset for the next cmd
     }
 
     void ReadBBCore (uhd::usrp::multi_usrp::sptr tx_usrp) {
         for(const auto& cmd : read_cmds) {
             RdMmio(tx_usrp, cmd,true);
         }
+        mmio::ClearAddrBuffer(tx_usrp);
     }
     
     const uint32_t kAddrMask = 0x0FFFFFFF;
@@ -247,6 +249,8 @@ namespace mmio {
      * by 2^-frac_len before being stored.
      * If the specified number of samples exceeds the available memory address range,
      * the function reads the maximum allowed number of samples and prints an error message.
+     * 
+     * !TODO: This does not check if capture is finished! Need FPGA work to signal when cap is done. Not sure actually. Check might be context dependent.
      */
     std::vector<std::complex<double>> ReadSampleHelper(const uhd::usrp::multi_usrp::sptr tx_usrp, const bool mem_sel, const int NCapSamps, const int frac_len, std::ofstream& of_file) {
         
@@ -304,6 +308,7 @@ namespace mmio {
         //Want the double equivalent to the fixed point numbers seen
         const int kDestFracLen = 6; //(14,4)
         const int kSrcFracLen = 12; //(14,10)
+
         int frac_len = mem_sel ? kDestFracLen : kSrcFracLen;
 
         std::vector<std::complex<double>> cap_samps; // Define a vector to store the samples
@@ -312,12 +317,13 @@ namespace mmio {
             std::ofstream of_file(file, std::ios::binary | std::ios::trunc);
 
             if (!of_file.is_open()) {
-                std::cerr << "Unable to open file for appending." << std::endl;
+                std::cerr << "Error: ReadSampleMem Unable to open file for writing." << std::endl;
                 return cap_samps; //return empty vector if file cannot be opened
             }
 
             // Call the helper function for reading samples
             cap_samps = ReadSampleHelper(tx_usrp, mem_sel, NCapSamps, frac_len, of_file);
+            std::cout << "Samples written to " << file << std::endl; 
 
             // Close the file
             of_file.close();
@@ -330,4 +336,113 @@ namespace mmio {
         return cap_samps; // Return the vector containing the samples
     }
 
+
+    /**
+     * Reads the captured samples from the MMIO and writes them to a vector of complex doubles
+     * and/or to an output file.
+     * 
+     * @param tx_usrp The USRP device to read samples from.
+     * @param mem_sel Selects which memory to read from. 0->src, 1->dest !WW Not implemented yet!
+     * @param NCapSamps The number of samples to read.
+     * @param frac_len Number of bits used to represent the fractional part of the number. This depends on RX implementation!!
+     * @param of_file Reference to an ofstream object representing the output file.
+     *                If this file is open, the samples will be written to it.
+     * @return A vector of complex doubles containing the captured samples.
+     *
+     * This function reads NCapSamps samples from the specified USRP device.
+     * For each sample, it constructs a 32-bit complex value from two 16-bit integers
+     * (one for the real part and one for the imaginary part), and stores it in the 
+     * cap_samps vector. If an output file is provided and open, each 16-bit integer 
+     * representing the real and imaginary parts of the sample is written to the file.
+     * The samples are converted to complex doubles and normalized by multiplying
+     * by 2^-frac_len before being stored.
+     * If the specified number of samples exceeds the available memory address range,
+     * the function reads the maximum allowed number of samples and prints an error message.
+     * 
+     * !TODO: This does not check if capture is finished! Need FPGA work to signal when cap is done
+     */
+    std::vector<double> ReadChipHelper(const uhd::usrp::multi_usrp::sptr tx_usrp, const bool mem_sel, const int NCapSamps, const int frac_len, std::ofstream& of_file) {
+        
+        std::vector<double> cap_chips; // Define a vector to store the samples
+        
+        uint32_t start_addr = mem_sel ? kDestCapStartAddr : kSrcCapStartAddr;
+        uint32_t end_addr = start_addr + NCapSamps - 1; // Calculate the end address
+        uint32_t max_end_addr = mem_sel ? kDestCapEndAddr : kSrcCapEndAddr;
+
+        uint32_t idx_addr = mem_sel ? mmio::kDestCapIdxAddr : mmio::kSrcCapIdxAddr;
+        // Check if the end address exceeds the maximum address
+        if (end_addr > max_end_addr) {
+            std::cerr << "Warning: Address range exceeds maximum allowed address. Reading maximum allowed instead." << std::endl;
+            end_addr = max_end_addr;
+        }
+
+        // Check how many sample were written and only read those
+        end_addr = std::min(start_addr + mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr)-1,end_addr); //samp_cap_idx displays the last written memory address. Seems to be bugged but I cant find the problem
+
+        for(uint32_t addr = start_addr; addr <= end_addr; addr++) {
+            uint32_t prmbl_samp = RdMmio(tx_usrp, addr);
+            //std::cout<< std::hex << "addr: " << addr << " data: " << prmbl_samp << std::endl;
+
+            //legacy code to write I and Q to file
+            int16_t prmbl_samp_I, prmbl_samp_Q; //integer because samples are signed
+            prmbl_samp_I = static_cast<int16_t>(prmbl_samp >> 16);
+            prmbl_samp_Q = static_cast<int16_t>(prmbl_samp & 0x0000FFFF);
+
+            int32_t chip_int32 = prmbl_samp;
+
+            // Write the 16 bits to the file if ofstream is open
+            if (of_file.is_open()) {
+                //write takes a char pointer and the number of bytes to write. As a result, we need to typecast and take sizeof
+                of_file.write(reinterpret_cast<const char*>(&prmbl_samp_I), sizeof(prmbl_samp_I));
+                of_file.write(reinterpret_cast<const char*>(&prmbl_samp_Q), sizeof(prmbl_samp_Q));
+            }
+
+            // Write sample to vector
+            double chip = chip_int32 * pow(2, -frac_len) ;
+            cap_chips.push_back(chip);
+        }
+        return cap_chips; // Return the vector containing the samples
+    }
+
+    /**
+     * Read Chip capture memory. When capture memory is set to capture chip values, the data is in a real 32 bit form rather than complex 16 bit form. 
+     * 
+     * @param tx_usrp The USRP device to read samples from.
+     * @param mem_sel Selects which memory to read from. 0->src, 1->dest !!!Not implemented yet!
+     * @param NCapSamps number of samples to be captured. Max is 2**16
+     * @param file Name of file to write to. If empty/missing will not write to file.
+     * @return A vector of complex doubles containing the captured samples.
+     */
+    std::vector<double> ReadChipMem(const uhd::usrp::multi_usrp::sptr tx_usrp, const bool mem_sel, const int NCapSamps , const std::string& file) {
+        const int ACCUM_WIDTH = 42;
+        const int ACCUM_FRAC = 16;
+        const int CAP_WIDTH = 32;
+        const int kDestChipFracLen = ACCUM_FRAC-(ACCUM_WIDTH-32); //17 is accum frac, 40 is accum width, 32 is capture width, truncation is performed
+        
+        int frac_len = kDestChipFracLen;
+
+        std::vector<double> cap_chips; // Define a vector to store the samples
+
+        if (!file.empty()) {
+            std::ofstream of_file(file, std::ios::binary | std::ios::trunc);
+
+            if (!of_file.is_open()) {
+                std::cerr << "Error: ReadChipMem Unable to open file for writing." << std::endl;
+                return cap_chips; //return empty vector if file cannot be opened
+            }
+
+            // Call the helper function for reading samples
+            cap_chips = ReadChipHelper(tx_usrp, mem_sel, NCapSamps, frac_len, of_file);
+            std::cout << "Samples written to " << file << std::endl; 
+
+            // Close the file
+            of_file.close();
+        } else {
+            // Call the helper function for reading samples without writing to the file
+            std::ofstream of_file;
+            cap_chips = ReadChipHelper(tx_usrp, mem_sel, NCapSamps, frac_len, of_file);
+        }
+
+        return cap_chips; // Return the vector containing the samples
+    }
 }

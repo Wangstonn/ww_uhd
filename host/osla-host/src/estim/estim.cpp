@@ -67,25 +67,30 @@ namespace estim {
         mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
 
         //Typically, preamble is so fast no delay is needed
-        while(true)
-        {
+        while(true) {
             //Run and check received pkt    
-            mmio::WrMmio(tx_usrp,0x0,0x0); 
+            mmio::ClearAddrBuffer(tx_usrp); 
             if((mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr) & 0xFFFF) == 0xFFFF) //Dest has finished recording
                 break;
         }
-
-        mmio::WrMmio(tx_usrp,0x0,0x0); //clear buffer since readsamplemem looks at kDestCapIdx
+        mmio::ClearAddrBuffer(tx_usrp); 
 
         //Read data
         std::vector<std::complex<double>> cap_samps = mmio::ReadSampleMem(tx_usrp, 0b1, NCapSamps, file); 
-
         int N_w = static_cast<int>(cap_samps.size()); //number of captured samples
 
-        // Estimate phase------------------------------------------------------------------------------
+        std::vector<std::complex<double>> rx_if(N_w); //downconverted rx
+        const double pi = std::acos(-1);
+        for (int n = 0; n < N_w; ++n) {
+            rx_if[n] = cap_samps[n] * std::exp(std::complex<double>(0, -2*pi/estim::kFwOsr*n)); //The phase measurement will be off because the two sinusoids are not synced yet
+            //std::cout << "if_tone: " <<  std::exp(std::complex<double>(0, 2*pi/estim::kFwOsr * n )) << std::endl;
+        }
+
+        // Estimate delay------------------------------------------------------------------------------
+        //To estimate the phase, first need to sync the digital if tones. To do this, need to find the delay
+
         // Load preamble
         std::ifstream if_file("preamble.mem"); // Open the file. Notice that this is the relative path from the executable location!!
-
         if (!if_file.is_open()) {
             std::cerr << "Error opening the preamble file!" << std::endl;
             ChParams ch_params;
@@ -98,17 +103,15 @@ namespace estim {
         while (if_file >> bit) {
             preamble_bits.push_back(bit - '0'); // Convert character to integer (0 or 1)
         }
-
         if_file.close(); // Close the file
 
         // Calculate prmbl_samps
         std::vector<std::complex<double>> prmbl_samps;
         for (const auto& bit : preamble_bits) {
-            std::complex<double> val = {2 * (bit - 0.5) * prmbl_amp,0};
+            std::complex<double> val = {2 * (bit - 0.5),0};
             prmbl_samps.push_back(val);
         }
-
-        prmbl_samps = Upsample(prmbl_samps,32);
+        prmbl_samps = Upsample(prmbl_samps,32); //upsample corresponding to the preamble osr
         int N_prmbl = static_cast<int>(prmbl_samps.size());
 
         // // Display the values calculated
@@ -120,10 +123,9 @@ namespace estim {
         // }
         // std::cout << std::endl;
         
-        
         std::vector<std::complex<double>> r;
         std::vector<int> lags;
-        XcorrSlow(prmbl_samps,cap_samps, r, lags); //prmbl samps dragged over cap_samps
+        XcorrSlow(prmbl_samps,rx_if, r, lags); //prmbl samps dragged over cap_samps
 
         // Find the index of the maximum absolute value in vector r
         auto max_it = std::max_element(r.begin(), r.end(), [](const std::complex<double>& a, const std::complex<double>& b) {
@@ -135,14 +137,11 @@ namespace estim {
         int D_hat;
         D_hat = lags[max_idx];
 
-
         // // Output the cross-correlation values and corresponding lags
         // std::cout << "Cross-correlation result:" << std::endl;
         // for (size_t i = 0; i < r.size(); ++i) {
         //     std::cout << std::dec << "Lag: " << lags[i] << ", Correlation: " << r[i] << std::endl;
         // }
-        
-
         // // Our estimate depends on the number of samples captured in the capture window (of size N_w)
         // int N_prmbl_samps_cap = 0;
         // if (D_hat > 0) {
@@ -152,25 +151,21 @@ namespace estim {
         // } else {
         //     N_prmbl_samps_cap = std::min(N_w,N_prmbl);
         // }
-
+        
         int N_prmbl_samps_cap = EstimNSampCap(N_w, N_prmbl, D_hat); //Find how many samples were captured for coefficient estimation
-
         if (N_prmbl_samps_cap <= 0) {
             std::cerr << "Error: No samples captured" << std::endl;
         }
 
-
         // Calculate h_hat, h_hat_mag, and phi_hat
         std::complex<double> h_hat;
-        h_hat = r[max_idx] / (N_prmbl_samps_cap * std::pow(prmbl_amp, 2));
-
-        D_hat += D_test; //account for the test delay we inserted
+        h_hat = std::exp(std::complex<double>(0, 2*pi/estim::kFwOsr*D_hat)) * r[max_idx] / double(N_prmbl_samps_cap);
+        D_hat += D_test; //account for the test delay we inserted. The actual D_hat is 4 less than this measured value
 
         ChParams ch_params;
         ch_params.D_hat = D_hat;
         ch_params.h_hat = h_hat;
         return ch_params;
-
 
         //matches matlab
         // std::cout << std::dec;
@@ -183,7 +178,72 @@ namespace estim {
         // std::cout << "phi_hat: " << std::arg(h_hat) << std::endl;
     }
 
-    double EstimNoise(const uhd::usrp::multi_usrp::sptr tx_usrp, const int NCapSamps, const uint32_t rx_ch_sel_bits){
+    //PrmblSweep 
+    // std::vector<int> D_hat_sweep, D_test_sweep;
+    // std::vector<std::complex<double>> h_hat_sweep;
+    // std::vector<double> SNR_sweep;
+
+    // int N_sweep_intervals = 0; //5
+    // const int DelaySweepInterval = 512;
+
+    // for(int interval_idx = -N_sweep_intervals/2; interval_idx <= N_sweep_intervals/2; interval_idx++) {
+    //     // Record the start time
+    //     auto start_time = std::chrono::high_resolution_clock::now();
+
+    //     int D_test = interval_idx * DelaySweepInterval; //D_test is the delay between src and dest we set. This is the opposite of D_comp's logic
+
+    //     auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "");
+    //     int D_hat = ch_params.D_hat;
+    //     std::complex<double> h_hat = ch_params.h_hat;
+
+    //     double SNR = estim::CalcSNR(h_hat, var);
+
+    //     D_test_sweep.push_back(D_test);
+    //     D_hat_sweep.push_back(D_hat);
+    //     h_hat_sweep.push_back(h_hat);
+    //     SNR_sweep.push_back(SNR);
+
+        
+    //     //std::cout << "r[max_idx] = " << r[max_idx] << ", "; 
+        
+    //     std::cout << "D_test_sweep = " << D_test << ", ";
+    //     std::cout << "D_hat_sweep" << " = " << D_hat << ", ";
+    //     std::cout << "SNR_sweep" << " = " << SNR << ", ";
+    //     std::cout << "h_hat_sweep" << " : abs= " << std::abs(h_hat) << " arg= " << std::arg(h_hat) << std::endl;
+
+    //     auto end_time = std::chrono::high_resolution_clock::now();
+
+    //     // Calculate the elapsed time
+    //     auto duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time);
+
+    //     // Print the result and execution time
+    //     std::cout << "Execution time: " << duration.count() << " seconds" << std::endl;
+    // }
+
+    // // Find the index of the maximum absolute value in vector r
+    // auto max_it = std::max_element(h_hat_sweep.begin(), h_hat_sweep.end(), [](const std::complex<double>& a, const std::complex<double>& b) {
+    //     return std::abs(a) < std::abs(b);
+    // }); //Finds the iterator pointing to the max element
+    // int max_idx = std::distance(h_hat_sweep.begin(), max_it); //Finds the index corresponding to that iterator
+
+    // std::complex<double> h_hat = h_hat_sweep[max_idx];
+    // int D_hat = D_hat_sweep[max_idx];
+
+    /**
+     * Estimates the noise variance.
+     * 
+     * This function sets the transmission amplitude to zero temporarily to measure noise,
+     * captures samples from the USRP device, and then estimates the noise variance from these samples.
+     * The problem with this approach is that this noise variance cant be multiplied to estimate the chip noise,
+     * since the flicker noise is not iid white.
+     * 
+     * @param tx_usrp The USRP device pointer from which to capture samples.
+     * @param NCapSamps The number of samples to capture for noise estimation.
+     * @param rx_ch_sel_bits The bits to select the RX channel.
+     * @param file The name of the file to save the captured samples.
+     * @return The estimated noise variance.
+     */
+    double EstimNoise(const uhd::usrp::multi_usrp::sptr tx_usrp, const int NCapSamps, const uint32_t rx_ch_sel_bits, const std::string& file){
         //temporarily set tx_amp = 0
         uint32_t tx_amp = mmio::RdMmio(tx_usrp,mmio::kSrcTxAmpAddr);
         mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,0x0);
@@ -191,9 +251,7 @@ namespace estim {
         mmio::StartTx(tx_usrp, 0x0, rx_ch_sel_bits, 0x0, 0x0); //Mode zero, only listen at src (no tx)
 
         //Typically, capture is so fast no delay is needed
-        //TODO: Change FPGA so that when capture is done, signals pkt valid on dest
-        while(true)
-        {
+        while(true) {
             //Run and check received pkt    
             mmio::WrMmio(tx_usrp,0x0,0x0); 
             if((mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr) & 0xFFFF) == 0xFFFF) //Dest has finished recording
@@ -203,7 +261,7 @@ namespace estim {
         mmio::WrMmio(tx_usrp,0x0,0x0); //clear buffer since readsamplemem looks at kDestCapIdx
 
         //Read on chip acquired data and write to binary file to be parsed by matlab
-        std::vector<std::complex<double>> cap_samps = mmio::ReadSampleMem(tx_usrp, 0b1, NCapSamps,"");
+        std::vector<std::complex<double>> cap_samps = mmio::ReadSampleMem(tx_usrp, 0b1, NCapSamps, file);
 
         // Estimate noise
         std::complex<double> sum = std::accumulate(std::begin(cap_samps), std::end(cap_samps), std::complex<double>{0,0});
@@ -213,6 +271,56 @@ namespace estim {
         double accum = 0;
         std::for_each(std::begin(cap_samps), std::end(cap_samps), [&](const std::complex<double> d) {
             accum += std::pow(std::abs(d - mu),2);
+        });
+
+        double var = accum / (2*cap_samps.size()-1); //2* I and Q are 2 separate samples
+
+        mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
+        return var;
+    }
+
+    /**
+     * Estimates the noise variance.
+     * 
+     * This function sets the transmission amplitude to zero temporarily to measure noise,
+     * captures chips from the USRP device, and then estimates the noise variance from these samples.
+     * 
+     * This is done because it allows us to capture baseband flicker noise
+     * 
+     * @param tx_usrp The USRP device pointer from which to capture samples.
+     * @param NCapSamps The number of samples to capture for noise estimation.
+     * @param rx_ch_sel_bits The bits to select the RX channel.
+     * @param file The name of the file to save the captured samples.
+     * @return The estimated noise variance.
+     */
+    double EstimChipNoise(const uhd::usrp::multi_usrp::sptr tx_usrp, const int NCapSamps, const uint32_t rx_ch_sel_bits, const std::string& file){
+        //temporarily set tx_amp = 0
+        uint32_t tx_amp = mmio::RdMmio(tx_usrp,mmio::kSrcTxAmpAddr);
+        mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,0x0);
+
+        mmio::StartTx(tx_usrp, 0b01, rx_ch_sel_bits, 0x0, 0x0); //Use the active pkt fctn, but capture noise instead of sufficient statistic
+
+        //Typically, capture is so fast no delay is needed
+        while(true) {
+            //Run and check received pkt    
+            bool pkt_valid = mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr) >= 0xFFFE; //around 100 ms...not sure why it still doesnt hit FFFF
+            mmio::ClearAddrBuffer(tx_usrp);
+            if(pkt_valid)
+                break;
+        }
+        // mmio::ReadBBCore(tx_usrp);
+
+        //Read on chip acquired data and write to binary file to be parsed by matlab
+        std::vector<double> cap_samps = mmio::ReadChipMem(tx_usrp, 0b1, NCapSamps, file);
+
+        // Estimate noise
+        double sum = std::accumulate(std::begin(cap_samps), std::end(cap_samps), 0.0);
+        //long unsigned int size->double is a narrowing but hopefully our vectors dont have this size
+        double mu =  sum / static_cast<double>(cap_samps.size());
+        std::cout << "mu = " << mu << std::endl;
+        double accum = 0;
+        std::for_each(std::begin(cap_samps), std::end(cap_samps), [&](const double d) {
+            accum += std::pow(d - mu,2);
         });
 
         double var = accum / (cap_samps.size()-1);
@@ -232,6 +340,42 @@ namespace estim {
     {
         double EsN0 = 10*std::log10(std::pow(prmbl_amp*std::abs(h_hat),2)*osr/(var*2));
         return EsN0;
+    }
+
+    /**
+     * Calculate the EsN0 using the measured chip variance and the signal amplitude
+     */
+    double CalcChipEsN0(const std::complex<double>& h_hat, const double chip_var) {
+        double EsN0 = 10*std::log10(std::pow(estim::kFwOsr*estim::kNChips*std::abs(h_hat),2)/(chip_var*2));
+        return EsN0;
+    }
+
+    /**
+     * Assuming the analog gain is set so that the received amplitude is higher than the expected operating point of the receiver, this code
+     * decreases tx_gain so that the maximum snr possible is achieved (fpga code cant shift right). This is enough for analog experiments
+     * 
+     * You will probably need to set the tx-gain quite high, ex 15 dB
+     */
+    void MaxSnrConfig(const uhd::usrp::multi_usrp::sptr tx_usrp, const std::complex<double> h_hat, const double measured_EsN0) {
+        std::complex<double> h_comp = h_hat/std::abs(h_hat); //Set digital rx gain to be one, and scale the tx down to meet the target gain
+        estim::PhaseEq(tx_usrp, h_comp);
+
+        double h_mag = std::abs(h_hat);
+        double total_gain = -20*std::log10(h_mag); //total gain needed in system to equalize 
+        std::cout << "total gain: " << total_gain << std::endl;
+
+        double digital_gain = total_gain; 
+        double lin_digital_gain = std::pow(10,digital_gain/20);
+        uint16_t tx_amp = static_cast<uint16_t>(std::round(lin_digital_gain * std::pow(2,16)-1));
+        std::cout << "tx_amp = " << tx_amp << std::endl;
+        mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
+        
+        if (lin_digital_gain > 1) {
+            std::cerr << "MaxSnrConfig >> Error: digital_tx_gain = " << lin_digital_gain << "> 1, increase tx_gain and try again." << std::endl; 
+            return;
+        }
+
+        std::cout << "Running test with EsN0: " << measured_EsN0 + total_gain << std::endl;
     }
 
 
@@ -261,12 +405,13 @@ namespace estim {
     /**
      * Sets the digital flatfading equalization parameters for the destination 
      * 
-     * h_hat magnitude can range from 0.5 to 2. This should be applied after analog gain/tx amp is set.
+     * h_hat magnitude can range from 0.5 to 2. This should be applied after analog gain/tx amp is set. Sometimes, writing the phase may fail. Its unclear why this happens
      * 
      * @param h_hat The channel estimate in complex double format.
      * @param tx_usrp A shared pointer to the UHD multi_usrp object for transmitting.
+     * @return int containing success of function
      */
-    void PhaseEq(uhd::usrp::multi_usrp::sptr tx_usrp, const std::complex<double>& h_hat) {
+    int PhaseEq(uhd::usrp::multi_usrp::sptr tx_usrp, const std::complex<double>& h_hat) {
         std::complex<double> reciprocal_h_hat = 1.0 / h_hat;
         
         //std::cout << reciprocal_h_hat << std::endl;
@@ -287,6 +432,7 @@ namespace estim {
             std::cout << "WARNING: dest_ch_eq saturated" << std::endl;
         }
 
+        mmio::ClearAddrBuffer(tx_usrp);
         mmio::WrMmio(tx_usrp, mmio::kDestChEqReAddr, static_cast<uint16_t>(dest_ch_eq_re_int16));
         mmio::WrMmio(tx_usrp, mmio::kDestChEqImAddr, static_cast<uint16_t>(dest_ch_eq_im_int16));
 
@@ -294,13 +440,17 @@ namespace estim {
         if (static_cast<uint16_t>(dest_ch_eq_re_int16) != dest_ch_eq_re_int16_mem) {
             std::cout << std::hex << "Attempted to set dest_ch_eq_re_int16 = " << dest_ch_eq_re_int16 << std::endl;
             std::cout << std::hex << "Actual value: " << dest_ch_eq_re_int16_mem << std::endl;
+            return 1;
         }
 
         auto dest_ch_eq_im_int16_mem = mmio::RdMmio(tx_usrp,mmio::kDestChEqImAddr,true);
         if (static_cast<uint16_t>(dest_ch_eq_im_int16) != dest_ch_eq_im_int16_mem) {
             std::cout << std::hex << "Attempted to set dest_ch_eq_im_int16 = " << dest_ch_eq_im_int16 << std::endl;
             std::cout << std::hex << "Actual value: " << dest_ch_eq_im_int16_mem << std::endl;
+            return 1;
         }
+
+        return 0;
     }
 
     /**

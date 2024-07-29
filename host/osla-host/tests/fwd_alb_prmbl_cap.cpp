@@ -587,55 +587,21 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //--------------------------------------------------
     //WW - OSLA-BPSK Operation
     //--------------------------------------------------
-    std::vector<double> rx_gains;
-    std::vector<double> vars;
-    for (int rx_gain = 0; rx_gain <= 30; rx_gain += 1) {
-        //Captures preamble and chip noise to data
 
-        std::cout << boost::format("Setting RX Gain: %f dB...") % rx_gain
-            << std::endl;
-        rx_usrp->set_rx_gain(rx_gain, 0);
-        std::cout << boost::format("Actual RX Gain: %f dB...")
-                            % rx_usrp->get_rx_gain(0)
-                    << std::endl
-                    << std::endl;
+    //Captures preamble and chip noise to data
 
-        //Preload some default threshold and angle settings
-        mmio::InitBBCore(tx_usrp);
+    //Preload some default threshold and angle settings
+    mmio::InitBBCore(tx_usrp);
 
-        //test settings
-        std::uint32_t tx_core_bits{0b10}; 
-        std::uint32_t rx_ch_sel_bits{0b01}; 
-        std::uint32_t gpio_start_sel_bits{0b00};
+    //test settings
+    std::uint32_t tx_core_bits{0b10}; 
+    std::uint32_t rx_ch_sel_bits{0b01}; 
+    std::uint32_t gpio_start_sel_bits{0b00};
 
-        //noise estimation
-        std::cout << "Running noise estimation..." << std::endl;
-        double var = estim::EstimChipNoise(tx_usrp, pow(2,14),rx_ch_sel_bits, ""); //../../data/fwd_alb_noise_samps.dat 
-        std::cout << "Estimated var= " << var << std::endl;
-
-        rx_gains.push_back(rx_gain);
-        vars.push_back(var);
-    }
-
-    // Print results as MATLAB vectors
-    std::cout << "rx_gain = [";
-    for (size_t i = 0; i < rx_gains.size(); ++i) {
-        std::cout << rx_gains[i];
-        if (i < rx_gains.size() - 1) {
-            std::cout << ", ";
-        }
-    }
-    std::cout << "];" << std::endl;
-
-    std::cout << "var = [";
-    for (size_t i = 0; i < vars.size(); ++i) {
-        std::cout << vars[i];
-        if (i < vars.size() - 1) {
-            std::cout << ", ";
-        }
-    }
-    std::cout << "];" << std::endl;
-
+    //noise estimation
+    std::cout << "Running noise estimation..." << std::endl;
+    double var = estim::EstimChipNoise(tx_usrp, pow(2,14),rx_ch_sel_bits, "../../data/fwd_alb_noise_samps.dat"); // 
+    std::cout << "Estimated var= " << var << std::endl;
 
     // // Timing+flatfading estimation---------------------------------------------------------------------------------------------------------------------------
     // //Because our window is small, need to sweep multiple time intervals by adjusting source and dest delay. Assumes channel coherence is quite long

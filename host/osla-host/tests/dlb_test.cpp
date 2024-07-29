@@ -652,13 +652,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // }
 
     //Bit shift test
-    mmio::ClearAddrBuffer(tx_usrp);
-    
-    mmio::WrMmio(tx_usrp, mmio::kDestNumBitShift, 0x3); //shift dest rx by 3 to the left (multiply by 8)
-    mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,0x7FFF >> 3);
-
-
-    // mmio::wr_mem_cmd(tx_usrp, 0x80000034'00000003);
+    uint8_t dest_num_bit_shift = 0;
+    mmio::WrMmio(tx_usrp, mmio::kDestNumBitShift, dest_num_bit_shift); //shift dest rx by 3 to the left (multiply by 8)
+    mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,0x7FFF >> dest_num_bit_shift);
 
     mmio::ReadBBCore(tx_usrp);
 
