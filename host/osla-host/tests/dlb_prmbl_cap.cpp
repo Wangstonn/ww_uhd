@@ -569,6 +569,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //--------------------------------------------------
     //WW - OSLA-BPSK Operation
     //--------------------------------------------------
+    //This file captures digital loopback preamble samples
+
 
     //Preload some default threshold and angle settings
     //std::cout << "Writing to regs...\n";
@@ -604,15 +606,14 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
-    int D_test = 113; //D_test is the delay between src and dest we set. This is the opposite of D_comp's logic
+    int D_test = 0; //D_test is the delay between src and dest we set. This is the opposite of D_comp's logic
 
-    file = "../../data/dlb_prmbl_cap.dat";
-    auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,14)-1, file);
+    file = "../../data/dlb_prmbl_samps.dat";
+    auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,16)-1, file);
     int D_hat = ch_params.D_hat;
     std::complex<double> h_hat = ch_params.h_hat;
+    std::cout << "Samples written to dlb_prmbl_samps.dat" << std::endl;
 
-
-    
     //std::cout << "r[max_idx] = " << r[max_idx] << ", "; 
     
     std::cout << "D_test_sweep = " << D_test << ", ";
@@ -627,6 +628,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // Print the result and execution time
     std::cout << "Execution time: " << duration.count() << " seconds" << std::endl;
 
+
+    
     
 
 

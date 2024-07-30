@@ -12,15 +12,17 @@ namespace mmio {
 
     //Useful write commands
     constexpr uint64_t rst_cmd = 0x80000001'00000001;
-    constexpr uint64_t src_delay_cmd = 0x80000011;
-    constexpr uint64_t dest_delay_cmd = 0x80000033;
+    constexpr uint64_t kSrcDelayAddr = 0x80000011;
+    constexpr uint32_t kSrcTxAmpAddr = 0x12;
+    constexpr uint32_t kMaxSrcTxAmp = 0x7FFF; //	UINT_MAX
 
+    constexpr uint64_t kDestDelayAddr = 0x80000033;
+    constexpr uint64_t kDestNumBitShift = 0x80000034;
 
     //Compensation
     constexpr uint32_t kDestChEqReAddr = 0x31;
     constexpr uint32_t kDestChEqImAddr = 0x32;
-    constexpr uint32_t kSrcTxAmpAddr = 0x34;
-
+    
     constexpr int kPktLen = 256;
     constexpr uint32_t kInPktAddr = 0x20;
     constexpr uint32_t kOutPktAddr = 0x810;
@@ -30,6 +32,7 @@ namespace mmio {
     constexpr std::uint32_t kBbStatusAddr{0x800}; 
     constexpr std::uint32_t kSrcCapIdxAddr{0x819};
     constexpr std::uint32_t kDestCapIdxAddr{0x820}; 
+    constexpr int kCapMaxNumSamps = std::pow(2,16); //RTL BUGGED SO IT CAN ONLY READ std::pow(2,16)-1 SAMPLES
     
 
 
@@ -37,9 +40,11 @@ namespace mmio {
     void WrMmio(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t addr, const uint32_t data);
     void wr_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint64_t cmd);
     std::vector<std::complex<double>> ReadSampleMem(const uhd::usrp::multi_usrp::sptr tx_usrp, const bool mem_sel, const int NCapSamps = pow(2,12), const std::string& file = "");
+    std::vector<double> ReadChipMem(const uhd::usrp::multi_usrp::sptr tx_usrp, const bool mem_sel, const int NCapSamps = pow(2,12), const std::string& file = "");
     void StartTx(uhd::usrp::multi_usrp::sptr tx_usrp, std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits);
     void InitBBCore (uhd::usrp::multi_usrp::sptr tx_usrp);
     void ReadBBCore (uhd::usrp::multi_usrp::sptr tx_usrp);
+    void ClearAddrBuffer (uhd::usrp::multi_usrp::sptr tx_usrp);
 }
 
 #endif  // MMIO_H
