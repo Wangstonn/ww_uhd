@@ -916,48 +916,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     mmio::InitBBCore(dest_tx_usrp);
 
     //noise estimation-----------------------------------------------------------------------------------------------------------------------
-    file = "../../data/fwd_p2p_noise_samps.dat";
     std::cout << "Running noise estimation..." << std::endl;
-    int NCapSamps = std::pow(2,16);
-
-    //temporarily set tx_amp = 0
-    uint32_t tx_amp = mmio::RdMmio(src_tx_usrp,mmio::kSrcTxAmpAddr);
-    mmio::WrMmio(src_tx_usrp,mmio::kSrcTxAmpAddr,0x0);
-
-    mmio::WrMmio(dest_tx_usrp, mmio::kDestChipCapEn, 0x1); //capture chips for sample analysis
-
-    std::uint32_t mode_bits = 0b01; //connect afe to src module
-    mmio::P2PStartTxRx(src_tx_usrp, dest_tx_usrp, mode_bits, estim::kFwdGpioStartSelBits);
-
-
-    //Typically, capture is so fast no delay is needed
-    while(true) {
-        //Run and check received pkt    
-        bool pkt_valid = mmio::RdMmio(dest_tx_usrp, mmio::kDestCapIdxAddr) >= 0xFFFE; //around 100 ms...not sure why it still doesnt hit FFFF
-        mmio::ClearAddrBuffer(dest_tx_usrp);
-        if(pkt_valid)
-            break;
-    }
-
-    //Read on chip acquired data and write to binary file to be parsed by matlab
-    std::vector<double> cap_samps = mmio::ReadChipMem(dest_tx_usrp, 0b1, NCapSamps, file);
-
-    // Estimate noise
-    double sum = std::accumulate(std::begin(cap_samps), std::end(cap_samps), 0.0);
-    //long unsigned int size->double is a narrowing but hopefully our vectors dont have this size
-    double mu =  sum / static_cast<double>(cap_samps.size());
-    std::cout << "mu = " << mu << std::endl;
-    double accum = 0;
-    std::for_each(std::begin(cap_samps), std::end(cap_samps), [&](const double d) {
-        accum += std::pow(d - mu,2);
-    });
-
-    double var = accum / (cap_samps.size()-1);
-
-    mmio::WrMmio(src_tx_usrp,mmio::kSrcTxAmpAddr,tx_amp); //restore previous gain setting
-
+    double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2,14), "../../data/fwd_p2p_noise_samps.dat");
     std::cout << "Estimated var= " << var << std::endl;
-
 
     // Timing+flatfading estimation---------------------------------------------------------------------------------------------------------------------------
     //Because our window is small, need to sweep multiple time intervals by adjusting source and dest delay. Assumes channel coherence is quite long
@@ -970,7 +931,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     int D_test = 0;
 
-    auto ch_params = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, NCapSamps, true, "../../data/fwd_p2p_prmbl_samps.dat"); //"../../data/fwd_p2p_prmbl_samps.dat"
+    auto ch_params = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,16), true, "../../data/fwd_p2p_prmbl_samps.dat"); //"../../data/fwd_p2p_prmbl_samps.dat"
     D_hat = ch_params.D_hat;
     h_hat = ch_params.h_hat;
     EsN0 = estim::CalcChipEsN0(h_hat, var);
@@ -979,6 +940,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << "D_hat= " << D_hat << ", ";
     std::cout << "EsN0= " << EsN0 << ", ";
     std::cout << "h_hat : abs= " << std::abs(h_hat) << " arg= " << std::arg(h_hat) << std::endl;
+
+    
+
 
     //Test setup------------------------------------------------------------------
     std::cout << "Performing compensation..." << std::endl;

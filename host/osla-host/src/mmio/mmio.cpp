@@ -90,8 +90,6 @@ namespace mmio {
      *      2 bits [src,dest]. For each, 1->active, 0->sync. ex: mode 3 =>both active
     */
     void P2PStartTxRx(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp::sptr dest_tx_usrp, std::uint32_t mode_bits, std::uint32_t gpio_start_sel_bits) {
-        uint32_t SrcStartCmd = MakeStartCmd(mode_bits, kP2PSrcRxChSelBits, kP2PSrcTxCoreBits, gpio_start_sel_bits) + 0x2; //0x2 needed for forward
-        uint32_t DestStartCmd = MakeStartCmd(mode_bits, kP2PDestRxChSelBits, kP2PDestTxCoreBits, gpio_start_sel_bits) + 0x2; // 0x2 needed for feedback. If gpio start is set, then this start will be ignored
 
         //Reset device
         WrMmio(src_tx_usrp, kConfigAddr, 0x0000001);
@@ -106,11 +104,27 @@ namespace mmio {
         ClearAddrBuffer(src_tx_usrp);
         ClearAddrBuffer(dest_tx_usrp);
 
-        //std::cout << "Start command issued...\n";
-        WrMmio(dest_tx_usrp, kConfigAddr, DestStartCmd);
-        std::this_thread::sleep_for(std::chrono::nanoseconds(5*5)); //Leave the reset for a couple of cycles
-        WrMmio(src_tx_usrp, kConfigAddr, SrcStartCmd);
-        
+        uint32_t SrcStartCmd = MakeStartCmd(mode_bits, kP2PSrcRxChSelBits, kP2PSrcTxCoreBits, gpio_start_sel_bits); //+0x2 needed for forward
+        uint32_t DestStartCmd = MakeStartCmd(mode_bits, kP2PDestRxChSelBits, kP2PDestTxCoreBits, gpio_start_sel_bits);
+
+        std::cout << "gpio_start_sel_bits:" << gpio_start_sel_bits << std::endl;
+
+        if (gpio_start_sel_bits == 0b01) { //dest triggered by gpio -> src get mmio start
+            SrcStartCmd += 0x2;
+            WrMmio(dest_tx_usrp, kConfigAddr, DestStartCmd); //make dest ready for start signal
+            std::this_thread::sleep_for(std::chrono::nanoseconds(20*5)); //Leave the reset for a couple of cycles
+            WrMmio(src_tx_usrp, kConfigAddr, SrcStartCmd);
+
+        } else if (gpio_start_sel_bits == 0b10){ //src triggered by gpio -> dest get mmio start
+            DestStartCmd += 0x2;
+            WrMmio(src_tx_usrp, kConfigAddr, SrcStartCmd); //make source ready for gpio start signal from dest
+            std::this_thread::sleep_for(std::chrono::nanoseconds(20*5)); //Leave the reset for a couple of cycles
+            WrMmio(dest_tx_usrp, kConfigAddr, DestStartCmd);
+            
+
+        } else {
+            std::cerr << "P2PStartTxRx: Error: gpio input invalid" << std::endl;
+        }
     }
 
     //Load phases and thresholds

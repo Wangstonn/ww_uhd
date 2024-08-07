@@ -45,6 +45,7 @@ namespace estim {
 
     void SetSrcThreshold(const uhd::usrp::multi_usrp::sptr tx_usrp, std::complex<double> h_hat);
 
+    double P2PEstimChipNoise(const uhd::usrp::multi_usrp::sptr src_tx_usrp, const uhd::usrp::multi_usrp::sptr dest_tx_usrp, const int NCapSamps, const std::string& file);
     ChParams P2PChEstim(const uhd::usrp::multi_usrp::sptr src_tx_usrp, const uhd::usrp::multi_usrp::sptr dest_tx_usrp, const int D_test, const int& NCapSamps, const bool is_forward, const std::string& file);
     void P2PCompensateDelays(const uhd::usrp::multi_usrp::sptr src_tx_usrp, const uhd::usrp::multi_usrp::sptr dest_tx_usrp, const int D_hat);
 
