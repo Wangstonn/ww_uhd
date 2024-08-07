@@ -63,6 +63,8 @@ namespace estim {
         CompensateDelays(tx_usrp, D_test);
 
         //Configure runtime mode-------------------------------------------------------------------------------------------
+        mmio::WrMmio(tx_usrp, mmio::kDestChipCapEn, 0x0); //capture chips for sample analysis
+
         std::uint32_t mode_bits{0x0};
         mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
 
@@ -178,6 +180,23 @@ namespace estim {
         // std::cout << "phi_hat: " << std::arg(h_hat) << std::endl;
     }
 
+    ChParams FbChEstim(const uhd::usrp::multi_usrp::sptr tx_usrp, const int D_test, const std::uint32_t rx_ch_sel_bits, const std::uint32_t tx_core_bits, const std::uint32_t gpio_start_sel_bits, const int& NCapSamps, const std::string& file){
+        auto ch_params = estim::ChEstim(tx_usrp, D_test, 0b01, 0b10, gpio_start_sel_bits, pow(2,15), file);
+        ch_params.h_hat = ch_params.h_hat * std::pow(2,-6); //sample capture uses the ADC frac at destination. correct for source
+        return ch_params;
+    }
+
+    
+    void SetSrcThreshold(const uhd::usrp::multi_usrp::sptr tx_usrp, std::complex<double> h_hat) {
+
+        double src_threshold = std::pow(estim::kFbOsr*std::abs(h_hat), 2) / 2;
+        uint32_t src_threshold_uint32 = static_cast<uint32_t>(std::round(src_threshold*(std::pow(2,mmio::kSrcThresholdFrac))));
+        mmio::WrMmio(tx_usrp,mmio::kSrcThreshold, src_threshold_uint32);
+
+        //std::cout << "h_hat_src mag: " << h_hat_mag << std::endl;
+        //std::cout << "src threshold: " << src_threshold << std::endl;
+    }
+
     //PrmblSweep 
     // std::vector<int> D_hat_sweep, D_test_sweep;
     // std::vector<std::complex<double>> h_hat_sweep;
@@ -248,6 +267,8 @@ namespace estim {
         uint32_t tx_amp = mmio::RdMmio(tx_usrp,mmio::kSrcTxAmpAddr);
         mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,0x0);
 
+        mmio::WrMmio(tx_usrp, mmio::kDestChipCapEn, 0x0); //capture chips for sample analysis
+
         mmio::StartTx(tx_usrp, 0x0, rx_ch_sel_bits, 0x0, 0x0); //Mode zero, only listen at src (no tx)
 
         //Typically, capture is so fast no delay is needed
@@ -279,6 +300,8 @@ namespace estim {
         return var;
     }
 
+
+
     /**
      * Estimates the noise variance.
      * 
@@ -297,6 +320,7 @@ namespace estim {
         //temporarily set tx_amp = 0
         uint32_t tx_amp = mmio::RdMmio(tx_usrp,mmio::kSrcTxAmpAddr);
         mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,0x0);
+        mmio::WrMmio(tx_usrp, mmio::kDestChipCapEn, 0x1); //capture chips for sample analysis
 
         mmio::StartTx(tx_usrp, 0b01, rx_ch_sel_bits, 0x0, 0x0); //Use the active pkt fctn, but capture noise instead of sufficient statistic
 

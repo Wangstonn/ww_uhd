@@ -559,20 +559,13 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         std::signal(SIGINT, &sig_int_handler);
         std::cout << "Press Ctrl + C to stop streaming..." << std::endl;
     }
-//For early termination use Ctrl + Z
+    //For early termination use Ctrl + Z
 
     // reset usrp time to prepare for transmit/receive
     std::cout << boost::format("Setting device timestamp to 0...") << std::endl;
     tx_usrp->set_time_now(uhd::time_spec_t(0.0));
 
-
-    //--------------------------------------------------
-    //WW - OSLA-BPSK Operation
-    //--------------------------------------------------
-
-    //Preload some default threshold and angle settings
-    //std::cout << "Writing to regs...\n";
-    mmio::InitBBCore(tx_usrp);
+    tx_usrp->set_rx_dc_offset(true);
         
     //Start tx and streaming
     // start transmit worker thread
@@ -591,72 +584,61 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, 0); //save_rx = 0 so that we dont create a huge file
     });
 
-    //Basic digital loopback test
-    uint16_t mode_bits = 0b11;
-    uint16_t rx_ch_sel_bits = 0b00; 
-    uint16_t tx_core_bits = 0b00; 
-    uint16_t gpio_start_sel_bits = 0b00;
+    tx_gain = 20;
+    std::cout << boost::format("Setting TX Gain: %f dB...") % tx_gain
+                << std::endl;
+    tx_usrp->set_tx_gain(tx_gain, 0);
+    std::cout << boost::format("Actual TX Gain: %f dB...")
+                        % tx_usrp->get_tx_gain(0)
+                << std::endl
+                << std::endl;
 
-    // //Generate input bits
-    // std::random_device rd;
+    //--------------------------------------------------
+    //WW - OSLA-BPSK Operation
+    //--------------------------------------------------
 
-    // // Create a Mersenne Twister PRNG engine
-    // std::mt19937 mt(rd());
+    //Preload some default threshold and angle settings
+    mmio::InitBBCore(tx_usrp);
 
-    // // Define a distribution for generating uint32_t values
-    // std::uniform_int_distribution<uint32_t> dist;
+    //test settings
+    std::uint32_t tx_core_bits{0b01}; 
+    std::uint32_t rx_ch_sel_bits{0b10}; 
+    std::uint32_t gpio_start_sel_bits{0b00};
+
+    //noise estimation-----------------------------------------------------------------------------------------------------------------------
+    std::cout << "Running noise estimation..." << std::endl;
+    double var = estim::EstimNoise(tx_usrp, pow(2,15),0b01, ""); //../../data/fwd_alb_noise_samps.dat
+    std::cout << "Estimated var= " << var << std::endl;
+
+
+    //Estimation
+    std::complex<double> h_hat;
+    int D_test = 0;
+    auto ch_params = estim::FbChEstim(tx_usrp, 0, 0b01, 0b10, gpio_start_sel_bits, pow(2,15), "");
+    h_hat = ch_params.h_hat;
     
-    // Single pkt test -------------------------------------------------
-    // // Generate a random pkt
-    // const int Num16BitSlices = mmio::kPktLen/32;
-    // uint32_t input_pkt[Num16BitSlices] = {0};
-    // uint32_t output_pkt[Num16BitSlices] = {0};
+    double EsN0 = std::pow(std::abs(h_hat)*16,2)/(2*var*16); //under estimate of snr, since noise isnt white. Leads to esn0 = 6, which is super sus
 
-    // // Generate a random uint32_t
-    // for(int i = 0; i < Num16BitSlices; i++)
-    // {
-    //     uint32_t randomValue = dist(mt);
-    //     //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
 
-    //     input_pkt[i] = randomValue;
+    std::cout << std::dec << "D_test= " << D_test << ", ";
+    std::cout << "EsN0= " << EsN0 << ", ";
+    std::cout << "h_hat : abs= " << std::abs(h_hat) << " arg= " << std::arg(h_hat) << std::endl;
 
-    //     mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, randomValue);
-    // }
-
-    // // start
-    // mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
+    //Test setup------------------------------------------------------------------
+    //set src threshold
     
-    // while(true)
-    // {
-    //     //Run and check received pkt    
-    //     mmio::WrMmio(tx_usrp,0x0,0x0); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
-    //     bool pkt_valid = mmio::rd_mem_cmd(tx_usrp, mmio::kBbStatusAddr) & 0x2; //around 10 ms
-    //     if(pkt_valid)
-    //         break;
-    // }
+    estim::SetSrcThreshold(tx_usrp, h_hat);
+    int D_hat = 113 + 4; //given because fwd is digital
+    estim::CompensateDelays(tx_usrp, D_hat);
 
-    // // read results ---------------------------------------------
-    // for(int i = 0; i*32 < mmio::kPktLen; i++) {
-    //     output_pkt[i] = mmio::rd_mem_cmd(tx_usrp, mmio::kOutPktAddr+i);
-    //     //std::cout << std::hex << input_pkt[i] << std::endl;
+    //Run test------------------------------------------------------------------------------------
+    std::cout << "Running BER Test--------------------------------------------------------" << std::endl;
+    std::uint32_t mode_bits{0b11};
 
-    //     uint32_t xor_result = output_pkt[i] ^ input_pkt[i];
-    //     while (xor_result > 0) {
-    //         n_errors += xor_result & 1;
-    //         xor_result >>= 1;
-    //     }
+    double n_errors = 0; 
 
-    //     std::cout << std::dec << "Bit slice: " << i << std::endl;
-    //     std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
-    //     std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
-    // }
-
-    //Bit shift test
-    uint8_t dest_num_bit_shift = 0;
-    mmio::WrMmio(tx_usrp, mmio::kDestNumBitShift, dest_num_bit_shift); //shift dest rx by 3 to the left (multiply by 8)
-    mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,0x7FFF >> dest_num_bit_shift);
-
-    mmio::ReadBBCore(tx_usrp);
+    const int kMaxIter = std::ceil(1e6/mmio::kPktLen);
+    const int kTargetErr = 100;
 
     //Generate input bits
     std::random_device rd;
@@ -664,93 +646,69 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::mt19937 mt(rd());
     // Define a distribution for generating uint32_t values
     std::uniform_int_distribution<uint32_t> dist;
+    
+    int n_iters = kMaxIter;
+    for(int iter = 1; iter <= kMaxIter; iter++) {
+    // Generate a random pkt
+    const int Num16BitSlices = mmio::kPktLen/32;
+    uint32_t input_pkt[Num16BitSlices] = {0};
+    uint32_t output_pkt[Num16BitSlices] = {0};
 
-    int n_iter = 0;
-    double n_error = 0; 
-    const double kMaxIter = 1; //100000/mmio::kPktLen;
-    const int kTargetErr = 100;
-    for(int iter = 1; iter <= kMaxIter; iter++ ) {
-        n_iter++;
-        // Generate a random pkt
-        const int Num16BitSlices = mmio::kPktLen/32;
-        uint32_t input_pkt[Num16BitSlices] = {0};
-        uint32_t output_pkt[Num16BitSlices] = {0};
-
-        // Generate a random uint32_t
-        for(int i = 0; i < Num16BitSlices; i++)
-        {
+    // Generate a random uint32_t
+    for(int i = 0; i < Num16BitSlices; i++)
+    {
             uint32_t randomValue = dist(mt);
             //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
+            input_pkt[i] = randomValue;
+        mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, input_pkt[i]);
+    }
 
-            //input_pkt[i] = randomValue; //0xAAAA0000;
-            input_pkt[i] = 0xAAAA00FF;
+    mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
+    
+    while(true) {
+        //Run and check received pkt    
+        mmio::WrMmio(tx_usrp,0x0,0x0); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
+        bool pkt_valid = mmio::RdMmio(tx_usrp, mmio::kBbStatusAddr) & 0x2; //around 10 ms
+        if(pkt_valid)
+            break;
+    }
 
-            mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, input_pkt[i]);
+    // read results ---------------------------------------------
+    for(int i = 0; i*32 < mmio::kPktLen; i++) {
+        output_pkt[i] = mmio::RdMmio(tx_usrp, mmio::kOutPktAddr+i);
+        //std::cout << std::hex << input_pkt[i] << std::endl;
+
+        uint32_t xor_result = output_pkt[i] ^ input_pkt[i];
+        while (xor_result > 0) {
+            n_errors += xor_result & 1;
+            xor_result >>= 1;
         }
 
-        // start
-        mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
-        
-        while(true)
-        {
-            //Run and check received pkt    
-            mmio::WrMmio(tx_usrp,0x0,0x0); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
-            bool pkt_valid = mmio::RdMmio(tx_usrp, mmio::kBbStatusAddr) & 0x2; //around 10 ms
-            if(pkt_valid)
-                break;
+        // std::cout << std::dec << "Bit slice: " << i << " Num errors: "<< n_errors <<std::endl;
+        // std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
+        // std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
+    }
+
+        if(iter % 100 == 0) {
+            std::cout << std::dec << "Num bits: " << iter*mmio::kPktLen << ", num errors: " << n_errors << std::endl;
         }
-
-        // read results ---------------------------------------------
-        for(int i = 0; i*32 < mmio::kPktLen; i++) {
-            output_pkt[i] = mmio::RdMmio(tx_usrp, mmio::kOutPktAddr+i);
-            //std::cout << std::hex << input_pkt[i] << std::endl;
-
-            uint32_t xor_result = output_pkt[i] ^ input_pkt[i];
-            while (xor_result > 0) {
-                n_error += xor_result & 1;
-                xor_result >>= 1;
-            }
-            std::cout << std::dec << "Bit slice: " << i << " Num errors: "<< n_error <<std::endl;
-            std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
-            std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
-        }
-
-        if(n_error > kTargetErr){
+        n_iters = iter;
+        if(n_errors > kTargetErr){
             break;
         }
     }
 
-    std::cout << "Reading Results---------" << std::endl;
-    mmio::ReadBBCore(tx_usrp);
+    std::cout << std::dec << "Reached " << n_errors  << " errors in " << n_iters*mmio::kPktLen << " bits" << std::endl;
+    std::cout << "ber = " << n_errors/(n_iters*mmio::kPktLen) << std::endl;
+    // std::vector<double> EsN0_array = {1, 2, 3};
+    // std::vector<double> ber_array, n_bit_err_array, n_iter_array;
 
-    mmio::ReadSampleMem(tx_usrp, 1, std::pow(2,16), "../../data/fwd_dlb_samps.dat"); 
-    mmio::ReadSampleMem(tx_usrp, 0, std::pow(2,16)-1, "../../data/fb_dlb_samps.dat");
+    mmio::ReadSampleMem(tx_usrp, 1, std::pow(2,16), "../../data/fwd_alb_samps.dat"); 
+    
+    mmio::ReadSampleMem(tx_usrp, 0, std::pow(2,16), "../../data/fb_alb_samps.dat"); 
+    
 
-    double ber = n_error/(n_iter*mmio::kPktLen);
-    std::cout << std::dec << "n_error = " << n_error << " num bits sent = " << n_iter*mmio::kPktLen << std::endl;
-
-
-    //////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-    // // recv to file
-    // bool rx_save = save_file != 0;
-    // if (type == "double")
-    //     recv_to_file<std::complex<double>>(
-    //         rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
-    // else if (type == "float")
-    //     recv_to_file<std::complex<float>>(
-    //         rx_usrp, "fc32", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
-    // else if (type == "short")
-    //     recv_to_file<std::complex<short>>(
-    //         rx_usrp, "sc16", otw, file, spb, total_num_samps, settling, rx_channel_nums, rx_save);
-    // else {
-    //     // clean up transmit worker
-    //     stop_signal_called = true;
-    //     transmit_thread.join();
-    //     throw std::runtime_error("Unknown type " + type);
-    // }
-
+    //----------------------------------------------------------------------------------
     // clean up transmit worker
     stop_signal_called = true;
     transmit_thread.join();

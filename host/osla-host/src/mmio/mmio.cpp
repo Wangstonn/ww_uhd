@@ -73,14 +73,15 @@ namespace mmio {
         0x80000001'00000001,
         0x80000010'00001000,
         0x80000011'00000000,
-        0x80000012'0000FFFF,
+        0x80000012'00007FFF,
         0x80000020'E12ACE94,
         0x80000021'E12ACE94,
         0x80000030'27100000,
         0x80000031'00002000,
         0x80000032'00000000,
         0x80000033'00000075,
-        0x80000034'00000000
+        0x80000034'00000000,
+        0x80000035'00000000
     };
 
     //Readback input bit, phase, and threshold settings, valid and done, and pkt out
@@ -97,6 +98,7 @@ namespace mmio {
         0x00000032,
         0x00000033,
         0x00000034,
+        0x00000035,
         
         0x00000800,
         0x00000810,
@@ -268,7 +270,7 @@ namespace mmio {
         }
 
         // Check how many sample were written and only read those
-        end_addr = std::min(start_addr + mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr)-1,end_addr); //samp_cap_idx displays the last written memory address. Seems to be bugged but I cant find the problem
+        end_addr = std::min(start_addr + mmio::RdMmio(tx_usrp, idx_addr)-1,end_addr); //samp_cap_idx displays the last written memory address. Seems to be bugged but I cant find the problem
 
         for(uint32_t addr = start_addr; addr <= end_addr; addr++) {
             uint32_t prmbl_samp = RdMmio(tx_usrp, addr);

@@ -15,13 +15,19 @@ namespace mmio {
     constexpr uint64_t kSrcDelayAddr = 0x80000011;
     constexpr uint32_t kSrcTxAmpAddr = 0x12;
     constexpr uint32_t kMaxSrcTxAmp = 0x7FFF; //	UINT_MAX
+    constexpr uint32_t kSrcThreshold = 0x10;
+    
 
     constexpr uint64_t kDestDelayAddr = 0x80000033;
     constexpr uint64_t kDestNumBitShift = 0x80000034;
 
+    constexpr uint32_t kDestChipCapEn = 0x35;
+
     //Compensation
     constexpr uint32_t kDestChEqReAddr = 0x31;
     constexpr uint32_t kDestChEqImAddr = 0x32;
+
+    const int kSrcThresholdFrac = 5;
     
     constexpr int kPktLen = 256;
     constexpr uint32_t kInPktAddr = 0x20;
