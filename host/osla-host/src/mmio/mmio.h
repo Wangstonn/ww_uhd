@@ -12,6 +12,7 @@ namespace mmio {
 
     //Useful write commands
     constexpr uint64_t rst_cmd = 0x80000001'00000001;
+    constexpr uint32_t kConfigAddr = 0x0000001;
     constexpr uint64_t kSrcDelayAddr = 0x80000011;
     constexpr uint32_t kSrcTxAmpAddr = 0x12;
     constexpr uint32_t kMaxSrcTxAmp = 0x7FFF; //	UINT_MAX
@@ -51,6 +52,8 @@ namespace mmio {
     void InitBBCore (uhd::usrp::multi_usrp::sptr tx_usrp);
     void ReadBBCore (uhd::usrp::multi_usrp::sptr tx_usrp);
     void ClearAddrBuffer (uhd::usrp::multi_usrp::sptr tx_usrp);
+
+    void P2PStartTxRx(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp::sptr dest_tx_usrp, std::uint32_t mode_bits, std::uint32_t gpio_start_sel_bits);
 }
 
 #endif  // MMIO_H

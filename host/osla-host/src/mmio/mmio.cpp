@@ -67,6 +67,52 @@ namespace mmio {
         // std::cout << "Done printing digital loopback results...\n";
     }
 
+    uint32_t MakeStartCmd(std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits) {
+        std::uint32_t mode_bits_shift{mode_bits << 2};
+        std::uint32_t rx_ch_sel_bits_shift{rx_ch_sel_bits << 4}; 
+        std::uint32_t tx_core_bits_shift{tx_core_bits << 6}; 
+        std::uint32_t gpio_start_sel_bits_shift{gpio_start_sel_bits << 8};
+
+        std::uint32_t config_data = mode_bits_shift+rx_ch_sel_bits_shift+tx_core_bits_shift+gpio_start_sel_bits_shift;
+
+        return config_data;
+    }
+
+    const std::uint32_t kP2PSrcTxCoreBits = 0b10; //connect afe to src module
+    const std::uint32_t kP2PSrcRxChSelBits = 0b10;
+    const std::uint32_t kP2PDestTxCoreBits = 0b01; //connect afe to dest module
+    const std::uint32_t kP2PDestRxChSelBits = 0b01;
+    /**
+     *  Configures the runtime mode of the baseband core for p2p communications and initiates it.
+     * There are much less params since There is only one real possible configuration for p2p comms
+     * 
+     * @param mode_bits bb-engine mode: active (pkt tx), sync. 
+     *      2 bits [src,dest]. For each, 1->active, 0->sync. ex: mode 3 =>both active
+    */
+    void P2PStartTxRx(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp::sptr dest_tx_usrp, std::uint32_t mode_bits, std::uint32_t gpio_start_sel_bits) {
+        uint32_t SrcStartCmd = MakeStartCmd(mode_bits, kP2PSrcRxChSelBits, kP2PSrcTxCoreBits, gpio_start_sel_bits) + 0x2; //0x2 needed for forward
+        uint32_t DestStartCmd = MakeStartCmd(mode_bits, kP2PDestRxChSelBits, kP2PDestTxCoreBits, gpio_start_sel_bits) + 0x2; // 0x2 needed for feedback. If gpio start is set, then this start will be ignored
+
+        //Reset device
+        WrMmio(src_tx_usrp, kConfigAddr, 0x0000001);
+        WrMmio(dest_tx_usrp, kConfigAddr, 0x0000001);
+        std::this_thread::sleep_for(std::chrono::nanoseconds(5*5)); //Leave the reset for a couple of cycles
+
+        //Calibrate DC Offset
+        src_tx_usrp->set_rx_dc_offset(true);
+        std::this_thread::sleep_for(std::chrono::milliseconds(40)); //DC offset calibration time, minimum is 33.6 ms
+        src_tx_usrp->set_rx_dc_offset(false);
+
+        ClearAddrBuffer(src_tx_usrp);
+        ClearAddrBuffer(dest_tx_usrp);
+
+        //std::cout << "Start command issued...\n";
+        WrMmio(dest_tx_usrp, kConfigAddr, DestStartCmd);
+        std::this_thread::sleep_for(std::chrono::nanoseconds(5*5)); //Leave the reset for a couple of cycles
+        WrMmio(src_tx_usrp, kConfigAddr, SrcStartCmd);
+        
+    }
+
     //Load phases and thresholds
     std::vector<uint64_t> write_cmds = {
         0x80000000'00000000,

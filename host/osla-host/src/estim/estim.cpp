@@ -186,6 +186,123 @@ namespace estim {
         return ch_params;
     }
 
+
+    /**
+     * @brief Estimates channel characteristics based on captured samples. For p2p channels
+     * 
+     * This function estimates channel coefficient h_hat and delay d_hat.
+     * 
+     * @param src_tx_usrp A pointer to the UHD USRP object for transmission.
+     * @param D_test The test delay to be compensated.
+     * @param NCapSamps Number of samples to be captured.
+     * @param is_forward Whether to perform forward or feedback channel estimation.
+     * @return ChParams struct containing d_hat and h_hat 
+     */
+    ChParams P2PChEstim(const uhd::usrp::multi_usrp::sptr src_tx_usrp, const uhd::usrp::multi_usrp::sptr dest_tx_usrp, const int D_test, const int& NCapSamps, const bool is_forward, const std::string& file) {
+        uhd::usrp::multi_usrp::sptr tx_usrp, rx_usrp;
+        std::uint32_t gpio_start_sel_bits;
+
+        //Feedback vs Forward estimation
+        if(is_forward) {
+            tx_usrp = src_tx_usrp;
+            rx_usrp = dest_tx_usrp;
+            gpio_start_sel_bits = estim::kFwdGpioStartSelBits;
+
+        } else { //In feedback mode, source becomes dest, dest becomes source, dest becomes gpio sender, source becomes gpio receiver
+            tx_usrp = dest_tx_usrp;
+            rx_usrp = src_tx_usrp;
+            gpio_start_sel_bits = estim::kFbGpioStartSelBits;
+        }
+
+        std::uint32_t mode_bits{0x0};
+
+        //Configure runtime mode-------------------------------------------------------------------------------------------
+        estim::P2PCompensateDelays(tx_usrp, rx_usrp, D_test);
+        mmio::WrMmio(rx_usrp, mmio::kDestChipCapEn, 0x0); //capture samps for preamble analysis
+
+        mmio::P2PStartTxRx(tx_usrp, rx_usrp, mode_bits, gpio_start_sel_bits);
+        
+        std::cout << "Source read:" << std::endl;
+        mmio::ReadBBCore(src_tx_usrp);
+        std::cout << "Dest read:" << std::endl;
+        mmio::ReadBBCore(dest_tx_usrp);
+
+        //Typically, preamble is so fast no delay is needed
+        while(true) {
+            //Run and check received pkt    
+            mmio::ClearAddrBuffer(rx_usrp); 
+            if((mmio::RdMmio(rx_usrp, mmio::kDestCapIdxAddr) & 0xFFFF) == 0xFFFF) //Dest has finished recording
+                break;
+        }
+        mmio::ClearAddrBuffer(rx_usrp); 
+
+        //Read data
+        std::vector<std::complex<double>> cap_samps = mmio::ReadSampleMem(rx_usrp, 0b1, NCapSamps, file); 
+        int N_w = static_cast<int>(cap_samps.size()); //number of captured samples
+
+        std::vector<std::complex<double>> rx_if(N_w); //downconverted rx
+        const double pi = std::acos(-1);
+        for (int n = 0; n < N_w; ++n) {
+            rx_if[n] = cap_samps[n] * std::exp(std::complex<double>(0, -2*pi/estim::kFwOsr*n)); //The phase measurement will be off because the two sinusoids are not synced yet
+            //std::cout << "if_tone: " <<  std::exp(std::complex<double>(0, 2*pi/estim::kFwOsr * n )) << std::endl;
+        }
+
+        // Estimate delay------------------------------------------------------------------------------
+        //To estimate the phase, first need to sync the digital if tones. To do this, need to find the delay
+        // Load preamble
+        std::ifstream if_file("preamble.mem"); // Open the file. Notice that this is the relative path from the executable location!!
+        if (!if_file.is_open()) {
+            std::cerr << "Error opening the preamble file!" << std::endl;
+            ChParams ch_params;
+            return ch_params;
+        }
+
+        // Read data from the file and store it as individual bits in a vector
+        std::vector<int> preamble_bits;
+        char bit;
+        while (if_file >> bit) {
+            preamble_bits.push_back(bit - '0'); // Convert character to integer (0 or 1)
+        }
+        if_file.close(); // Close the file
+
+        // Calculate prmbl_samps
+        std::vector<std::complex<double>> prmbl_samps;
+        for (const auto& bit : preamble_bits) {
+            std::complex<double> val = {2 * (bit - 0.5),0};
+            prmbl_samps.push_back(val);
+        }
+        prmbl_samps = Upsample(prmbl_samps,32); //upsample corresponding to the preamble osr
+        int N_prmbl = static_cast<int>(prmbl_samps.size());
+        
+        std::vector<std::complex<double>> r;
+        std::vector<int> lags;
+        XcorrSlow(prmbl_samps,rx_if, r, lags); //prmbl samps dragged over cap_samps
+
+        // Find the index of the maximum absolute value in vector r
+        auto max_it = std::max_element(r.begin(), r.end(), [](const std::complex<double>& a, const std::complex<double>& b) {
+            return std::abs(a) < std::abs(b);
+        }); //Finds the iterator pointing to the max element
+        int max_idx = std::distance(r.begin(), max_it); //Finds the index corresponding to that iterator
+
+        // Calculate D_hat (lag at max_idx)
+        int D_hat;
+        D_hat = lags[max_idx];
+
+        int N_prmbl_samps_cap = EstimNSampCap(N_w, N_prmbl, D_hat); //Find how many samples were captured for coefficient estimation
+        if (N_prmbl_samps_cap <= 0) {
+            std::cerr << "Error: No samples captured" << std::endl;
+        }
+
+        // Calculate h_hat, h_hat_mag, and phi_hat
+        std::complex<double> h_hat;
+        h_hat = std::exp(std::complex<double>(0, 2*pi/estim::kFwOsr*D_hat)) * r[max_idx] / double(N_prmbl_samps_cap);
+        D_hat += D_test; //account for the test delay we inserted. The actual D_hat is 4 less than this measured value
+
+        ChParams ch_params;
+        ch_params.D_hat = D_hat;
+        ch_params.h_hat = h_hat;
+        return ch_params;
+    }
     
     void SetSrcThreshold(const uhd::usrp::multi_usrp::sptr tx_usrp, std::complex<double> h_hat) {
 
@@ -423,6 +540,26 @@ namespace estim {
         mmio::wr_mem_cmd(tx_usrp, (mmio::kDestDelayAddr << 32) | dest_delay);
     }
 
+        /**
+     * Delays destination. To purposefully insert a delay of D, set D_hat = D
+     * 
+     * @param D_hat estimated relative delay of source wrt destination
+     * 
+    */
+    void P2PCompensateDelays(const uhd::usrp::multi_usrp::sptr src_tx_usrp, const uhd::usrp::multi_usrp::sptr dest_tx_usrp, const int D_hat) {
+        uint16_t dest_delay, src_delay;
+        if (D_hat < 0) { // D < 0 -> prmbl early -> delay src
+            dest_delay = 0;
+            src_delay = -D_hat;
+        }
+        else { // D > 0 -> prmbl late -> delay dest
+            dest_delay = D_hat;
+            src_delay = 0;
+        }
+        mmio::wr_mem_cmd(src_tx_usrp, (mmio::kSrcDelayAddr << 32) | src_delay);
+        mmio::wr_mem_cmd(dest_tx_usrp, (mmio::kDestDelayAddr << 32) | dest_delay);
+    }
+
 
     const int kEqFrac = 13;
 
@@ -460,14 +597,14 @@ namespace estim {
         mmio::WrMmio(tx_usrp, mmio::kDestChEqReAddr, static_cast<uint16_t>(dest_ch_eq_re_int16));
         mmio::WrMmio(tx_usrp, mmio::kDestChEqImAddr, static_cast<uint16_t>(dest_ch_eq_im_int16));
 
-        auto dest_ch_eq_re_int16_mem = mmio::RdMmio(tx_usrp,mmio::kDestChEqReAddr,true);
+        auto dest_ch_eq_re_int16_mem = mmio::RdMmio(tx_usrp,mmio::kDestChEqReAddr,false);
         if (static_cast<uint16_t>(dest_ch_eq_re_int16) != dest_ch_eq_re_int16_mem) {
             std::cout << std::hex << "Attempted to set dest_ch_eq_re_int16 = " << dest_ch_eq_re_int16 << std::endl;
             std::cout << std::hex << "Actual value: " << dest_ch_eq_re_int16_mem << std::endl;
             return 1;
         }
 
-        auto dest_ch_eq_im_int16_mem = mmio::RdMmio(tx_usrp,mmio::kDestChEqImAddr,true);
+        auto dest_ch_eq_im_int16_mem = mmio::RdMmio(tx_usrp,mmio::kDestChEqImAddr,false);
         if (static_cast<uint16_t>(dest_ch_eq_im_int16) != dest_ch_eq_im_int16_mem) {
             std::cout << std::hex << "Attempted to set dest_ch_eq_im_int16 = " << dest_ch_eq_im_int16 << std::endl;
             std::cout << std::hex << "Actual value: " << dest_ch_eq_im_int16_mem << std::endl;
