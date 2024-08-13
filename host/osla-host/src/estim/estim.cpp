@@ -221,11 +221,6 @@ namespace estim {
         mmio::WrMmio(rx_usrp, mmio::kDestChipCapEn, 0x0); //capture samps for preamble analysis
 
         mmio::P2PStartTxRx(tx_usrp, rx_usrp, mode_bits, gpio_start_sel_bits);
-        
-        std::cout << "Source read:" << std::endl;
-        mmio::ReadBBCore(src_tx_usrp);
-        std::cout << "Dest read:" << std::endl;
-        mmio::ReadBBCore(dest_tx_usrp);
 
         //Typically, preamble is so fast no delay is needed
         while(true) {
@@ -235,9 +230,6 @@ namespace estim {
                 break;
         }
         mmio::ClearAddrBuffer(rx_usrp); 
-
-        //reset delays
-        estim::P2PCompensateDelays(tx_usrp, rx_usrp, D_test);
 
         //Read data
         std::vector<std::complex<double>> cap_samps = mmio::ReadSampleMem(rx_usrp, 0b1, NCapSamps, file); 
@@ -299,6 +291,9 @@ namespace estim {
         // Calculate h_hat, h_hat_mag, and phi_hat
         std::complex<double> h_hat;
         h_hat = std::exp(std::complex<double>(0, 2*pi/estim::kFwOsr*D_hat)) * r[max_idx] / double(N_prmbl_samps_cap);
+        if(!is_forward) {
+            h_hat *= std::pow(2,-6);
+        }
         D_hat += D_test; //account for the test delay we inserted. The actual D_hat is 4 less than this measured value
 
         ChParams ch_params;

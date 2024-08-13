@@ -24,7 +24,6 @@
 #include <iostream>
 #include <thread>
 #include <random>
-#include <string>
 
 #include "../src/mmio/mmio.h"
 #include "../src/estim/estim.h"
@@ -933,12 +932,10 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << "Running fwd estimation..." << std::endl;
 
     int D_test = 0;
-    int D_hat_fwd;
-    std::complex<double> h_hat_fwd;
-    for(int i = 0; i<1 ; i++) {
+    //for(int i = 0; i<0 ; i++) {
     auto ch_params = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,15), true, "../../data/fwd_p2p_prmbl_samps.dat"); //"../../data/fwd_p2p_prmbl_samps.dat"
-    D_hat_fwd = ch_params.D_hat;
-    h_hat_fwd = ch_params.h_hat;
+    int D_hat_fwd = ch_params.D_hat;
+    std::complex<double> h_hat_fwd = ch_params.h_hat;
     double EsN0 = estim::CalcChipEsN0(h_hat_fwd, var);
 
     std::cout << std::dec << "D_test= " << D_test << ", ";
@@ -946,7 +943,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << "EsN0= " << EsN0 << ", ";
     std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd) << " arg= " << std::arg(h_hat_fwd) << std::endl;
 
-    }
+    //}
 
     // -----------------------------------------------------------------------------------
     std::cout << "Running fb estimation..." << std::endl;
@@ -973,28 +970,42 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     mmio::ReadBBCore(dest_tx_usrp);
 
     //Run test------------------------------------------------------------------------------------
+    std::cout << "Running BER Test--------------------------------------------------------" << std::endl;
+
     double n_errors = 0; 
 
-    bool samp_cap = 0;
+    bool samp_cap = 1;
     if(samp_cap) {
         mmio::WrMmio(dest_tx_usrp, mmio::kDestChipCapEn, 0x0); //capture chips for sample analysis
     } else {
         mmio::WrMmio(dest_tx_usrp, mmio::kDestChipCapEn, 0x1); //capture chips for sample analysis
     }
+    
 
-    const int Num16BitSlices = mmio::kPktLen/32;
-    uint32_t input_pkt[Num16BitSlices] = {0};
-    uint32_t output_pkt[Num16BitSlices] = {0};
+    const int kMaxIter = std::ceil(1e6/mmio::kPktLen);
+    const int kTargetErr = 100;
 
-    for(int j = 0; j < 20; j++) {
+    //Generate input bits
+    std::random_device rd;
+    // Create a Mersenne Twister PRNG engine
+    std::mt19937 mt(rd());
+    // Define a distribution for generating uint32_t values
+    std::uniform_int_distribution<uint32_t> dist;
+    
+    int n_iters = kMaxIter;
+    for(int iter = 1; iter <= kMaxIter; iter++) {
+        // Generate a random pkt
+        const int Num16BitSlices = mmio::kPktLen/32;
+        uint32_t input_pkt[Num16BitSlices] = {0};
+        uint32_t output_pkt[Num16BitSlices] = {0};
+
         // Generate a random uint32_t
         for(int i = 0; i < Num16BitSlices; i++)
         {
-            // input_pkt[i] = 0x0;
-            input_pkt[i] = 0XAAAAAAAA; //0xAA00FFFF;
-
+            uint32_t randomValue = dist(mt);
+            //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
+            input_pkt[i] = randomValue;
             mmio::WrMmio(src_tx_usrp, mmio::kInPktAddr+i, input_pkt[i]);
-
             // mmio::RdMmio(tx_usrp, mmio::kInPktAddr+i, true);
         }
 
@@ -1025,19 +1036,28 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
         }
 
-        if(samp_cap) {
-            mmio::ReadSampleMem(dest_tx_usrp, 1, std::pow(2,16), std::string("../../data/fwd_p2p_samps")+std::to_string(j)+".dat");
-        } else {
-            mmio::ReadChipMem(dest_tx_usrp, 1, std::pow(2,16), std::string("../../data/fwd_p2p_chips")+std::to_string(j)+".dat");
+        if(iter % 100 == 0) {
+            std::cout << std::dec << "Num bits: " << iter*mmio::kPktLen << ", num errors: " << n_errors << std::endl;
         }
-        
-        mmio::ReadSampleMem(src_tx_usrp, 0, std::pow(2,16), std::string("../../data/fb_p2p_samps")+std::to_string(j)+".dat"); 
+        n_iters = iter;
+        if(n_errors > kTargetErr){
+            break;
+        }
     }
 
+        std::cout << std::dec << "Reached " << n_errors  << " errors in " << n_iters*mmio::kPktLen << " bits" << std::endl;
+    std::cout << "ber = " << n_errors/(n_iters*mmio::kPktLen) << std::endl;
+    // std::vector<double> EsN0_array = {1, 2, 3};
+    // std::vector<double> ber_array, n_bit_err_array, n_iter_array;
 
-    std::cout << std::dec << "Reached " << n_errors << " errors"<< std::endl;
 
-
+    if(samp_cap) {
+        mmio::ReadSampleMem(dest_tx_usrp, 1, std::pow(2,16), "../../data/fwd_p2p_samps.dat");
+    } else {
+        mmio::ReadChipMem(dest_tx_usrp, 1, std::pow(2,16), "../../data/fwd_p2p_chips.dat");
+    }
+    
+    mmio::ReadSampleMem(src_tx_usrp, 0, std::pow(2,16), "../../data/fb_p2p_samps.dat"); 
 
     std::cout << "Source read:" << std::endl;    
     mmio::ReadBBCore(src_tx_usrp);

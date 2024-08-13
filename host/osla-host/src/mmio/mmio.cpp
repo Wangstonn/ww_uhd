@@ -107,8 +107,6 @@ namespace mmio {
         uint32_t SrcStartCmd = MakeStartCmd(mode_bits, kP2PSrcRxChSelBits, kP2PSrcTxCoreBits, gpio_start_sel_bits); //+0x2 needed for forward
         uint32_t DestStartCmd = MakeStartCmd(mode_bits, kP2PDestRxChSelBits, kP2PDestTxCoreBits, gpio_start_sel_bits);
 
-        std::cout << "gpio_start_sel_bits:" << gpio_start_sel_bits << std::endl;
-
         if (gpio_start_sel_bits == 0b01) { //dest triggered by gpio -> src get mmio start
             SrcStartCmd += 0x2;
             WrMmio(dest_tx_usrp, kConfigAddr, DestStartCmd); //make dest ready for start signal
@@ -131,6 +129,7 @@ namespace mmio {
     std::vector<uint64_t> write_cmds = {
         0x80000000'00000000,
         0x80000001'00000001,
+        0x80000002'00000020,
         0x80000010'00001000,
         0x80000011'00000000,
         0x80000012'00007FFF,
@@ -148,6 +147,7 @@ namespace mmio {
     std::vector<uint32_t> read_cmds = {
         0x00000000,
         0x00000001,
+        0x00000002,
         0x00000010,
         0x00000011,
         0x00000012,
