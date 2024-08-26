@@ -11,6 +11,12 @@ namespace estim {
     constexpr int kNChips = 32; //average number of chips per symbol
     constexpr int kSrcProcDelay = 4; //samples it takes to process data at source
 
+    //P2P communication contains a GPIO channel from source to destination for signalling when the source starts
+    constexpr std::uint32_t kFwdGpioStartSelBits = 0b01; //dest listens to gpio for start
+    //For feedback channel estimation, have the "dest" usrp transmit preamble to the source. For start signalling, have the source usrp send the start and then begin listening.
+    //in this case, the gpio start bits are reversed, since the destination uses the source module and now the source module must listen to gpio
+    constexpr std::uint32_t kFbGpioStartSelBits = 0b10; //dest listens to gpio for start
+
     constexpr double kMaxTxGain{31.5}, kMaxRxGain{31.5};
     constexpr double kMinTxGain{0}, kMinRxGain{0};
 
@@ -38,6 +44,10 @@ namespace estim {
     int PhaseEq(uhd::usrp::multi_usrp::sptr tx_usrp, const std::complex<double>& h_hat);
 
     void SetSrcThreshold(const uhd::usrp::multi_usrp::sptr tx_usrp, std::complex<double> h_hat);
+
+    double P2PEstimChipNoise(const uhd::usrp::multi_usrp::sptr src_tx_usrp, const uhd::usrp::multi_usrp::sptr dest_tx_usrp, const int NCapSamps, const std::string& file);
+    ChParams P2PChEstim(const uhd::usrp::multi_usrp::sptr src_tx_usrp, const uhd::usrp::multi_usrp::sptr dest_tx_usrp, const int D_test, const int& NCapSamps, const bool is_forward, const std::string& file);
+    void P2PCompensateDelays(const uhd::usrp::multi_usrp::sptr src_tx_usrp, const uhd::usrp::multi_usrp::sptr dest_tx_usrp, const int D_hat);
 
     template <typename T>
     std::vector<T> Upsample(const std::vector<T>& input, int N);

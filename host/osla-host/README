@@ -10,6 +10,7 @@ To try it out, run these commands:
 $ mkdir build/ # Creates a new build directory
 $ cd build/
 $ cmake -DCMAKE_INSTALL_PREFIX=/home/user/.local/lib/uhd-4.0 ../
+$or cmake -DCMAKE_INSTALL_PREFIX=/n/houghton/z/wangston/.local/lib/uhd-4.5 ../
 $ make
 
 This will find the UHD libraries, and link and compile the example

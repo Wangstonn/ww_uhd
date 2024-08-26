@@ -246,8 +246,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("output reg", po::value<uint32_t>(&output_reg)->default_value(0), "output reg")
 
         //afe params
-        ("tx-freq", po::value<double>(&tx_freq)->default_value(2.4e9), "transmit RF center frequency in Hz")
-        ("rx-freq", po::value<double>(&rx_freq)->default_value(2.4e9), "receive RF center frequency in Hz")
+        ("tx-freq", po::value<double>(&tx_freq)->default_value(.915e9), "transmit RF center frequency in Hz")
+        ("rx-freq", po::value<double>(&rx_freq)->default_value(.915e9), "receive RF center frequency in Hz")
         ("tx-gain", po::value<double>(&tx_gain)->default_value(0), "gain for the transmit RF chain")
         ("rx-gain", po::value<double>(&rx_gain)->default_value(0), "gain for the receive RF chain")
         ("tx-bw", po::value<double>(&tx_bw)->default_value(160e6), "analog transmit filter bandwidth in Hz")
@@ -604,25 +604,25 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << "Estimated var= " << var << std::endl;
 
     // // Timing+flatfading estimation---------------------------------------------------------------------------------------------------------------------------
-    // //Because our window is small, need to sweep multiple time intervals by adjusting source and dest delay. Assumes channel coherence is quite long
-    // //Multiple tests have confirmed wired loopback delay with 8inch sma cable + attenuator is 119, so its find to just do one interval for now
-    // std::cout << "Running delay+flatfading estimation..." << std::endl;
+    //Because our window is small, need to sweep multiple time intervals by adjusting source and dest delay. Assumes channel coherence is quite long
+    //Multiple tests have confirmed wired loopback delay with 8inch sma cable + attenuator is 119, so its find to just do one interval for now
+    std::cout << "Running delay+flatfading estimation..." << std::endl;
 
-    // double EsN0;
-    // int D_hat;
-    // std::complex<double> h_hat;
+    double EsN0;
+    int D_hat;
+    std::complex<double> h_hat;
 
-    // int D_test = 0;
+    int D_test = 0;
     
-    // auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,14), "../../data/fwd_alb_prmbl_samps.dat");
-    // D_hat = ch_params.D_hat;
-    // h_hat = ch_params.h_hat;
-    // EsN0 = estim::CalcChipEsN0(h_hat, var);
+    auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,16), "../../data/fwd_alb_prmbl_samps.dat");
+    D_hat = ch_params.D_hat;
+    h_hat = ch_params.h_hat;
+    EsN0 = estim::CalcChipEsN0(h_hat, var);
 
-    // std::cout << std::dec << "D_test= " << D_test << ", ";
-    // std::cout << "D_hat= " << D_hat << ", ";
-    // std::cout << "EsN0= " << EsN0 << ", ";
-    // std::cout << "h_hat : abs= " << std::abs(h_hat) << " arg= " << std::arg(h_hat) << std::endl;
+    std::cout << std::dec << "D_test= " << D_test << ", ";
+    std::cout << "D_hat= " << D_hat << ", ";
+    std::cout << "EsN0= " << EsN0 << ", ";
+    std::cout << "h_hat : abs= " << std::abs(h_hat) << " arg= " << std::arg(h_hat) << std::endl;
 
 
 

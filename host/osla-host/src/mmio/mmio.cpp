@@ -67,10 +67,69 @@ namespace mmio {
         // std::cout << "Done printing digital loopback results...\n";
     }
 
+    uint32_t MakeStartCmd(std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits) {
+        std::uint32_t mode_bits_shift{mode_bits << 2};
+        std::uint32_t rx_ch_sel_bits_shift{rx_ch_sel_bits << 4}; 
+        std::uint32_t tx_core_bits_shift{tx_core_bits << 6}; 
+        std::uint32_t gpio_start_sel_bits_shift{gpio_start_sel_bits << 8};
+
+        std::uint32_t config_data = mode_bits_shift+rx_ch_sel_bits_shift+tx_core_bits_shift+gpio_start_sel_bits_shift;
+
+        return config_data;
+    }
+
+    const std::uint32_t kP2PSrcTxCoreBits = 0b10; //connect afe to src module
+    const std::uint32_t kP2PSrcRxChSelBits = 0b10;
+    const std::uint32_t kP2PDestTxCoreBits = 0b01; //connect afe to dest module
+    const std::uint32_t kP2PDestRxChSelBits = 0b01;
+    /**
+     *  Configures the runtime mode of the baseband core for p2p communications and initiates it.
+     * There are much less params since There is only one real possible configuration for p2p comms
+     * 
+     * @param mode_bits bb-engine mode: active (pkt tx), sync. 
+     *      2 bits [src,dest]. For each, 1->active, 0->sync. ex: mode 3 =>both active
+    */
+    void P2PStartTxRx(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp::sptr dest_tx_usrp, std::uint32_t mode_bits, std::uint32_t gpio_start_sel_bits) {
+
+        //Reset device
+        WrMmio(src_tx_usrp, kConfigAddr, 0x0000001);
+        WrMmio(dest_tx_usrp, kConfigAddr, 0x0000001);
+        std::this_thread::sleep_for(std::chrono::nanoseconds(5*5)); //Leave the reset for a couple of cycles
+
+        //Calibrate DC Offset
+        src_tx_usrp->set_rx_dc_offset(true);
+        std::this_thread::sleep_for(std::chrono::milliseconds(40)); //DC offset calibration time, minimum is 33.6 ms
+        src_tx_usrp->set_rx_dc_offset(false);
+
+        ClearAddrBuffer(src_tx_usrp);
+        ClearAddrBuffer(dest_tx_usrp);
+
+        uint32_t SrcStartCmd = MakeStartCmd(mode_bits, kP2PSrcRxChSelBits, kP2PSrcTxCoreBits, gpio_start_sel_bits); //+0x2 needed for forward
+        uint32_t DestStartCmd = MakeStartCmd(mode_bits, kP2PDestRxChSelBits, kP2PDestTxCoreBits, gpio_start_sel_bits);
+
+        if (gpio_start_sel_bits == 0b01) { //dest triggered by gpio -> src get mmio start
+            SrcStartCmd += 0x2;
+            WrMmio(dest_tx_usrp, kConfigAddr, DestStartCmd); //make dest ready for start signal
+            std::this_thread::sleep_for(std::chrono::nanoseconds(20*5)); //Leave the reset for a couple of cycles
+            WrMmio(src_tx_usrp, kConfigAddr, SrcStartCmd);
+
+        } else if (gpio_start_sel_bits == 0b10){ //src triggered by gpio -> dest get mmio start
+            DestStartCmd += 0x2;
+            WrMmio(src_tx_usrp, kConfigAddr, SrcStartCmd); //make source ready for gpio start signal from dest
+            std::this_thread::sleep_for(std::chrono::nanoseconds(20*5)); //Leave the reset for a couple of cycles
+            WrMmio(dest_tx_usrp, kConfigAddr, DestStartCmd);
+            
+
+        } else {
+            std::cerr << "P2PStartTxRx: Error: gpio input invalid" << std::endl;
+        }
+    }
+
     //Load phases and thresholds
     std::vector<uint64_t> write_cmds = {
         0x80000000'00000000,
         0x80000001'00000001,
+        0x80000002'00000020,
         0x80000010'00001000,
         0x80000011'00000000,
         0x80000012'00007FFF,
@@ -88,6 +147,7 @@ namespace mmio {
     std::vector<uint32_t> read_cmds = {
         0x00000000,
         0x00000001,
+        0x00000002,
         0x00000010,
         0x00000011,
         0x00000012,
