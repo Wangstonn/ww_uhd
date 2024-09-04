@@ -603,7 +603,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //test settings
     std::uint32_t tx_core_bits{0b10}; 
     std::uint32_t rx_ch_sel_bits{0b01}; 
-    std::uint32_t gpio_start_sel_bits{0b00};
+    std::uint32_t gpio_start_sel_bits{0b01};
 
     //noise estimation-----------------------------------------------------------------------------------------------------------------------
     std::cout << "Running noise estimation..." << std::endl;
@@ -620,8 +620,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::complex<double> h_hat;
 
     int D_test = 0;
-    
-    auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,15), "../../data/fwd_alb_prmbl_samps.dat");
+    for(int i = 0; i<100;i++) {
+    auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "../../data/fwd_alb_prmbl_samps.dat");
     D_hat = ch_params.D_hat;
     h_hat = ch_params.h_hat;
     EsN0 = estim::CalcChipEsN0(h_hat, var);
@@ -630,6 +630,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << "D_hat= " << D_hat << ", ";
     std::cout << "EsN0= " << EsN0 << ", ";
     std::cout << "h_hat : abs= " << std::abs(h_hat) << " arg= " << std::arg(h_hat) << std::endl;
+    }
 
     //Test setup------------------------------------------------------------------
     std::cout << "Performing compensation..." << std::endl;
@@ -638,7 +639,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     std::complex<double> h_comp = h_hat/std::abs(h_hat); 
     estim::PhaseEq(tx_usrp, h_comp);
-    rx_gain = 30;
+    rx_gain = 0;
     rx_usrp->set_rx_gain(rx_gain, 0); //only using channel 0
     std::cout << boost::format("Actual RX Gain: %f dB...") % rx_usrp->get_rx_gain(0) << std::endl << std::endl;
 
@@ -795,9 +796,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             xor_result >>= 1;
         }
 
-        // std::cout << std::dec << "Bit slice: " << i << " Num errors: "<< n_errors <<std::endl;
-        // std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
-        // std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
+        std::cout << std::dec << "Bit slice: " << i << " Num errors: "<< n_errors <<std::endl;
+        std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
+        std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
     }
 
     //mmio::ReadBBCore(tx_usrp);

@@ -925,7 +925,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     //noise estimation-----------------------------------------------------------------------------------------------------------------------
     std::cout << "Running noise estimation..." << std::endl;
-    double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2,16), "../../data/fwd_p2p_noise_samps.dat");
+    double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2,12), "../../data/fwd_p2p_noise_samps.dat");
     std::cout << "Estimated var= " << var << std::endl;
 
     // Timing+flatfading estimation---------------------------------------------------------------------------------------------------------------------------
@@ -935,22 +935,34 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     int D_test = 0;
     int D_hat_fwd;
     std::complex<double> h_hat_fwd;
-    for(int i = 0; i<1 ; i++) {
-    auto ch_params = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,15), true, "../../data/fwd_p2p_prmbl_samps.dat"); //"../../data/fwd_p2p_prmbl_samps.dat"
+    for(int j = 0; j<1 ; j++) {
+    auto start = std::chrono::high_resolution_clock::now();
+
+    auto ch_params = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,12), true, 0x0, ""); //std::string("../../data/fwd_p2p_prmbl_samps")+std::to_string(j)+".dat"
     D_hat_fwd = ch_params.D_hat;
     h_hat_fwd = ch_params.h_hat;
     double EsN0 = estim::CalcChipEsN0(h_hat_fwd, var);
+
+    mmio::ClearAddrBuffer(dest_tx_usrp);
 
     std::cout << std::dec << "D_test= " << D_test << ", ";
     std::cout << "D_hat_fwd= " << D_hat_fwd << ", ";
     std::cout << "EsN0= " << EsN0 << ", ";
     std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd) << " arg= " << std::arg(h_hat_fwd) << std::endl;
+    // Stop the timer
+    auto stop = std::chrono::high_resolution_clock::now();
+
+    // Calculate the duration in seconds
+    std::chrono::duration<double> duration = stop - start;
+
+    // Output the time in seconds
+    std::cout << "Time taken: " << duration.count() << " seconds" << std::endl;
 
     }
 
     // -----------------------------------------------------------------------------------
     std::cout << "Running fb estimation..." << std::endl;
-    auto ch_params_fb = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,15), false, "../../data/fb_p2p_prmbl_samps.dat"); //"../../data/fb_p2p_prmbl_samps.dat"
+    auto ch_params_fb = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,14), false, 0x0, "../../data/fb_p2p_prmbl_samps.dat"); //"../../data/fb_p2p_prmbl_samps.dat"
     int D_hat_fb = ch_params_fb.D_hat;
     std::complex<double>h_hat_fb = ch_params_fb.h_hat;
     
@@ -986,12 +998,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     uint32_t input_pkt[Num16BitSlices] = {0};
     uint32_t output_pkt[Num16BitSlices] = {0};
 
-    for(int j = 0; j < 20; j++) {
+    for(int j = 0; j < 1; j++) {
         // Generate a random uint32_t
         for(int i = 0; i < Num16BitSlices; i++)
         {
             // input_pkt[i] = 0x0;
-            input_pkt[i] = 0XAAAAAAAA; //0xAA00FFFF;
+            input_pkt[i] = 0xAA00FFFF; //0xAA00FFFF;
 
             mmio::WrMmio(src_tx_usrp, mmio::kInPktAddr+i, input_pkt[i]);
 
@@ -999,7 +1011,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         }
 
         std::uint32_t mode_bits{0b11};
-        mmio::P2PStartTxRx(src_tx_usrp, dest_tx_usrp, mode_bits, estim::kFwdGpioStartSelBits);
+        mmio::P2PStartTxRx(src_tx_usrp, dest_tx_usrp, mode_bits, estim::kFwdGpioStartSelBits, 0x0, 0x0, false);
         
         while(true) {
             //Run and check received pkt    

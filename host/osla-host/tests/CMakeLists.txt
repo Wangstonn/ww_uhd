@@ -37,8 +37,11 @@ target_link_libraries(fbAlbTest ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)
 
 
 # p2p tests
-add_executable(SrcDestEstim src_dest_estim.cpp)
-target_link_libraries(SrcDestEstim ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)
+# add_executable(SrcDestEstim src_dest_estim.cpp)
+# target_link_libraries(SrcDestEstim ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)
 
-add_executable(SrcDestTest src_dest_test.cpp)
-target_link_libraries(SrcDestTest ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)
+# add_executable(SrcDestTest src_dest_test.cpp)
+# target_link_libraries(SrcDestTest ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)
+
+add_executable(SrcDestLockEstim src_dest_lock_estim.cpp)
+target_link_libraries(SrcDestLockEstim ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)

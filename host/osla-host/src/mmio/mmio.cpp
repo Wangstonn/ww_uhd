@@ -67,13 +67,15 @@ namespace mmio {
         // std::cout << "Done printing digital loopback results...\n";
     }
 
-    uint32_t MakeStartCmd(std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits) {
+    uint32_t MakeStartCmd(std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits, std::uint32_t fix_len_mode_bits, std::uint32_t start_sync_mode_bit) {
         std::uint32_t mode_bits_shift{mode_bits << 2};
         std::uint32_t rx_ch_sel_bits_shift{rx_ch_sel_bits << 4}; 
         std::uint32_t tx_core_bits_shift{tx_core_bits << 6}; 
         std::uint32_t gpio_start_sel_bits_shift{gpio_start_sel_bits << 8};
+        std::uint32_t fix_len_mode_bits_shift{fix_len_mode_bits << 10};
+        std::uint32_t start_sync_mode_bit_shift{start_sync_mode_bit << 11};
 
-        std::uint32_t config_data = mode_bits_shift+rx_ch_sel_bits_shift+tx_core_bits_shift+gpio_start_sel_bits_shift;
+        std::uint32_t config_data = mode_bits_shift+rx_ch_sel_bits_shift+tx_core_bits_shift+gpio_start_sel_bits_shift+fix_len_mode_bits_shift+start_sync_mode_bit_shift;
 
         return config_data;
     }
@@ -89,34 +91,35 @@ namespace mmio {
      * @param mode_bits bb-engine mode: active (pkt tx), sync. 
      *      2 bits [src,dest]. For each, 1->active, 0->sync. ex: mode 3 =>both active
     */
-    void P2PStartTxRx(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp::sptr dest_tx_usrp, std::uint32_t mode_bits, std::uint32_t gpio_start_sel_bits) {
+    void P2PStartTxRx(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp::sptr dest_tx_usrp, std::uint32_t mode_bits, std::uint32_t gpio_start_sel_bits, uint32_t fix_len_mode_bits, std::uint32_t start_sync_mode_bit, const bool skip_rst ) {
+        if(!skip_rst){
+            //Reset device
+            WrMmio(src_tx_usrp, kConfigAddr, 0x0000001);
+            WrMmio(dest_tx_usrp, kConfigAddr, 0x0000001);
+            std::this_thread::sleep_for(std::chrono::nanoseconds(5*5)); //Leave the reset for a couple of cycles
 
-        //Reset device
-        WrMmio(src_tx_usrp, kConfigAddr, 0x0000001);
-        WrMmio(dest_tx_usrp, kConfigAddr, 0x0000001);
-        std::this_thread::sleep_for(std::chrono::nanoseconds(5*5)); //Leave the reset for a couple of cycles
-
-        //Calibrate DC Offset
-        src_tx_usrp->set_rx_dc_offset(true);
-        std::this_thread::sleep_for(std::chrono::milliseconds(40)); //DC offset calibration time, minimum is 33.6 ms
-        src_tx_usrp->set_rx_dc_offset(false);
+            //Calibrate DC Offset
+            src_tx_usrp->set_rx_dc_offset(true);
+            std::this_thread::sleep_for(std::chrono::milliseconds(40)); //DC offset calibration time, minimum is 33.6 ms
+            src_tx_usrp->set_rx_dc_offset(false);
+        }
 
         ClearAddrBuffer(src_tx_usrp);
         ClearAddrBuffer(dest_tx_usrp);
 
-        uint32_t SrcStartCmd = MakeStartCmd(mode_bits, kP2PSrcRxChSelBits, kP2PSrcTxCoreBits, gpio_start_sel_bits); //+0x2 needed for forward
-        uint32_t DestStartCmd = MakeStartCmd(mode_bits, kP2PDestRxChSelBits, kP2PDestTxCoreBits, gpio_start_sel_bits);
+        uint32_t SrcStartCmd = MakeStartCmd(mode_bits, kP2PSrcRxChSelBits, kP2PSrcTxCoreBits, gpio_start_sel_bits, fix_len_mode_bits, start_sync_mode_bit); //+0x2 needed for forward
+        uint32_t DestStartCmd = MakeStartCmd(mode_bits, kP2PDestRxChSelBits, kP2PDestTxCoreBits, gpio_start_sel_bits, fix_len_mode_bits, start_sync_mode_bit);
 
         if (gpio_start_sel_bits == 0b01) { //dest triggered by gpio -> src get mmio start
             SrcStartCmd += 0x2;
             WrMmio(dest_tx_usrp, kConfigAddr, DestStartCmd); //make dest ready for start signal
-            std::this_thread::sleep_for(std::chrono::nanoseconds(20*5)); //Leave the reset for a couple of cycles
+            std::this_thread::sleep_for(std::chrono::nanoseconds(500*5)); //Ensure that dest is ready for source
             WrMmio(src_tx_usrp, kConfigAddr, SrcStartCmd);
 
         } else if (gpio_start_sel_bits == 0b10){ //src triggered by gpio -> dest get mmio start
             DestStartCmd += 0x2;
             WrMmio(src_tx_usrp, kConfigAddr, SrcStartCmd); //make source ready for gpio start signal from dest
-            std::this_thread::sleep_for(std::chrono::nanoseconds(20*5)); //Leave the reset for a couple of cycles
+            std::this_thread::sleep_for(std::chrono::nanoseconds(500*5)); 
             WrMmio(dest_tx_usrp, kConfigAddr, DestStartCmd);
             
 
@@ -161,6 +164,7 @@ namespace mmio {
         0x00000035,
         
         0x00000800,
+        0x00000801,
         0x00000810,
         0x00000811,
 
@@ -279,13 +283,6 @@ namespace mmio {
     }
     
 
-
-    //Sample Capture Memory Address limits
-    const uint32_t kSrcCapStartAddr = 0x01000000;
-    const uint32_t kSrcCapEndAddr = 0x0100FFFF;
-
-    const uint32_t kDestCapStartAddr = 0x02000000;
-    const uint32_t kDestCapEndAddr = 0x0200FFFF;
     //Warning: in some cases, capture will not fully fill the memory. It is important to verify that the index being read is less than DestCapIdx.
     // otherwise, UNINTIALIZED memory will be read, given nonsensical results. Futhermore, verify that the device has completed operation. Otherwise,
     // the output may be the current memory value being written!

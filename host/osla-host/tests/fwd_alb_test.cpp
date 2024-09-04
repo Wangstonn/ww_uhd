@@ -603,7 +603,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //test settings
     std::uint32_t tx_core_bits{0b10}; 
     std::uint32_t rx_ch_sel_bits{0b01}; 
-    std::uint32_t gpio_start_sel_bits{0b00};
+    std::uint32_t gpio_start_sel_bits{0b01};
 
     //noise estimation-----------------------------------------------------------------------------------------------------------------------
     std::cout << "Running noise estimation..." << std::endl;

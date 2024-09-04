@@ -6,6 +6,13 @@ library on your host computer. This library contains the drivers for all Ettus
 Research products, and the framework and API that make them usable to
 application-level programs. The UHD library runs entirely in user-space.
 
+To try it out, run these commands:
+$ mkdir build/ # Creates a new build directory
+$ cd build/
+$ cmake -DCMAKE_INSTALL_PREFIX=$HOME/.local/lib/uhd-4.5 ../ //Makes sure that uhd libraries can be found
+$ make
+
+
 ## Documentation
 
 For documentation, please refer to the following resources:
