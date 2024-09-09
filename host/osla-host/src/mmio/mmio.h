@@ -36,11 +36,23 @@ namespace mmio {
 
     //Useful read commands
     //constexpr std::uint32_t isDone{0x08000001}; //src done tx
+    constexpr int kCapIdxWidth = 16;
+    constexpr uint32_t kCapIdxMask = std::pow(2,kCapIdxWidth)-1;
+
     constexpr std::uint32_t kBbStatusAddr{0x800}; 
     constexpr std::uint32_t kSrcCapIdxAddr{0x819};
     constexpr std::uint32_t kDestCapIdxAddr{0x820}; 
-    constexpr int kCapMaxNumSamps = std::pow(2,16); //RTL BUGGED SO IT CAN ONLY READ std::pow(2,16)-1 SAMPLES
-    
+
+    //Sample Capture Memory Address limits
+    constexpr std::uint32_t kCapMaxNumSamps = std::pow(2,16); //RTL BUGGED SO IT CAN ONLY READ std::pow(2,16)-1 SAMPLES
+
+    const uint32_t kSrcCapStartAddr = 0x01000000;
+    const uint32_t kSrcCapEndAddr = kSrcCapStartAddr+kCapMaxNumSamps-1; //0x0100FFFF;
+
+    const uint32_t kDestCapStartAddr = 0x02000000;
+    const uint32_t kDestCapEndAddr = kDestCapStartAddr+kCapMaxNumSamps-1;// 0x0200FFFF;
+
+    const uint32_t kSyncCtrAddr = 0x801;
 
 
     uint32_t RdMmio(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t addr, bool verbose = false);
@@ -53,7 +65,7 @@ namespace mmio {
     void ReadBBCore (uhd::usrp::multi_usrp::sptr tx_usrp);
     void ClearAddrBuffer (uhd::usrp::multi_usrp::sptr tx_usrp);
 
-    void P2PStartTxRx(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp::sptr dest_tx_usrp, std::uint32_t mode_bits, std::uint32_t gpio_start_sel_bits);
+    void P2PStartTxRx(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp::sptr dest_tx_usrp, std::uint32_t mode_bits, std::uint32_t gpio_start_sel_bits, uint32_t fix_len_mode_bits, std::uint32_t start_sync_mode_bit, const bool skip_rst);
 }
 
 #endif  // MMIO_H

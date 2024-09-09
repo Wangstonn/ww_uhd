@@ -933,7 +933,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     int D_test = 0;
     //for(int i = 0; i<0 ; i++) {
-    auto ch_params = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,15), true, "../../data/fwd_p2p_prmbl_samps.dat"); //"../../data/fwd_p2p_prmbl_samps.dat"
+    auto ch_params = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,12), true, 0x0, "../../data/fwd_p2p_prmbl_samps.dat"); //"../../data/fwd_p2p_prmbl_samps.dat"
     int D_hat_fwd = ch_params.D_hat;
     std::complex<double> h_hat_fwd = ch_params.h_hat;
     double EsN0 = estim::CalcChipEsN0(h_hat_fwd, var);
@@ -947,7 +947,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     // -----------------------------------------------------------------------------------
     std::cout << "Running fb estimation..." << std::endl;
-    auto ch_params_fb = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,15), false, "../../data/fb_p2p_prmbl_samps.dat"); //"../../data/fb_p2p_prmbl_samps.dat"
+    auto ch_params_fb = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,12), false, 0x0, "../../data/fb_p2p_prmbl_samps.dat"); //"../../data/fb_p2p_prmbl_samps.dat"
     int D_hat_fb = ch_params_fb.D_hat;
     std::complex<double>h_hat_fb = ch_params_fb.h_hat;
     
@@ -994,6 +994,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     
     int n_iters = kMaxIter;
     for(int iter = 1; iter <= kMaxIter; iter++) {
+        auto start = std::chrono::high_resolution_clock::now();
+
         // Generate a random pkt
         const int Num16BitSlices = mmio::kPktLen/32;
         uint32_t input_pkt[Num16BitSlices] = {0};
@@ -1010,7 +1012,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         }
 
         std::uint32_t mode_bits{0b11};
-        mmio::P2PStartTxRx(src_tx_usrp, dest_tx_usrp, mode_bits, estim::kFwdGpioStartSelBits);
+        mmio::P2PStartTxRx(src_tx_usrp, dest_tx_usrp, mode_bits, estim::kFwdGpioStartSelBits, 0x0,0x0, false);
         
         while(true) {
             //Run and check received pkt    
@@ -1039,10 +1041,22 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         if(iter % 100 == 0) {
             std::cout << std::dec << "Num bits: " << iter*mmio::kPktLen << ", num errors: " << n_errors << std::endl;
         }
+
+        // Stop the timer
+        auto stop = std::chrono::high_resolution_clock::now();
+
+        // Calculate the duration in seconds
+        std::chrono::duration<double> duration = stop - start;
+
+        // Output the time in seconds
+        std::cout << "Time taken: " << duration.count() << " seconds" << std::endl;
+
         n_iters = iter;
         if(n_errors > kTargetErr){
             break;
         }
+
+
     }
 
         std::cout << std::dec << "Reached " << n_errors  << " errors in " << n_iters*mmio::kPktLen << " bits" << std::endl;

@@ -72,7 +72,7 @@ namespace estim {
         while(true) {
             //Run and check received pkt    
             mmio::ClearAddrBuffer(tx_usrp); 
-            if((mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr) & 0xFFFF) == 0xFFFF) //Dest has finished recording
+            if((mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr) & mmio::kCapIdxMask) == mmio::kCapMaxNumSamps-1) //Dest has finished recording
                 break;
         }
         mmio::ClearAddrBuffer(tx_usrp); 
@@ -198,7 +198,7 @@ namespace estim {
      * @param is_forward Whether to perform forward or feedback channel estimation.
      * @return ChParams struct containing d_hat and h_hat 
      */
-    ChParams P2PChEstim(const uhd::usrp::multi_usrp::sptr src_tx_usrp, const uhd::usrp::multi_usrp::sptr dest_tx_usrp, const int D_test, const int& NCapSamps, const bool is_forward, const std::string& file) {
+    ChParams P2PChEstim(const uhd::usrp::multi_usrp::sptr src_tx_usrp, const uhd::usrp::multi_usrp::sptr dest_tx_usrp, const int D_test, const int& NCapSamps, const bool is_forward, const uint32_t start_sync, const bool skip_rst, const std::string& file) {
         uhd::usrp::multi_usrp::sptr tx_usrp, rx_usrp;
         std::uint32_t gpio_start_sel_bits;
 
@@ -220,13 +220,13 @@ namespace estim {
         estim::P2PCompensateDelays(tx_usrp, rx_usrp, D_test);
         mmio::WrMmio(rx_usrp, mmio::kDestChipCapEn, 0x0); //capture samps for preamble analysis
 
-        mmio::P2PStartTxRx(tx_usrp, rx_usrp, mode_bits, gpio_start_sel_bits);
+        mmio::P2PStartTxRx(tx_usrp, rx_usrp, mode_bits, gpio_start_sel_bits, 0x0, start_sync, skip_rst);
 
         //Typically, preamble is so fast no delay is needed
         while(true) {
             //Run and check received pkt    
             mmio::ClearAddrBuffer(rx_usrp); 
-            if((mmio::RdMmio(rx_usrp, mmio::kDestCapIdxAddr) & 0xFFFF) == 0xFFFF) //Dest has finished recording
+            if((mmio::RdMmio(rx_usrp, mmio::kDestCapIdxAddr) & mmio::kCapIdxMask) == mmio::kCapMaxNumSamps-1) //Dest has finished recording
                 break;
         }
         mmio::ClearAddrBuffer(rx_usrp); 
@@ -285,7 +285,7 @@ namespace estim {
 
         int N_prmbl_samps_cap = EstimNSampCap(N_w, N_prmbl, D_hat); //Find how many samples were captured for coefficient estimation
         if (N_prmbl_samps_cap <= 0) {
-            std::cerr << "Error: No samples captured" << std::endl;
+            std::cerr << "Error: No preamble samples captured in the window" << std::endl;
         }
 
         // Calculate h_hat, h_hat_mag, and phi_hat
@@ -390,7 +390,7 @@ namespace estim {
         while(true) {
             //Run and check received pkt    
             mmio::WrMmio(tx_usrp,0x0,0x0); 
-            if((mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr) & 0xFFFF) == 0xFFFF) //Dest has finished recording
+            if((mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr) & mmio::kCapIdxMask) == mmio::kCapMaxNumSamps-1) //Dest has finished recording
                 break;
         }
 
@@ -431,25 +431,25 @@ namespace estim {
      */
     double P2PEstimChipNoise(const uhd::usrp::multi_usrp::sptr src_tx_usrp, const uhd::usrp::multi_usrp::sptr dest_tx_usrp, const int NCapSamps, const std::string& file){
         //temporarily set tx_amp = 0
-        uint32_t tx_amp = mmio::RdMmio(src_tx_usrp,mmio::kSrcTxAmpAddr);
+        uint32_t tx_amp = mmio::RdMmio(src_tx_usrp, mmio::kSrcTxAmpAddr);
         mmio::WrMmio(src_tx_usrp,mmio::kSrcTxAmpAddr,0x0);
 
         mmio::WrMmio(dest_tx_usrp, mmio::kDestChipCapEn, 0x1); //capture chips for sample analysis
 
         std::uint32_t mode_bits = 0b01; //connect afe to src module
-        mmio::P2PStartTxRx(src_tx_usrp, dest_tx_usrp, mode_bits, estim::kFwdGpioStartSelBits);
+        mmio::P2PStartTxRx(src_tx_usrp, dest_tx_usrp, mode_bits, estim::kFwdGpioStartSelBits,0x0,0x0, false);
 
 
         //Typically, capture is so fast no delay is needed
         while(true) {
-            //Run and check received pkt    
-            bool pkt_valid = mmio::RdMmio(dest_tx_usrp, mmio::kDestCapIdxAddr) >= 0xFFFE; //around 100 ms...not sure why it still doesnt hit FFFF
+            //Run and check received pkt   
             mmio::ClearAddrBuffer(dest_tx_usrp);
-            if(pkt_valid)
+            if((mmio::RdMmio(dest_tx_usrp, mmio::kDestCapIdxAddr) & mmio::kCapIdxMask) >= mmio::kCapMaxNumSamps-2) //around 100 ms...not sure why it still doesnt hit FFFF
                 break;
         }
 
         //Read on chip acquired data and write to binary file to be parsed by matlab
+        mmio::ClearAddrBuffer(dest_tx_usrp);
         std::vector<double> cap_samps = mmio::ReadChipMem(dest_tx_usrp, 0b1, NCapSamps, file);
 
         // Estimate noise
@@ -497,11 +497,11 @@ namespace estim {
         //Typically, capture is so fast no delay is needed
         while(true) {
             //Run and check received pkt    
-            bool pkt_valid = mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr) >= 0xFFFE; //around 100 ms...not sure why it still doesnt hit FFFF
-            mmio::ClearAddrBuffer(tx_usrp);
-            if(pkt_valid)
+            mmio::WrMmio(tx_usrp,0x0,0x0); 
+            if((mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr) & mmio::kCapIdxMask) >= mmio::kCapMaxNumSamps-2) //Dest has finished recording
                 break;
         }
+
         // mmio::ReadBBCore(tx_usrp);
 
         //Read on chip acquired data and write to binary file to be parsed by matlab
