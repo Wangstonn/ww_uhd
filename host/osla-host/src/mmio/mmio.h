@@ -53,6 +53,7 @@ namespace mmio {
     const uint32_t kDestCapEndAddr = kDestCapStartAddr+kCapMaxNumSamps-1;// 0x0200FFFF;
 
     const uint32_t kSyncCtrAddr = 0x801;
+    const uint32_t kSyncStartPeriodAddr = 0x3;
 
 
     uint32_t RdMmio(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t addr, bool verbose = false);

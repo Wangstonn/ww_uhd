@@ -222,7 +222,25 @@ namespace estim {
 
         mmio::P2PStartTxRx(tx_usrp, rx_usrp, mode_bits, gpio_start_sel_bits, 0x0, start_sync, skip_rst);
 
-        //Typically, preamble is so fast no delay is needed
+        int current_ctr;
+        //If rst is skipped, that means we are locked and wait for the next sync window. Else, just start normally
+        if(start_sync) {
+            if(skip_rst){
+                current_ctr = mmio::RdMmio(dest_tx_usrp, mmio::kSyncCtrAddr) & 0xFFFF;
+                while(true) {
+                    mmio::ClearAddrBuffer(dest_tx_usrp);
+                    if((mmio::RdMmio(dest_tx_usrp, mmio::kSyncCtrAddr) & 0xFFFF) != current_ctr) {
+                        break;
+                    }
+                }
+            } 
+            else
+                current_ctr = 0;
+            
+        }
+        current_ctr++;
+        
+        //Wait for sample capture to finish
         while(true) {
             //Run and check received pkt    
             mmio::ClearAddrBuffer(rx_usrp); 
@@ -233,6 +251,17 @@ namespace estim {
 
         //Read data
         std::vector<std::complex<double>> cap_samps = mmio::ReadSampleMem(rx_usrp, 0b1, NCapSamps, file); 
+
+        //make sure that sample read wasnt corrupted by the next run
+        if (start_sync) {
+            int post_read_ctr = mmio::RdMmio(dest_tx_usrp, mmio::kSyncCtrAddr) & 0xFFFF;
+            if(current_ctr != post_read_ctr) {
+                std::cout << "Error: Sync Lock Ctr advanced before samples were done reading! Increase start period or decrease number of samples captured. \n" 
+                << std::dec << "Pre read lock idx: " << current_ctr << std::endl
+                << "Post read lock idx: " << post_read_ctr << std::endl;
+            }
+        }
+
         int N_w = static_cast<int>(cap_samps.size()); //number of captured samples
 
         std::vector<std::complex<double>> rx_if(N_w); //downconverted rx
@@ -295,6 +324,7 @@ namespace estim {
             h_hat *= std::pow(2,-6);
         }
         D_hat += D_test; //account for the test delay we inserted. The actual D_hat is 4 less than this measured value
+        
 
         ChParams ch_params;
         ch_params.D_hat = D_hat;

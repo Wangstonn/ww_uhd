@@ -1037,13 +1037,13 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
         }
 
-        if(samp_cap) {
-            mmio::ReadSampleMem(dest_tx_usrp, 1, std::pow(2,16), std::string("../../data/fwd_p2p_samps")+std::to_string(j)+".dat");
-        } else {
-            mmio::ReadChipMem(dest_tx_usrp, 1, std::pow(2,16), std::string("../../data/fwd_p2p_chips")+std::to_string(j)+".dat");
-        }
+        // if(samp_cap) {
+        //     mmio::ReadSampleMem(dest_tx_usrp, 1, std::pow(2,16), std::string("../../data/fwd_p2p_samps")+std::to_string(j)+".dat");
+        // } else {
+        //     mmio::ReadChipMem(dest_tx_usrp, 1, std::pow(2,16), std::string("../../data/fwd_p2p_chips")+std::to_string(j)+".dat");
+        // }
         
-        mmio::ReadSampleMem(src_tx_usrp, 0, std::pow(2,16), std::string("../../data/fb_p2p_samps")+std::to_string(j)+".dat"); 
+        // mmio::ReadSampleMem(src_tx_usrp, 0, std::pow(2,16), std::string("../../data/fb_p2p_samps")+std::to_string(j)+".dat"); 
     }
 
 

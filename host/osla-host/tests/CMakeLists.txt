@@ -45,3 +45,6 @@ target_link_libraries(fbAlbTest ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)
 
 add_executable(SrcDestLockEstim src_dest_lock_estim.cpp)
 target_link_libraries(SrcDestLockEstim ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)
+
+add_executable(SrcDestLockTest src_dest_lock_test.cpp)
+target_link_libraries(SrcDestLockTest ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)

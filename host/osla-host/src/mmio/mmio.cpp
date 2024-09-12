@@ -73,7 +73,7 @@ namespace mmio {
         std::uint32_t tx_core_bits_shift{tx_core_bits << 6}; 
         std::uint32_t gpio_start_sel_bits_shift{gpio_start_sel_bits << 8};
         std::uint32_t fix_len_mode_bits_shift{fix_len_mode_bits << 10};
-        std::uint32_t start_sync_mode_bit_shift{start_sync_mode_bit << 11};
+        std::uint32_t start_sync_mode_bit_shift{start_sync_mode_bit << 12};
 
         std::uint32_t config_data = mode_bits_shift+rx_ch_sel_bits_shift+tx_core_bits_shift+gpio_start_sel_bits_shift+fix_len_mode_bits_shift+start_sync_mode_bit_shift;
 
@@ -133,6 +133,7 @@ namespace mmio {
         0x80000000'00000000,
         0x80000001'00000001,
         0x80000002'00000020,
+        0x80000003'FFFFFFFF,
         0x80000010'00001000,
         0x80000011'00000000,
         0x80000012'00007FFF,
@@ -151,6 +152,7 @@ namespace mmio {
         0x00000000,
         0x00000001,
         0x00000002,
+        0x00000003,
         0x00000010,
         0x00000011,
         0x00000012,
