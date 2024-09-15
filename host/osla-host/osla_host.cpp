@@ -902,7 +902,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             //not sure which function is real
             //uint32_t sym_len = mmio::RdMmio(tx_usrp, mmio::kSymLenAddr+i,false);
             if(sym_len >= mmio::kmaxSymLen){
-                sym_len = mmio::kmaxSymLen + 1;
+                sym_len = mmio::kmaxSymLen - 1;
             }
             
             sym_len_record[sym_len]++;
