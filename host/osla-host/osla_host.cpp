@@ -838,6 +838,11 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // Define a distribution for generating uint32_t values
     std::uniform_int_distribution<uint32_t> dist;
     
+    //array to make histogram for symbol lengths recorded on fpga
+    //set kmaxSymLen in mmio.h (rn it's set to max)
+    //depending on packet length and ntrial might need to change from 32 bit to 64 for overflow
+    uint32_t sym_len_record[mmio::kmaxSymLen] = {0};
+
     for(int iter = 1; iter < kMaxIter; iter++ ) {
         // Generate a random pkt
         const int Num16BitSlices = mmio::kPktLen/32;
@@ -890,6 +895,17 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             std::cout << std::dec << "Reached " << n_errors << " errors for EsN0 = " << target_EsN0 << " in " << iter << " iterations" << std::endl;
             std::cout << "ber =" << n_errors/(iter*mmio::kPktLen) << std::endl;
             break;
+        }
+
+        for(int i = 0; i < mmio::kPktLen; i++) {
+            uint32_t sym_len = mmio::rd_mem_cmd(tx_usrp, mmio::kSymLenAddr+i);
+            //not sure which function is real
+            //uint32_t sym_len = mmio::RdMmio(tx_usrp, mmio::kSymLenAddr+i,false);
+            if(sym_len >= mmio::kmaxSymLen){
+                sym_len = mmio::kmaxSymLen + 1;
+            }
+            
+            sym_len_record[sym_len]++;
         }
     }
 
@@ -970,6 +986,13 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     stop_signal_called = true;
     transmit_thread.join();
     recv_thread.join();
+
+
+    //print out symbol length data
+    //just copy to some .mat file
+    for (int i = 0; i < mmio::kmaxSymLen; ++i){
+        std::cout << sym_len_record[i] << " "; 
+    }
 
     // finished
     std::cout << std::endl << "Done!" << std::endl << std::endl;

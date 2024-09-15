@@ -31,8 +31,13 @@ namespace mmio {
     const int kSrcThresholdFrac = 5;
     
     constexpr int kPktLen = 256;
+    //for histogram only 
+    //reduce if you know range
+    constexpr int kmaxSymLen = std::pow(2,16);
+
     constexpr uint32_t kInPktAddr = 0x20;
     constexpr uint32_t kOutPktAddr = 0x810;
+    constexpr uint32_t kSymLenAddr = 0x03000000;
 
     //Useful read commands
     //constexpr std::uint32_t isDone{0x08000001}; //src done tx
