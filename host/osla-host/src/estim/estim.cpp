@@ -7,6 +7,8 @@
 #include <iostream>
 #include <cstdint>
 #include <uhd/usrp/multi_usrp.hpp>
+#include <sstream>
+#include <type_traits>
 
 namespace estim {
     const double prmbl_amp = (1 - std::pow(2, -15));
@@ -567,10 +569,10 @@ namespace estim {
     }
 
     /**
-     * Calculate the EsN0 using the measured chip variance and the signal amplitude
+     * Calculate the EsN0 using the measured chip variance and the signal amplitude. This is actually the SYMBOL EsN0!!!!
      */
     double CalcChipEsN0(const std::complex<double>& h_hat, const double chip_var) {
-        double EsN0 = 10*std::log10(std::pow(estim::kFwOsr*estim::kNChips*std::abs(h_hat),2)/(chip_var*2));
+        double EsN0 = 10*std::log10(estim::kNChips*std::pow(estim::kFwOsr*std::abs(h_hat),2)/(chip_var*2));
         return EsN0;
     }
 
@@ -656,6 +658,11 @@ namespace estim {
      * @return int containing success of function
      */
     int PhaseEq(uhd::usrp::multi_usrp::sptr tx_usrp, const std::complex<double>& h_hat) {
+        if(std::abs(h_hat) < .5 || std::abs(h_hat) > 1.5) {
+            std::cerr << "Error: Digital compensation of h_mag is out of rand [0.66,2]. rx-gain is not set correctly or signal power is too high"  << std::endl;
+            return 1;
+        }
+        
         std::complex<double> reciprocal_h_hat = 1.0 / h_hat;
         
         //std::cout << reciprocal_h_hat << std::endl;
@@ -740,7 +747,28 @@ namespace estim {
         }
     }
 
-
+    // Template function to generate MATLAB array creation code with custom vector name
+    template <typename T>
+    std::string generateMatlabArray(const std::vector<T>& array, const std::string& vectorName) {
+        static_assert(std::is_arithmetic<T>::value, "Template argument must be numeric");
+        
+        std::ostringstream matlabCode;
+        matlabCode << vectorName << " = [";
+        
+        for (size_t i = 0; i < array.size(); ++i) {
+            matlabCode << array[i];
+            if (i < array.size()-1) {
+                matlabCode << ", ";
+            }
+        }
+        
+        matlabCode << "];\n";
+        
+        return matlabCode.str();
+    }
+        // Explicit instantiation for types you plan to use
+    template std::string generateMatlabArray(const std::vector<double>& array, const std::string& vectorName);
+    template std::string generateMatlabArray(const std::vector<int>& array, const std::string& vectorName);
 
     /**
      * @brief Upsamples a vector by duplicating each sample N times.

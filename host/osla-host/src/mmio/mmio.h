@@ -55,6 +55,7 @@ namespace mmio {
     const uint32_t kSyncCtrAddr = 0x801;
     const uint32_t kSyncStartPeriodAddr = 0x3;
 
+    constexpr uint32_t kSymLenAddr = 0x03000000;
 
     uint32_t RdMmio(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t addr, bool verbose = false);
     void WrMmio(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t addr, const uint32_t data);

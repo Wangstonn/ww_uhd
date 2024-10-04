@@ -48,3 +48,7 @@ target_link_libraries(SrcDestLockEstim ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio 
 
 add_executable(SrcDestLockTest src_dest_lock_test.cpp)
 target_link_libraries(SrcDestLockTest ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)
+
+# rss estimation
+add_executable(RssEstim rss_estim.cpp)
+target_link_libraries(RssEstim ${UHD_LIBRARIES} ${Boost_LIBRARIES} mmio estim)

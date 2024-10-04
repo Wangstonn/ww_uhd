@@ -226,9 +226,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     desc.add_options()
         ("help", "help message")
         //usrp selection
-        ("tx-args", po::value<std::string>(&tx_args)->default_value("type=x300,addr=192.168.110.2"), "uhd transmit device address args")
-        ("rx-args", po::value<std::string>(&rx_args)->default_value("type=x300,addr=192.168.110.2"), "uhd receive device address args")
-        ("ref", po::value<std::string>(&ref)->default_value("internal"), "clock reference (internal, external, mimo)")
+        ("tx-args", po::value<std::string>(&tx_args)->default_value("type=x300,addr=192.168.10.2"), "uhd transmit device address args")
+        ("rx-args", po::value<std::string>(&rx_args)->default_value("type=x300,addr=192.168.10.2"), "uhd receive device address args")
+        ("ref", po::value<std::string>(&ref)->default_value("external"), "clock reference (internal, external, mimo)")
         
         //streaming to file
         ("file", po::value<std::string>(&file)->default_value("stream_samps.dat"), "name of the file to write binary samples to")

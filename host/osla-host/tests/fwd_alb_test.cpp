@@ -226,8 +226,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     desc.add_options()
         ("help", "help message")
         //usrp selection
-        ("tx-args", po::value<std::string>(&tx_args)->default_value("type=x300,addr=192.168.110.2"), "uhd transmit device address args")
-        ("rx-args", po::value<std::string>(&rx_args)->default_value("type=x300,addr=192.168.110.2"), "uhd receive device address args")
+        ("tx-args", po::value<std::string>(&tx_args)->default_value("type=x300,addr=192.168.10.2"), "uhd transmit device address args")
+        ("rx-args", po::value<std::string>(&rx_args)->default_value("type=x300,addr=192.168.10.2"), "uhd receive device address args")
         ("ref", po::value<std::string>(&ref)->default_value("internal"), "clock reference (internal, external, mimo)")
         
         //streaming to file
@@ -246,8 +246,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("output reg", po::value<uint32_t>(&output_reg)->default_value(0), "output reg")
 
         //afe params
-        ("tx-freq", po::value<double>(&tx_freq)->default_value(2.4e9), "transmit RF center frequency in Hz")
-        ("rx-freq", po::value<double>(&rx_freq)->default_value(2.4e9), "receive RF center frequency in Hz")
+        ("tx-freq", po::value<double>(&tx_freq)->default_value(.915e9), "transmit RF center frequency in Hz")
+        ("rx-freq", po::value<double>(&rx_freq)->default_value(.915e9), "receive RF center frequency in Hz")
         ("tx-gain", po::value<double>(&tx_gain)->default_value(0), "gain for the transmit RF chain")
         ("rx-gain", po::value<double>(&rx_gain)->default_value(0), "gain for the receive RF chain")
         ("tx-bw", po::value<double>(&tx_bw)->default_value(160e6), "analog transmit filter bandwidth in Hz")
@@ -603,7 +603,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //test settings
     std::uint32_t tx_core_bits{0b10}; 
     std::uint32_t rx_ch_sel_bits{0b01}; 
-    std::uint32_t gpio_start_sel_bits{0b01};
+    std::uint32_t gpio_start_sel_bits{0b00};
 
     //noise estimation-----------------------------------------------------------------------------------------------------------------------
     std::cout << "Running noise estimation..." << std::endl;
@@ -621,7 +621,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     int D_test = 0;
     
-    auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,15), ""); //../../data/fwd_alb_prmbl_samps.dat
+    auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,10), ""); //../../data/fwd_alb_prmbl_samps.dat
         D_hat = ch_params.D_hat;
         h_hat = ch_params.h_hat;
     EsN0 = estim::CalcChipEsN0(h_hat, var);
@@ -756,7 +756,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         {
             uint32_t randomValue = dist(mt);
             //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
-            input_pkt[i] = randomValue;
+            input_pkt[i] = 0xFFFFFFFF;//randomValue;
             mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, input_pkt[i]);
         }
 

@@ -50,6 +50,9 @@ namespace estim {
     void P2PCompensateDelays(const uhd::usrp::multi_usrp::sptr src_tx_usrp, const uhd::usrp::multi_usrp::sptr dest_tx_usrp, const int D_hat);
 
     template <typename T>
+    std::string generateMatlabArray(const std::vector<T>& array, const std::string& vectorName) ;
+
+    template <typename T>
     std::vector<T> Upsample(const std::vector<T>& input, int N);
 }
 
