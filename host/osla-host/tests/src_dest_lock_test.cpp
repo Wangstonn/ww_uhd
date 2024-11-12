@@ -247,7 +247,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp
     //wired loopback delay with 8inch sma cable + attenuator is 119
     std::cout << "Running fwd estimation..." << std::endl;
     //set sync lock estim and locked periods
-    uint32_t sync_start_periods = (0xFFFF << 16) + 0x001F;
+    uint32_t sync_start_periods = (0x7FFF << 16) + 0x001F;
     mmio::WrMmio(src_tx_usrp, mmio::kSyncStartPeriodAddr,sync_start_periods);
     mmio::WrMmio(dest_tx_usrp, mmio::kSyncStartPeriodAddr,sync_start_periods);
 
@@ -395,10 +395,10 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp
                 n_errors += xor_result & 1;
                 xor_result >>= 1;
             }
-            // std::cout << std::dec << "Pkt: " << iter <<std::endl;
-            // std::cout << std::dec << "Bit slice: " << i << " Num errors: "<< n_errors <<std::endl;
-            // std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
-            // std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
+            std::cout << std::dec << "Pkt: " << iter <<std::endl;
+            std::cout << std::dec << "Bit slice: " << i << " Num errors: "<< n_errors <<std::endl;
+            std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
+            std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
         }
 
         //make sure that sample read wasnt corrupted by the next run
@@ -536,7 +536,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     double fwd_freq = 2.2e9; //5.80e9;
     double fb_freq = .915e9; //.915e9;
     double src_tx_gain = 0;
-    double dest_tx_gain = 15;
+    double dest_tx_gain = 20;
 
     double src_rx_gain = 0;
     double dest_rx_gain = 0;
@@ -1165,14 +1165,14 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // mmio::InitBBCore(src_tx_usrp);
     // mmio::InitBBCore(dest_tx_usrp);
 
-    std::vector<double> EsN0_dbs = {0,1,2,3,4,5,6};//{4,5,6,7};//{0,1,2,3,4,5,6,7};
+    std::vector<double> EsN0_dbs = {3,5,6};//{0,1,2,3,4,5,6};//{4,5,6,7};//{0,1,2,3,4,5,6,7};
     std::vector<double> bers(EsN0_dbs.size(), 0.0);
     std::vector<int> num_errs(EsN0_dbs.size(), 0);
     std::vector<int> num_bits(EsN0_dbs.size(), 0);
     std::vector<double> rss_dbms(EsN0_dbs.size(), 0.0);
 
-    const int kTargetErrs = 500;
-    const int kMaxBits = 1e6;
+    const int kTargetErrs = 1000;
+    const int kMaxBits = 1e7;
 
     bool is_fixed_length = false;
 

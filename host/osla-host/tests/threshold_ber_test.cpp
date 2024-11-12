@@ -204,6 +204,255 @@ void recv_to_file(uhd::usrp::multi_usrp::sptr usrp,
     }
 }
 
+//--------------------------------------------------------------------------------------------------------------------------------------------
+// Ber testing function
+//--------------------------------------------------------------------------------------------------------------------------------------------
+struct BerResult {
+    double ber;
+    int num_bits;
+    int num_errs;
+    double rss_dbm; //received signal strength in dbm
+};
+
+BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp::sptr dest_tx_usrp, uint32_t threshold, double EsN0_db, int const target_errs, const int max_num_bits, bool is_fixed_length) {
+    //reset device
+    mmio::InitBBCore(src_tx_usrp);
+    mmio::InitBBCore(dest_tx_usrp);
+
+    mmio::WrMmio(dest_tx_usrp, mmio::kDestThresholdAddr, threshold);
+
+    //noise estimation-----------------------------------------------------------------------------------------------------------------------
+    std::cout << "Running noise estimation..." << std::endl;
+    double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2,14), "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
+    std::cout << "Estimated var= " << var << std::endl;
+    
+    // Feedback estimation ------------------------------------------------------------------------------------------------------------------
+    std::cout << "Running fb estimation..." << std::endl;
+    std::complex<double> h_hat_fb;
+    int D_test = 0;
+
+    while (true) {
+        auto ch_params_fb = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,15), false, 0x0, false, "../../data/fb_p2p_prmbl_samps.dat"); //"../../data/fb_p2p_prmbl_samps.dat"
+        int D_hat_fb = ch_params_fb.D_hat;
+        h_hat_fb = ch_params_fb.h_hat;
+    
+        std::cout << std::dec << "D_test= " << D_test << ", ";
+        std::cout << "D_hat_fb= " << D_hat_fb << ", ";
+        std::cout << "h_hat_fb : abs= " << std::abs(h_hat_fb) << " arg= " << std::arg(h_hat_fb) << std::endl;
+
+        if(D_hat_fb > 0 && D_hat_fb < 500){
+            break;
+        }
+    }
+
+    // Timing+flatfading estimation---------------------------------------------------------------------------------------------------------------------------
+    //wired loopback delay with 8inch sma cable + attenuator is 119
+    std::cout << "Running fwd estimation..." << std::endl;
+    //set sync lock estim and locked periods
+    uint32_t sync_start_periods = (0xFFFF << 16) + 0x002F;
+    mmio::WrMmio(src_tx_usrp, mmio::kSyncStartPeriodAddr,sync_start_periods);
+    mmio::WrMmio(dest_tx_usrp, mmio::kSyncStartPeriodAddr,sync_start_periods);
+
+    int D_hat_fwd;
+    std::complex<double> h_hat_fwd;
+
+    while (true) {
+        auto ch_params = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,15), true, 0x1, false, "../../data/fwd_p2p_prmbl_samps0.dat"); //std::string("../../data/fwd_p2p_prmbl_samps")+std::to_string(j)+".dat"
+        D_hat_fwd = ch_params.D_hat;
+        h_hat_fwd = ch_params.h_hat;
+        
+        if(D_hat_fwd > 0 && D_hat_fwd < 500) {
+            break;
+        }
+    }
+
+    double EsN0 = estim::CalcChipEsN0(h_hat_fwd, var); //this is not the actual esn0 since it solve for threshold = 100000
+    mmio::ClearAddrBuffer(dest_tx_usrp);
+
+    std::cout << std::dec << "D_test= " << D_test << ", ";
+    std::cout << "D_hat_fwd= " << D_hat_fwd << ", ";
+    std::cout << "EsN0= " << EsN0 << ", ";
+    std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd) << " arg= " << std::arg(h_hat_fwd) << std::endl;
+
+    //Gain Control--------------------------------------------------------------------------------------------------------------------------
+    //Set operating EsN0
+    double target_EsN0 = EsN0_db; //in dB
+    std::cout << "Target Es_N0 = " << target_EsN0 << std::endl;
+    double target_gain = target_EsN0-EsN0; //change in EsN0 needed to achieve target
+    double target_rx_gain = -(20*std::log10(std::abs(h_hat_fwd)) + target_gain); //rx_gain needed to bring signal amplitude to 1
+    std::cout << "target_rx_gain (db)= " << target_rx_gain << std::endl;
+
+    double tx_gain_base = src_tx_usrp->get_tx_gain(0); //base tx gain used for smaple capture
+    //assume tx amp is max
+    //assume rx gain is 0
+    
+    double lin_digital_gain = std::pow(10,(target_gain)/20);
+    uint16_t tx_amp = static_cast<uint16_t>(std::round(lin_digital_gain*(std::pow(2,15)-1)));
+    std::cout << std::hex << "tx_amp:" << tx_amp << std::endl;
+    mmio::WrMmio(src_tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
+    std::complex<double> h = h_hat_fwd*std::complex<double>(lin_digital_gain,0);
+    std::cout << "Current signal level: " <<  abs(h) << std::endl;
+    double rss_dbW = 20*log10(std::abs(h) * std::pow(2,4) * std::pow(2,-13)) - 41.81 - 10*log10(50); //50 ohm resistor at end
+    std::cout << "Current rss (dbW) is: " << rss_dbW << "\n";
+    
+    //Set number of bits shifted
+    if (abs(h) < 1){        
+        double dest_num_bit_shift = std::floor(-std::log2(std::abs(h_hat_fwd)*lin_digital_gain));
+        std::cout << std::dec << "Bit shift: " << dest_num_bit_shift << std::endl;
+
+        mmio::WrMmio(dest_tx_usrp, mmio::kDestNumBitShift, dest_num_bit_shift); //shift dest rx by 3 to the left (multiply by 8)
+        std::cout << std::dec << "dest_num_bit_shift set to: " << static_cast<unsigned int>(dest_num_bit_shift) << std::endl;
+        h = h * std::pow(2,dest_num_bit_shift);
+    }
+    std::cout << "Current signal level: " <<  abs(h) << std::endl;
+    
+
+    //Test setup------------------------------------------------------------------
+    std::cout << "Performing compensation..." << std::endl;
+    estim::P2PCompensateDelays(src_tx_usrp, dest_tx_usrp, D_hat_fwd);
+
+    // std::complex<double> h_comp = h_hat_fwd/std::abs(h_hat_fwd); 
+    estim::PhaseEq(dest_tx_usrp, h); //h_comp
+
+    estim::SetSrcThreshold(src_tx_usrp, h_hat_fb);
+
+    // mmio::RdMmio(src_tx_usrp, mmio::kSrcDelayAddr, true);
+    // mmio::RdMmio(dest_tx_usrp, mmio::kDestDelayAddr, true);
+
+    // std::cout << "Source read:" << std::endl;    
+    // mmio::ReadBBCore(src_tx_usrp);
+    // std::cout << "Dest read:" << std::endl;
+    // mmio::ReadBBCore(dest_tx_usrp);
+
+    //Run test------------------------------------------------------------------------------------
+    std::cout << "Running BER test..." << std::endl;
+
+    bool fixed_length = is_fixed_length;
+    uint8_t fix_len_mode_bits;
+    if(fixed_length) {
+        fix_len_mode_bits = 0b11;
+    } else {
+        fix_len_mode_bits = 0b00;
+    }
+    
+    std::uint32_t mode_bits{0b11};
+
+    double n_errors = 0; 
+
+    const int kMaxIter = std::ceil(static_cast<double>(max_num_bits)/mmio::kPktLen);
+    const int kTargetErr = target_errs;
+
+    //Generate input bits
+    std::random_device rd;
+    // Create a Mersenne Twister PRNG engine
+    std::mt19937 mt(rd());
+    // Define a distribution for generating uint32_t values
+    std::uniform_int_distribution<uint32_t> dist;
+    
+    int n_iters = kMaxIter;
+
+    // Generate a random pkt
+    const int Num16BitSlices = mmio::kPktLen/32;
+    uint32_t input_pkt[Num16BitSlices] = {0};
+    uint32_t output_pkt[Num16BitSlices] = {0};
+
+    for(int iter = 1; iter <= kMaxIter; iter++) {
+        // Generate a random uint32_t
+        for(int i = 0; i < Num16BitSlices; i++)
+        {
+            uint32_t randomValue = dist(mt);
+            //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
+            input_pkt[i] = randomValue;
+            mmio::WrMmio(src_tx_usrp, mmio::kInPktAddr+i, input_pkt[i]);
+        }
+
+        mmio::P2PStartTxRx(src_tx_usrp, dest_tx_usrp, mode_bits, estim::kFwdGpioStartSelBits,fix_len_mode_bits,0x1,true);
+
+        //wait for the next start cycle
+        int current_ctr = mmio::RdMmio(dest_tx_usrp, mmio::kSyncCtrAddr) & 0xFFFF;
+        // std::cout << "Current lock idx: " << current_ctr << std::endl;
+        while(true){
+            mmio::ClearAddrBuffer(dest_tx_usrp);
+            if((mmio::RdMmio(dest_tx_usrp, mmio::kSyncCtrAddr) & 0xFFFF) != current_ctr) {
+                break;
+            }
+        }
+        current_ctr++;
+        
+        while(true) {
+            //Run and check received pkt    
+            mmio::ClearAddrBuffer(dest_tx_usrp);
+            bool pkt_valid = mmio::RdMmio(dest_tx_usrp, mmio::kBbStatusAddr) & 0x2; //around 10 ms
+            if(pkt_valid)
+                break;
+        }
+
+        // read results ---------------------------------------------
+        for(int i = 0; i*32 < mmio::kPktLen; i++) {
+            output_pkt[i] = mmio::RdMmio(dest_tx_usrp, mmio::kOutPktAddr+i);
+            //std::cout << std::hex << input_pkt[i] << std::endl;
+
+            uint32_t xor_result = output_pkt[i] ^ input_pkt[i];
+            while (xor_result > 0) {
+                n_errors += xor_result & 1;
+                xor_result >>= 1;
+            }
+            // std::cout << std::dec << "Pkt: " << iter <<std::endl;
+            // std::cout << std::dec << "Bit slice: " << i << " Num errors: "<< n_errors <<std::endl;
+            // std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
+            // std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
+        }
+
+        //make sure that sample read wasnt corrupted by the next run
+        int post_read_ctr = mmio::RdMmio(dest_tx_usrp, mmio::kSyncCtrAddr) & 0xFFFF;
+        if(current_ctr != post_read_ctr) {
+            std::cout << "Error: Sync Lock Ctr advanced before samples were done reading! Increase start period or decrease number of samples captured. \n" 
+            << "pre  read ctr: " << (current_ctr) << std::endl
+            << "post read ctr: " << post_read_ctr << std::endl;
+        }
+
+        if(iter % 100 == 0) {
+            std::cout << std::dec << "Num bits: " << iter*mmio::kPktLen << ", num errors: " << n_errors << std::endl;
+        }
+        n_iters = iter;
+        if(n_errors > kTargetErr){
+            break;
+        }
+    }
+
+    BerResult ber_result;
+    ber_result.num_bits = n_iters*mmio::kPktLen;
+    ber_result.num_errs = n_errors;
+    ber_result.ber = static_cast<double>(ber_result.num_errs)/static_cast<double>(ber_result.num_bits);
+    ber_result.rss_dbm = rss_dbW + 30;
+    
+    std::cout << "Test EsN0_db = " << EsN0_db << " Fixed length = " << is_fixed_length << std::endl;
+    std::cout << std::dec << "Reached " << ber_result.num_errs  << " errors in " << ber_result.num_bits << " bits" << std::endl;
+    std::cout << "ber = " << ber_result.ber << std::endl;
+
+    return ber_result;  
+};
+
+// // Template function to generate MATLAB array creation code with custom vector name
+// template <typename T>
+// std::string generateMatlabArray(const std::vector<T>& array, const std::string& vectorName) {
+//     static_assert(std::is_arithmetic<T>::value, "Template argument must be numeric");
+    
+//     std::ostringstream matlabCode;
+//     matlabCode << vectorName << " = [";
+    
+//     for (size_t i = 0; i < array.size(); ++i) {
+//         matlabCode << array[i];
+//         if (i < array.size()-1) {
+//             matlabCode << ", ";
+//         }
+//     }
+    
+//     matlabCode << "];\n";
+    
+//     return matlabCode.str();
+// }
+
 /***********************************************************************
  * Main function
  **********************************************************************/
@@ -289,7 +538,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     double fwd_freq = 2.2e9; //5.80e9;
     double fb_freq = .915e9; //.915e9;
     double src_tx_gain = 0;
-    double dest_tx_gain = 15;
+    double dest_tx_gain = 30;
 
     double src_rx_gain = 0;
     double dest_rx_gain = 0;
@@ -915,289 +1164,50 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //--------------------------------------------------------------------------------------------------------------------------
 
     //Preload some default threshold and angle settings
-    mmio::InitBBCore(src_tx_usrp);
-    mmio::InitBBCore(dest_tx_usrp);
+    // mmio::InitBBCore(src_tx_usrp);
+    // mmio::InitBBCore(dest_tx_usrp);
 
-    //noise estimation-----------------------------------------------------------------------------------------------------------------------
-    std::cout << "Running noise estimation..." << std::endl;
-    double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2,12), ""); //../../data/fwd_p2p_noise_samps.dat
-    std::cout << "Estimated var= " << var << std::endl;
-    
-    // Feedback estimation ------------------------------------------------------------------------------------------------------------------
-    std::cout << "Running fb estimation..." << std::endl;
-    std::complex<double> h_hat_fb;
-    int D_test = 0;
+    std::vector<double> EsN0_dbs = {0,1,2,3,4,5,6}; //{3,4,5,6,7}; //{0,1,2,3,4,5,6};//{4,5,6,7};//{0,1,2,3,4,5,6,7};
+    std::vector<double> bers(EsN0_dbs.size(), 0.0);
+    std::vector<int> num_errs(EsN0_dbs.size(), 0);
+    std::vector<int> num_bits(EsN0_dbs.size(), 0);
+    std::vector<double> rss_dbms(EsN0_dbs.size(), 0.0);
 
-    while (true){
-        auto ch_params_fb = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,15), false, 0x0, false, "../../data/fb_p2p_prmbl_samps.dat"); //"../../data/fb_p2p_prmbl_samps.dat"
-        int D_hat_fb = ch_params_fb.D_hat;
-        h_hat_fb = ch_params_fb.h_hat;
-        
-        std::cout << std::dec << "D_test= " << D_test << ", ";
-        std::cout << "D_hat_fb= " << D_hat_fb << ", ";
-        std::cout << "h_hat_fb : abs= " << std::abs(h_hat_fb) << " arg= " << std::arg(h_hat_fb) << std::endl;
+    const uint32_t threshold_Nc_32 = 0x27100000;
 
-        if(D_hat_fb > 0 && D_hat_fb < 500){
-            break;
-        }
+    uint32_t threshold = static_cast<uint32_t>(static_cast<double>(0x27100000) * 0.75);
+
+    // uint32_t threshold = threshold_Nc_32 * 2;
+
+    //doubling threshold increases esn0 by 3 db. shift the EsN0 values to get a good range of data
+    double threshold_db_change = 10*log10(static_cast<double>(threshold)/static_cast<double>(threshold_Nc_32));
+    for (auto& value : EsN0_dbs) {
+        value = value - threshold_db_change;
     }
 
-
-
-    // Timing+flatfading estimation---------------------------------------------------------------------------------------------------------------------------
-    //wired loopback delay with 8inch sma cable + attenuator is 119
-    std::cout << "Running fwd estimation..." << std::endl;
-    // int D_test = 0;
-    // auto ch_params_fw = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,15), true, 0x0, false, "../../data/fb_p2p_prmbl_samps.dat"); //"../../data/fb_p2p_prmbl_samps.dat"
-    // int D_hat_fw = ch_params_fw.D_hat;
-    // std::complex<double>h_hat_fw = ch_params_fw.h_hat;
-    // double EsN0 = estim::CalcChipEsN0(h_hat_fw, var);
-    
-    // std::cout << std::dec << "D_test= " << D_test << ", ";
-    // std::cout << "D_hat_fb= " << D_hat_fw << ", ";
-    // std::cout << "EsN0= " << EsN0 << ", ";
-    // std::cout << "h_hat_fb : abs= " << std::abs(h_hat_fw) << " arg= " << std::arg(h_hat_fw) << std::endl;
-
-
-
-    //Fwd lock estim---------------------------------------------------------------------------------------------------------------------------------------------
-    //set sync lock estim and locked periods
-    uint32_t sync_start_periods = (0xFFFF << 16) + 0x00FF; //min is 0x000F
-    mmio::WrMmio(src_tx_usrp, mmio::kSyncStartPeriodAddr,sync_start_periods);
-    mmio::WrMmio(dest_tx_usrp, mmio::kSyncStartPeriodAddr,sync_start_periods);
-
-    int D_hat_fwd;
-    std::complex<double> h_hat_fwd;
-
-
-    while (true) {
-        auto ch_params = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,15), true, 0x1, false, "../../data/fwd_p2p_prmbl_samps0.dat"); //std::string("../../data/fwd_p2p_prmbl_samps")+std::to_string(j)+".dat"
-        D_hat_fwd = ch_params.D_hat;
-        h_hat_fwd = ch_params.h_hat;
-        
-        if(D_hat_fwd > 0 && D_hat_fwd < 500) {
-            break;
-        }
+    for (const auto& value : EsN0_dbs) {
+        std::cout << value << " ";
     }
 
-    double EsN0 = estim::CalcChipEsN0(h_hat_fwd, var);
-    mmio::ClearAddrBuffer(dest_tx_usrp);
+    const int kTargetErrs = 100;
+    const int kMaxBits = 1e7;
 
-    double rss_dbW = 20*log10(std::abs(h_hat_fwd) * std::pow(2,4) * std::pow(2,-13)) - 41.81 - 10*log10(50); //50 ohm resistor at end
+    bool is_fixed_length = false;
 
-    std::cout << std::dec << "D_test= " << D_test << ", ";
-    std::cout << "D_hat_fwd= " << D_hat_fwd << ", ";
-    std::cout << "EsN0= " << EsN0 << ", ";
-    std::cout << "rss_adc (dbm)= " << rss_dbW << ", ";
-    std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd) << " arg= " << std::arg(h_hat_fwd) << std::endl;
-
-    //Gain Control--------------------------------------------------------------------------------------------------------------------------
-    //Set operating EsN0
-    double target_EsN0 = 10; //in dB
-    std::cout << "Target Es_N0 = " << target_EsN0 << std::endl;
-    double target_gain = target_EsN0-EsN0; //change in EsN0 needed to achieve target
-    double target_rx_gain = -(20*std::log10(std::abs(h_hat_fwd)) + target_gain); //rx_gain needed to bring signal amplitude to 1
-    std::cout << "target_rx_gain (db)= " << target_rx_gain << std::endl;
-
-    double tx_gain_base = src_tx_usrp->get_tx_gain(0); //base tx gain used for smaple capture
-    //assume tx amp is max
-    //assume rx gain is 0
-    
-    double lin_digital_gain = std::pow(10,(target_gain)/20);
-    uint16_t tx_amp = static_cast<uint16_t>(std::round(lin_digital_gain*(std::pow(2,15)-1)));
-    std::cout << std::hex << "tx_amp:" << tx_amp << std::endl;
-    mmio::WrMmio(src_tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
-    std::complex<double> h = h_hat_fwd*std::complex<double>(lin_digital_gain,0);
-    std::cout << "Current signal level: " <<  abs(h) << std::endl;
-    
-    //Set number of bits shifted
-    if (abs(h) < 1){        
-        double dest_num_bit_shift = std::floor(-std::log2(std::abs(h_hat_fwd)*lin_digital_gain));
-        std::cout << std::dec << "Bit shift: " << dest_num_bit_shift << std::endl;
-
-        mmio::WrMmio(dest_tx_usrp, mmio::kDestNumBitShift, dest_num_bit_shift); //shift dest rx by 3 to the left (multiply by 8)
-        std::cout << std::dec << "dest_num_bit_shift set to: " << static_cast<unsigned int>(dest_num_bit_shift) << std::endl;
-        h = h * std::pow(2,dest_num_bit_shift);
-    }
-    std::cout << "Current signal level: " <<  abs(h) << std::endl;
-    
-
-
-    //repeated estims for checking sample drift
-    // for(int j = 1; j < 5; j++) {
-
-    //     ch_params = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,12), true, 0x1, true, ""); //std::string("../../data/fwd_p2p_prmbl_samps")+std::to_string(j)+".dat"
-    //     D_hat_fwd = ch_params.D_hat;
-    //     h_hat_fwd = ch_params.h_hat;
-
-    //     mmio::ClearAddrBuffer(dest_tx_usrp);
-
-    //     std::cout << std::dec << "D_test= " << D_test << ", ";
-    //     std::cout << "D_hat_fwd= " << D_hat_fwd << ", ";
-    //     std::cout << "EsN0= " << EsN0 << ", ";
-    //     std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd) << " arg= " << std::arg(h_hat_fwd) << std::endl;
-    // }
-
-    //Test setup------------------------------------------------------------------
-    std::cout << "Performing compensation..." << std::endl;
-    estim::P2PCompensateDelays(src_tx_usrp, dest_tx_usrp, D_hat_fwd);
-
-    // std::complex<double> h_comp = h_hat_fwd/std::abs(h_hat_fwd); 
-    estim::PhaseEq(dest_tx_usrp, h);
-
-    estim::SetSrcThreshold(src_tx_usrp, h_hat_fb);
-
-    mmio::RdMmio(src_tx_usrp, mmio::kSrcDelayAddr, true);
-    mmio::RdMmio(dest_tx_usrp, mmio::kDestDelayAddr, true);
-
-    // std::cout << "Source read:" << std::endl;    
-    // mmio::ReadBBCore(src_tx_usrp);
-    // std::cout << "Dest read:" << std::endl;
-    // mmio::ReadBBCore(dest_tx_usrp);
-
-    //Run test------------------------------------------------------------------------------------
-    std::cout << "Running pkt test..." << std::endl;
-
-    bool fixed_length = 0;
-    uint8_t fix_len_mode_bits;
-    if(fixed_length) {
-        fix_len_mode_bits = 0b11;
-    }
-    else {
-        fix_len_mode_bits = 0b00;
+    for(int i = 0; i<EsN0_dbs.size(); i++) {
+        std::cout << "Running BER test for EsN0_db = " << EsN0_dbs[i] << std::endl;
+        BerResult ber_result = BerTest(src_tx_usrp, dest_tx_usrp, threshold, EsN0_dbs[i], kTargetErrs, kMaxBits, is_fixed_length);
+        bers[i] = ber_result.ber;
+        num_bits[i] = ber_result.num_bits;
+        num_errs[i] = ber_result.num_errs;
+        rss_dbms[i] = ber_result.rss_dbm;
     }
 
-    bool samp_cap = 0;
-    if(samp_cap) {
-        mmio::WrMmio(dest_tx_usrp, mmio::kDestChipCapEn, 0x0); //capture chips for sample analysis
-    } else {
-        mmio::WrMmio(dest_tx_usrp, mmio::kDestChipCapEn, 0x1); //capture chips for sample analysis
-    }
-
-    std::uint32_t mode_bits{0b11};
-    double n_errors = 0; 
-    const int Num16BitSlices = mmio::kPktLen/32;
-    uint32_t input_pkt[Num16BitSlices] = {0};
-    uint32_t output_pkt[Num16BitSlices] = {0};
-
-    //Generate input bits
-    std::random_device rd;
-    // Create a Mersenne Twister PRNG engine
-    std::mt19937 mt(rd());
-    // Define a distribution for generating uint32_t values
-    std::uniform_int_distribution<uint32_t> dist;
-
-    //array to make histogram for symbol lengths recorded on fpga
-    //set kmaxSymLen in mmio.h (rn it's set to max)
-    //depending on packet length and ntrial might need to change from 32 bit to 64 for overflow
-    const int kMaxSymLen = 3*estim::kNChips;
-    std::vector<int> sym_lens(kMaxSymLen, 0);
-    // uint32_t sym_len_record[kMaxSymLen] = {0};
-    
-
-    for(int j = 0; j < 50; j++) {
-        // Generate a random uint32_t
-        for(int i = 0; i < Num16BitSlices; i++)
-        {
-            // input_pkt[i] = 0x0;
-            // input_pkt[i] = 0xAA00FFFF; //0xAA00FFFF;
-            uint32_t randomValue = dist(mt);
-            //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
-            input_pkt[i] = randomValue;
-
-            mmio::WrMmio(src_tx_usrp, mmio::kInPktAddr+i, input_pkt[i]);
-        }
-
-        mmio::P2PStartTxRx(src_tx_usrp, dest_tx_usrp, mode_bits, estim::kFwdGpioStartSelBits,fix_len_mode_bits,0x1,true);
-
-        //wait for the next start cycle
-        int current_ctr = mmio::RdMmio(dest_tx_usrp, mmio::kSyncCtrAddr) & 0xFFFF;
-        // std::cout << "Current lock idx: " << current_ctr << std::endl;
-        while(true){
-            mmio::ClearAddrBuffer(dest_tx_usrp);
-            if((mmio::RdMmio(dest_tx_usrp, mmio::kSyncCtrAddr) & 0xFFFF) != current_ctr) {
-                break;
-            }
-        }
-        current_ctr++;
-        
-        while(true) {
-            //Run and check received pkt    
-            mmio::ClearAddrBuffer(dest_tx_usrp);
-            bool pkt_valid = mmio::RdMmio(dest_tx_usrp, mmio::kBbStatusAddr) & 0x2; //around 10 ms
-            if(pkt_valid)
-                break;
-        }
-
-        // read results ---------------------------------------------
-        for(int i = 0; i*32 < mmio::kPktLen; i++) {
-            output_pkt[i] = mmio::RdMmio(dest_tx_usrp, mmio::kOutPktAddr+i);
-            //std::cout << std::hex << input_pkt[i] << std::endl;
-
-            uint32_t xor_result = output_pkt[i] ^ input_pkt[i];
-            while (xor_result > 0) {
-                n_errors += xor_result & 1;
-                xor_result >>= 1;
-            }
-            std::cout << std::dec << "Pkt: " << j <<std::endl;
-            std::cout << std::dec << "Bit slice: " << i << " Num errors: "<< n_errors <<std::endl;
-            std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
-            std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
-        }
-
-        // if(samp_cap) {
-        //     mmio::ReadSampleMem(dest_tx_usrp, 1, std::pow(2,14), std::string("../../data/fwd_p2p_samps")+std::to_string(j)+".dat");
-        // } else {
-        //     mmio::ReadChipMem(dest_tx_usrp, 1, std::pow(2,14), std::string("../../data/fwd_p2p_chips")+std::to_string(j)+".dat");
-        // }
-        
-        // mmio::ReadSampleMem(src_tx_usrp, 0, std::pow(2,14), std::string("../../data/fb_p2p_samps")+std::to_string(j)+".dat"); 
-
-        //Symbol length statistics
-        for(int i = 0; i < mmio::kPktLen; i++) {
-            // uint32_t sym_len = mmio::rd_mem_cmd(tx_usrp, mmio::kSymLenAddr+i);
-            //not sure which function is real
-            uint32_t sym_len = mmio::RdMmio(src_tx_usrp, mmio::kSymLenAddr+i,false);
-            if(sym_len >= kMaxSymLen){
-                sym_len = kMaxSymLen - 1;
-            }
-            sym_lens[sym_len]++;
-        }
-
-
-        //make sure that sample read wasnt corrupted by the next run
-        int post_read_ctr = mmio::RdMmio(dest_tx_usrp, mmio::kSyncCtrAddr) & 0xFFFF;
-        if(current_ctr != post_read_ctr) {
-            std::cout << "Error: Sync Lock Ctr advanced before samples were done reading! Increase start period or decrease number of samples captured. \n" 
-            << "pre  read ctr: " << (current_ctr) << std::endl
-            << "post read ctr: " << post_read_ctr << std::endl;
-        }
-    }
-    
-    std::cout << std::dec << "Reached " << n_errors << " errors"<< std::endl;
-
-    // ch_params = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,12), true, 0x1, true, ""); //std::string("../../data/fwd_p2p_prmbl_samps")+std::to_string(j)+".dat"
-    // D_hat_fwd = ch_params.D_hat;
-    // h_hat_fwd = ch_params.h_hat;
-
-    // mmio::ClearAddrBuffer(dest_tx_usrp);
-
-    // std::cout << std::dec << "D_test= " << D_test << ", ";
-    // std::cout << "D_hat_fwd= " << D_hat_fwd << ", ";
-    // std::cout << "EsN0= " << EsN0 << ", ";
-    // std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd) << " arg= " << std::arg(h_hat_fwd) << std::endl;
-
-    // for(int i = 0; i < 5; i++){
-    //     mmio::RdMmio(src_tx_usrp,mmio::kSymLenAddr+i, true);
-    // }
-
-    
-    std::cout << estim::generateMatlabArray(sym_lens, "sym_lens");
-            
-    // std::cout << "Source read:" << std::endl;    
-    // mmio::ReadBBCore(src_tx_usrp);
-    // std::cout << "Dest read:" << std::endl;
-    // mmio::ReadBBCore(dest_tx_usrp);
+    //std::cout << estim::generateMatlabArray(EsN0_dbs, "EsN0_dbs");
+    std::cout << estim::generateMatlabArray(bers,"bers");
+    std::cout << estim::generateMatlabArray(num_bits,"num_bits");
+    std::cout << estim::generateMatlabArray(num_errs,"num_errs");
+    std::cout << estim::generateMatlabArray(rss_dbms,"rss_dbms");
 
     //////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1212,3 +1222,4 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << std::endl << "Done!" << std::endl << std::endl;
     return EXIT_SUCCESS;
 }
+

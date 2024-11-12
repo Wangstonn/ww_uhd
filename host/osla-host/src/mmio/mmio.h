@@ -25,6 +25,7 @@ namespace mmio {
     constexpr uint32_t kDestChipCapEn = 0x35;
 
     //Compensation
+    constexpr uint32_t kDestThresholdAddr = 0x30;
     constexpr uint32_t kDestChEqReAddr = 0x31;
     constexpr uint32_t kDestChEqImAddr = 0x32;
 

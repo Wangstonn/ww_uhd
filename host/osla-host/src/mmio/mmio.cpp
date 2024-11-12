@@ -139,7 +139,7 @@ namespace mmio {
         0x80000012'00007FFF,
         0x80000020'E12ACE94,
         0x80000021'E12ACE94,
-        0x80000030'27100000,
+        0x80000030'27100000, //267A0000 -> 9850 // 27100000 -> 10000
         0x80000031'00002000,
         0x80000032'00000000,
         0x80000033'00000075,
@@ -178,7 +178,8 @@ namespace mmio {
         0x02000000, //dest samp cap memory
         0x02002100,
         0x0200FFFF,
-        0x03000000 //sym length record
+        0x03000000, //sym length record
+        0x030000FF
     };
 
     void InitBBCore (uhd::usrp::multi_usrp::sptr tx_usrp) {

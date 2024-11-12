@@ -656,6 +656,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     mmio::WrMmio(tx_usrp, mmio::kDestNumBitShift, dest_num_bit_shift); //shift dest rx by 3 to the left (multiply by 8)
     mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,0x7FFF >> dest_num_bit_shift);
 
+    const uint32_t threshold_Nc_32 = 0x27100000;
+
+    uint32_t threshold = static_cast<uint32_t>(static_cast<double>(0x27100000) * .75);
+
+    mmio::WrMmio(tx_usrp, mmio::kDestThresholdAddr, threshold);
+
     mmio::ReadBBCore(tx_usrp);
 
     //Generate input bits

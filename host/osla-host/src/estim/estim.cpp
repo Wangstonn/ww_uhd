@@ -570,6 +570,7 @@ namespace estim {
 
     /**
      * Calculate the EsN0 using the measured chip variance and the signal amplitude. This is actually the SYMBOL EsN0!!!!
+     * This doesnt work for different thresholds which change the rate!!!!!
      */
     double CalcChipEsN0(const std::complex<double>& h_hat, const double chip_var) {
         double EsN0 = 10*std::log10(estim::kNChips*std::pow(estim::kFwOsr*std::abs(h_hat),2)/(chip_var*2));
