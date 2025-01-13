@@ -331,7 +331,7 @@ namespace mmio {
         }
 
         // Check how many sample were written and only read those
-        end_addr = std::min(start_addr + mmio::RdMmio(tx_usrp, idx_addr)-1,end_addr); //samp_cap_idx displays the last written memory address. Seems to be bugged but I cant find the problem
+        end_addr = std::min(start_addr + mmio::RdMmio(tx_usrp, idx_addr,true)-1,end_addr); //samp_cap_idx displays the last written memory address. Seems to be bugged but I cant find the problem
 
         for(uint32_t addr = start_addr; addr <= end_addr; addr++) {
             uint32_t prmbl_samp = RdMmio(tx_usrp, addr);

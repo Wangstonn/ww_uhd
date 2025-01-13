@@ -447,11 +447,11 @@ namespace estim {
         return var;
     }
 
-        /**
+    /**
      * Estimates the noise variance.
      * 
      * This function sets the transmission amplitude to zero temporarily to measure noise,
-     * captures chips from the USRP device, and then estimates the noise variance from these samples.
+     * captures chips from the USRP device, and then estimates the chip noise variance from these samples.
      * 
      * This is done because it allows us to capture baseband flicker noise
      * 

@@ -64,6 +64,7 @@ add_subdirectory(src/estim)
 target_link_libraries(osla_host mmio estim)
 
 add_subdirectory(tests)
+add_subdirectory(interference)
 
 set(CMAKE_BUILD_TYPE "Release")
 message(STATUS "******************************************************************************")
