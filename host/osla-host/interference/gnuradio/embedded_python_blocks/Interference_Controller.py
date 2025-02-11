@@ -79,6 +79,8 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         PSD_i_high = int(np.round((len(PSD)/2) + (F_of/fbin_width) + (BW/fbin_width)/2))    
 
         self.G = np.sqrt(1/(fbin_width*np.sum(PSD[PSD_i_low:PSD_i_high,0])))
+
+        self.scale = 10
         
         ##############################
         #set up interferer parameters#
@@ -121,7 +123,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
             #Mark Interferer to start
             self.n_counters[self.idx][0] = True
             #generate gain value from parameters
-            P = np.random.normal(loc=self.mu, scale=10)
+            P = np.random.normal(loc=self.mu, scale=self.scale)
             self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
             #generate new phase offset
             self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -136,7 +138,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
                 #Mark Interferer to start
                 self.n_counters[self.idx][0] = True
                 #generate gain value from parameters
-                P = np.random.normal(loc=self.mu, scale=10)
+                P = np.random.normal(loc=self.mu, scale=self.scale)
                 self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
                 #generate new phase offset
                 self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -150,7 +152,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
                     #Mark Interferer to start
                     self.n_counters[self.idx][0] = True
                     #generate gain value from parameters
-                    P = np.random.normal(loc=self.mu, scale=10)
+                    P = np.random.normal(loc=self.mu, scale=self.scale)
                     self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
                     #generate new phase offset
                     self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -166,7 +168,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
             #Mark Interferer to start
             self.n_counters[self.idx][0] = True
             #generate gain value from parameters
-            P = np.random.normal(loc=self.mu, scale=10)
+            P = np.random.normal(loc=self.mu, scale=self.scale)
             self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
             #generate new phase offset
             self.theta[self.idx] = np.random.uniform()*2j*np.pi
