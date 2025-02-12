@@ -1,7 +1,7 @@
 %%
-data = readmatrix("waveform.csv");
+data = readmatrix("data/waveform.csv");
 d = (data(:,1)+j*data(:,2));
-A = readmatrix("interarrival_times.csv");
+A = readmatrix("data/interarrival_times.csv");
 A = unique(A,'stable');
 
 arrivals = zeros(size(A)-1);
@@ -26,9 +26,9 @@ title("Interference Packets")
 plot(arrivals,zeros(size(arrivals)),'ro');
 
 %%
-data = readmatrix("waveform_early.csv");
+data = readmatrix("data/waveform_early.csv");
 d = (data(:,1)+j*data(:,2));
-A = readmatrix("interarrival_times_early.csv");
+A = readmatrix("data/interarrival_times_early.csv");
 A = unique(A,'stable');
 
 arrivals = zeros(size(A)-1);

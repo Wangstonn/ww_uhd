@@ -199,5 +199,5 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         if(abs(output_items[0][0]) > 1):
             PMT_msg = pmt.string_to_symbol("Warning: USRP is saturated, please edit analog gain in flowgraph")
             self.message_port_pub(pmt.intern(self.DebugPortName), PMT_msg)
-        #    return -1
+            #return -1
         return len(output_items[0][:])

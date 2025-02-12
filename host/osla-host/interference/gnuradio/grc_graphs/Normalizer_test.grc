@@ -61,7 +61,7 @@ blocks:
   id: variable
   parameters:
     comment: ''
-    value: '500000'
+    value: '0'
   states:
     bus_sink: false
     bus_source: false
@@ -115,7 +115,7 @@ blocks:
     maxoutbuf: '0'
     min: '0'
     minoutbuf: '0'
-    num_samps: '10000'
+    num_samps: '100000'
     repeat: 'True'
     type: byte
   states:
@@ -249,11 +249,11 @@ blocks:
       \ at {file_path}\")\n\n        fbin_width = 100\n\n        #define gain to have\
       \ normalized in band power\n        #With this gain, we will have normalized\
       \ digital power and receive ~Pr that we measured\n        PSD_i_low  = int(np.round((len(PSD)//2)\
-      \ - 1 + (F_of//fbin_width) - ((BW/fbin_width)//2)))\n        PSD_i_high = int(np.round((len(PSD)//2)\
-      \ - 1 + (F_of//fbin_width) + ((BW/fbin_width)//2)))    \n\n        self.G =\
-      \ np.sqrt(1/(fbin_width*np.sum(PSD[PSD_i_low:PSD_i_high,0])))\n\n    def work(self,\
-      \ input_items, output_items):\n        output_items[0][:] = self.G*input_items[0]\n\
-      \n        return len(output_items[0])\n"
+      \ - 1 + (F_of//fbin_width) - ((BW/fbin_width)//2)-25))\n        PSD_i_high =\
+      \ int(np.round((len(PSD)//2) - 1 + (F_of//fbin_width) + ((BW/fbin_width)//2)+25))\
+      \    \n\n        self.G = np.sqrt(1/(fbin_width*np.sum(PSD[PSD_i_low:PSD_i_high,0])))\n\
+      \n    def work(self, input_items, output_items):\n        output_items[0][:]\
+      \ = self.G*input_items[0]\n\n        return len(output_items[0])\n"
     affinity: ''
     alias: ''
     comment: ''
