@@ -74,8 +74,8 @@ class Reciever(gr.top_block, Qt.QWidget):
         ##################################################
         # Variables
         ##################################################
-        self.time_s = time_s = 1
-        self.samp_rate = samp_rate = 20000000
+        self.time_s = time_s = 10
+        self.samp_rate = samp_rate = 10000000
         self.RX_ID = RX_ID = "addr=192.168.10.2"
 
         ##################################################
@@ -98,7 +98,7 @@ class Reciever(gr.top_block, Qt.QWidget):
         self.uhd_usrp_source_0_0.set_bandwidth(160000000, 0)
         self.uhd_usrp_source_0_0.set_gain(0, 0)
         self.blocks_head_0 = blocks.head(gr.sizeof_short*2, time_s*samp_rate)
-        self.blocks_file_sink_0 = blocks.file_sink(gr.sizeof_short*2, '/tmp/samnolan/c16_SingleTone_20M.bin', False)
+        self.blocks_file_sink_0 = blocks.file_sink(gr.sizeof_short*2, '/tmp/samnolan/c16_BLE_10M.bin', False)
         self.blocks_file_sink_0.set_unbuffered(False)
 
 
