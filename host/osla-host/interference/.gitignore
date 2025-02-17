@@ -1,0 +1,6 @@
+#ignore temporary python blocks
+*epy_*
+output.csv
+output.log
+gnuradio/log/
+
