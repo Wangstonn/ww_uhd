@@ -3,4 +3,4 @@
 output.csv
 output.log
 gnuradio/log/
-
+gnuradio/grc_graphs/*.py

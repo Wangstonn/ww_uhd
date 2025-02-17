@@ -57,6 +57,18 @@ blocks:
     coordinate: [896, 12.0]
     rotation: 0
     state: true
+- name: F_band_0
+  id: variable
+  parameters:
+    comment: ''
+    value: 2*200000000/336/32
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [496, 92.0]
+    rotation: 0
+    state: true
 - name: F_if
   id: variable
   parameters:
@@ -67,6 +79,18 @@ blocks:
     bus_source: false
     bus_structure: null
     coordinate: [688, 12.0]
+    rotation: 0
+    state: true
+- name: F_if_0
+  id: variable
+  parameters:
+    comment: ''
+    value: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [288, 92.0]
     rotation: 0
     state: true
 - name: fd

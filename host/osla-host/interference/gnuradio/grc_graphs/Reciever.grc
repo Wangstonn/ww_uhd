@@ -61,7 +61,7 @@ blocks:
   id: variable
   parameters:
     comment: ''
-    value: '10'
+    value: '2'
   states:
     bus_sink: false
     bus_source: false
@@ -76,7 +76,7 @@ blocks:
     alias: ''
     append: 'False'
     comment: ''
-    file: /tmp/samnolan/c16_BLE_10M.bin
+    file: /tmp/samnolan/c16_GFSK_scaled_nofix_-135dB_10M.bin
     type: short
     unbuffered: 'False'
     vlen: '2'

@@ -42,7 +42,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [944, 12.0]
+    coordinate: [640, 20.0]
     rotation: 0
     state: true
 - name: F_IF
@@ -57,18 +57,6 @@ blocks:
     coordinate: [304, 12.0]
     rotation: 0
     state: true
-- name: F_Of
-  id: variable
-  parameters:
-    comment: ''
-    value: '0'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [416, 12.0]
-    rotation: 0
-    state: true
 - name: TX_ID
   id: variable
   parameters:
@@ -78,7 +66,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [760, 12.0]
+    coordinate: [464, 12.0]
     rotation: 0
     state: true
 - name: samp_rate
@@ -93,18 +81,6 @@ blocks:
     coordinate: [184, 12]
     rotation: 0
     state: enabled
-- name: time_s
-  id: variable
-  parameters:
-    comment: ''
-    value: '1'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [488, 12.0]
-    rotation: 0
-    state: true
 - name: analog_const_source_x_0
   id: analog_const_source_x
   parameters:
@@ -119,7 +95,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [176, 196.0]
+    coordinate: [376, 296.0]
     rotation: 0
     state: true
 - name: blocks_freqshift_cc_0
@@ -136,7 +112,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [424, 188.0]
+    coordinate: [680, 284.0]
     rotation: 0
     state: true
 - name: import_0
@@ -426,7 +402,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [840, 124.0]
+    coordinate: [1088, 220.0]
     rotation: 0
     state: true
 
