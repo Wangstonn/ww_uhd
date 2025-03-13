@@ -50,13 +50,13 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         #200000000 samples/second
         #W = 1/R
         Ts = 336*32/200000000
-        BW = 2/Ts
+        self.BW = 2/Ts
         
         #calculate desired interference power to be used in log normal distribution
-
+        self.scale = 10
         Es = -171
-        P_I = Es-Es_Ni + 10*np.log10(BW)
-        self.mu = P_I - 10*np.log10(noise_rate) - 10*np.log10(noise_length)
+        N_I = Es-Es_Ni
+        self.mu = N_I - 10*np.log10(noise_rate*noise_length*np.exp((self.scale*(np.log(10))**2)/200)) 
 
         self.Pr = Pr
         
@@ -75,12 +75,10 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         fbin_width = 100
         #define gain to have normalized in band power
         #With this gain, we will have normalized digital power and receive ~Pr that we measured
-        PSD_i_low  = int(np.round((len(PSD)/2) + (F_of/fbin_width) - (BW/fbin_width)/2) + 1)
-        PSD_i_high = int(np.round((len(PSD)/2) + (F_of/fbin_width) + (BW/fbin_width)/2))    
+        PSD_i_low  = int(np.round((len(PSD)/2) + (F_of/fbin_width) - (self.BW/fbin_width)/2) + 1 - 15)
+        PSD_i_high = int(np.round((len(PSD)/2) + (F_of/fbin_width) + (self.BW/fbin_width)/2) + 15)    
 
         self.G = np.sqrt(1/(fbin_width*np.sum(PSD[PSD_i_low:PSD_i_high,0])))
-
-        self.scale = 10
         
         ##############################
         #set up interferer parameters#
@@ -123,7 +121,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
             #Mark Interferer to start
             self.n_counters[self.idx][0] = True
             #generate gain value from parameters
-            P = np.random.normal(loc=self.mu, scale=self.scale)
+            P = np.random.normal(loc=self.mu, scale=self.scale)  + 10*np.log10(self.BW)
             self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
             #generate new phase offset
             self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -138,7 +136,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
                 #Mark Interferer to start
                 self.n_counters[self.idx][0] = True
                 #generate gain value from parameters
-                P = np.random.normal(loc=self.mu, scale=self.scale)
+                P = np.random.normal(loc=self.mu, scale=self.scale)  + 10*np.log10(self.BW)
                 self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
                 #generate new phase offset
                 self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -152,7 +150,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
                     #Mark Interferer to start
                     self.n_counters[self.idx][0] = True
                     #generate gain value from parameters
-                    P = np.random.normal(loc=self.mu, scale=self.scale)
+                    P = np.random.normal(loc=self.mu, scale=self.scale)  + 10*np.log10(self.BW)
                     self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
                     #generate new phase offset
                     self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -168,7 +166,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
             #Mark Interferer to start
             self.n_counters[self.idx][0] = True
             #generate gain value from parameters
-            P = np.random.normal(loc=self.mu, scale=self.scale)
+            P = np.random.normal(loc=self.mu, scale=self.scale)  + 10*np.log10(self.BW)
             self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
             #generate new phase offset
             self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -201,3 +199,5 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
             self.message_port_pub(pmt.intern(self.DebugPortName), PMT_msg)
             #return -1
         return len(output_items[0][:])
+
+
