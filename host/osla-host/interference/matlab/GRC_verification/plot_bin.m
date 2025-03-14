@@ -1,6 +1,6 @@
 clear; clc;
 
-f = fopen('../../gnuradio/log/c16_SingleTone_20M.bin', 'rb');
+f = fopen('../../gnuradio/log/2_17_2025/c16_SingleTone_10M.bin', 'rb');
 values = fread(f, Inf,'short');
 d = values(1:2:end) + values(2:2:end)*1j;
 %%
