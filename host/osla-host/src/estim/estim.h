@@ -11,6 +11,9 @@ namespace estim {
     constexpr int kNChips = 32; //average number of chips per symbol
     constexpr int kSrcProcDelay = 4; //samples it takes to process data at source
 
+    constexpr int kDestMovingSumM = 96;
+    constexpr double kDestLlrThreshold = 10000; //unscaled llr threshold value. This will be scaled based on implementation.
+
     //P2P communication contains a GPIO channel from source to destination for signalling when the source starts
     constexpr std::uint32_t kFwdGpioStartSelBits = 0b01; //dest listens to gpio for start
     //For feedback channel estimation, have the "dest" usrp transmit preamble to the source. For start signalling, have the source usrp send the start and then begin listening.

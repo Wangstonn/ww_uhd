@@ -67,15 +67,16 @@ namespace mmio {
         // std::cout << "Done printing digital loopback results...\n";
     }
 
-    uint32_t MakeStartCmd(std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits, std::uint32_t fix_len_mode_bits, std::uint32_t start_sync_mode_bit) {
+    uint32_t MakeStartCmd(std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits, std::uint32_t fix_len_mode_bits, std::uint32_t start_sync_mode_bit, std::uint32_t dest_interf_mode_bit) {
         std::uint32_t mode_bits_shift{mode_bits << 2};
         std::uint32_t rx_ch_sel_bits_shift{rx_ch_sel_bits << 4}; 
         std::uint32_t tx_core_bits_shift{tx_core_bits << 6}; 
         std::uint32_t gpio_start_sel_bits_shift{gpio_start_sel_bits << 8};
         std::uint32_t fix_len_mode_bits_shift{fix_len_mode_bits << 10};
         std::uint32_t start_sync_mode_bit_shift{start_sync_mode_bit << 12};
+        std::uint32_t dest_interf_mode_bit_shift{dest_interf_mode_bit << 13};
 
-        std::uint32_t config_data = mode_bits_shift+rx_ch_sel_bits_shift+tx_core_bits_shift+gpio_start_sel_bits_shift+fix_len_mode_bits_shift+start_sync_mode_bit_shift;
+        std::uint32_t config_data = mode_bits_shift+rx_ch_sel_bits_shift+tx_core_bits_shift+gpio_start_sel_bits_shift+fix_len_mode_bits_shift+start_sync_mode_bit_shift+dest_interf_mode_bit_shift;
 
         return config_data;
     }
@@ -91,7 +92,7 @@ namespace mmio {
      * @param mode_bits bb-engine mode: active (pkt tx), sync. 
      *      2 bits [src,dest]. For each, 1->active, 0->sync. ex: mode 3 =>both active
     */
-    void P2PStartTxRx(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp::sptr dest_tx_usrp, std::uint32_t mode_bits, std::uint32_t gpio_start_sel_bits, uint32_t fix_len_mode_bits, std::uint32_t start_sync_mode_bit, const bool skip_rst ) {
+    void P2PStartTxRx(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp::sptr dest_tx_usrp, std::uint32_t mode_bits, std::uint32_t gpio_start_sel_bits, uint32_t fix_len_mode_bits, std::uint32_t start_sync_mode_bit, std::uint32_t dest_interf_mode_bit, const bool skip_rst ) {
         if(!skip_rst){
             //Reset device
             WrMmio(src_tx_usrp, kConfigAddr, 0x0000001);
@@ -107,8 +108,8 @@ namespace mmio {
         ClearAddrBuffer(src_tx_usrp);
         ClearAddrBuffer(dest_tx_usrp);
 
-        uint32_t SrcStartCmd = MakeStartCmd(mode_bits, kP2PSrcRxChSelBits, kP2PSrcTxCoreBits, gpio_start_sel_bits, fix_len_mode_bits, start_sync_mode_bit); //+0x2 needed for forward
-        uint32_t DestStartCmd = MakeStartCmd(mode_bits, kP2PDestRxChSelBits, kP2PDestTxCoreBits, gpio_start_sel_bits, fix_len_mode_bits, start_sync_mode_bit);
+        uint32_t SrcStartCmd = MakeStartCmd(mode_bits, kP2PSrcRxChSelBits, kP2PSrcTxCoreBits, gpio_start_sel_bits, fix_len_mode_bits, start_sync_mode_bit, dest_interf_mode_bit); //+0x2 needed for forward
+        uint32_t DestStartCmd = MakeStartCmd(mode_bits, kP2PDestRxChSelBits, kP2PDestTxCoreBits, gpio_start_sel_bits, fix_len_mode_bits, start_sync_mode_bit, dest_interf_mode_bit);
 
         if (gpio_start_sel_bits == 0b01) { //dest triggered by gpio -> src get mmio start
             SrcStartCmd += 0x2;
@@ -139,12 +140,15 @@ namespace mmio {
         0x80000012'00007FFF,
         0x80000020'E12ACE94,
         0x80000021'E12ACE94,
-        0x80000030'27100000, //267A0000 -> 9850 // 27100000 -> 10000
+        0x80000030'004381BE, //267A0000 -> 9850 // 27100000 -> 10000
         0x80000031'00002000,
         0x80000032'00000000,
         0x80000033'00000075,
         0x80000034'00000000,
-        0x80000035'00000000
+        0x80000035'00000000,
+        0x80000036'00000000,
+        0x80000037'00000000,
+        0x80000038'00000000,
     };
 
     //Readback input bit, phase, and threshold settings, valid and done, and pkt out
@@ -164,6 +168,9 @@ namespace mmio {
         0x00000033,
         0x00000034,
         0x00000035,
+        0x00000036,
+        0x00000037,
+        0x00000038,
         
         0x00000800,
         0x00000801,
@@ -369,7 +376,7 @@ namespace mmio {
      */
     std::vector<std::complex<double>> ReadSampleMem(const uhd::usrp::multi_usrp::sptr tx_usrp, const bool mem_sel, const int NCapSamps , const std::string& file) {
         //Want the double equivalent to the fixed point numbers seen
-        const int kDestFracLen = 6; //(14,4)
+        const int kDestFracLen = 2; //(14,0)
         const int kSrcFracLen = 12; //(14,10)
 
         int frac_len = mem_sel ? kDestFracLen : kSrcFracLen;
@@ -478,7 +485,7 @@ namespace mmio {
      */
     std::vector<double> ReadChipMem(const uhd::usrp::multi_usrp::sptr tx_usrp, const bool mem_sel, const int NCapSamps , const std::string& file) {
         const int ACCUM_WIDTH = 42;
-        const int ACCUM_FRAC = 16;
+        const int ACCUM_FRAC = 38;
         const int CAP_WIDTH = 32;
         const int kDestChipFracLen = ACCUM_FRAC-(ACCUM_WIDTH-32); //17 is accum frac, 40 is accum width, 32 is capture width, truncation is performed
         
