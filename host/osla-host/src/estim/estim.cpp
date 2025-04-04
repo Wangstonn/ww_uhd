@@ -9,6 +9,8 @@
 #include <uhd/usrp/multi_usrp.hpp>
 #include <sstream>
 #include <type_traits>
+#include <boost/math/distributions/chi_squared.hpp> // For chi_squared distribution
+
 
 namespace estim {
     const double prmbl_amp = (1 - std::pow(2, -15));
@@ -222,7 +224,7 @@ namespace estim {
         estim::P2PCompensateDelays(tx_usrp, rx_usrp, D_test);
         mmio::WrMmio(rx_usrp, mmio::kDestChipCapEn, 0x0); //capture samps for preamble analysis
 
-        mmio::P2PStartTxRx(tx_usrp, rx_usrp, mode_bits, gpio_start_sel_bits, 0x0, start_sync, skip_rst);
+        mmio::P2PStartTxRx(tx_usrp, rx_usrp, mode_bits, gpio_start_sel_bits, 0x0, start_sync, 0x0, skip_rst);
 
         int current_ctr;
         //If rst is skipped, that means we are locked and wait for the next sync window. Else, just start normally
@@ -343,6 +345,39 @@ namespace estim {
         //std::cout << "h_hat_src mag: " << h_hat_mag << std::endl;
         //std::cout << "src threshold: " << src_threshold << std::endl;
     }
+
+    /**
+     * @brief After measuring the channel, initialize the destination
+     * 
+     * This function estimates channel coefficient h_hat and delay d_hat.
+     * 
+     * @param src_tx_usrp A pointer to the UHD USRP object for transmission.
+     * @param D_test The test delay to be compensated.
+     * @param NCapSamps Number of samples to be captured.
+     * @param is_forward Whether to perform forward or feedback channel estimation.
+     * @return ChParams struct containing d_hat and h_hat 
+     */
+    void InitDestIntfMitigation(const uhd::usrp::multi_usrp::sptr dest_tx_usrp, std::complex<double> h_hat, double chip_var) {
+        double pf = 0.001;
+        boost::math::chi_squared chi2_dist(2 * estim::kDestMovingSumM);
+        // Compute the quantile (inverse CDF)
+        double chi_2_inv_val = boost::math::quantile(chi2_dist, 1 - pf);
+        double var_threshold = std::norm(h_hat)*estim::kFwOsr*chip_var*chi_2_inv_val;
+        uint32_t var_threshold_uint32 = static_cast<uint32_t>(std::round(var_threshold*(std::pow(2,mmio::kDestVarThresholdFrac))));
+        mmio::WrMmio(dest_tx_usrp,mmio::kDestVarThresholdAddr, var_threshold_uint32);
+
+        double llr_threshold = estim::kDestLlrThreshold*2*estim::kDestMovingSumM*std::norm(h_hat);
+        uint32_t llr_threshold_uint32 = static_cast<uint32_t>(std::round(llr_threshold*(std::pow(2,mmio::kDestLlrThresholdFrac))));
+        mmio::WrMmio(dest_tx_usrp,mmio::kDestThresholdAddr, llr_threshold_uint32);
+
+        double dest_if_chip_sig_energy_neg =  -estim::kFwOsr * estim::kFwOsr * std::norm(h_hat);
+        uint32_t dest_if_chip_sig_energy_neg_uint32 = static_cast<uint32_t>(std::round(dest_if_chip_sig_energy_neg*(std::pow(2,mmio::kDestIfChipSigEnergyNegFrac))));
+        mmio::WrMmio(dest_tx_usrp,mmio::kDestIfChipSigEnergyNegAddr, dest_if_chip_sig_energy_neg_uint32);
+
+        //std::cout << "h_hat_src mag: " << h_hat_mag << std::endl;
+        //std::cout << "src threshold: " << src_threshold << std::endl;
+    }
+
 
     //PrmblSweep 
     // std::vector<int> D_hat_sweep, D_test_sweep;
@@ -469,7 +504,7 @@ namespace estim {
         mmio::WrMmio(dest_tx_usrp, mmio::kDestChipCapEn, 0x1); //capture chips for sample analysis
 
         std::uint32_t mode_bits = 0b01; //connect afe to src module
-        mmio::P2PStartTxRx(src_tx_usrp, dest_tx_usrp, mode_bits, estim::kFwdGpioStartSelBits,0x0,0x0, false);
+        mmio::P2PStartTxRx(src_tx_usrp, dest_tx_usrp, mode_bits, estim::kFwdGpioStartSelBits,0x0,0x0,0x0, false);
 
 
         //Typically, capture is so fast no delay is needed

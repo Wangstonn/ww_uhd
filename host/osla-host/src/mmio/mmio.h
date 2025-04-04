@@ -24,12 +24,20 @@ namespace mmio {
 
     constexpr uint32_t kDestChipCapEn = 0x35;
 
+
     //Compensation
     constexpr uint32_t kDestThresholdAddr = 0x30;
     constexpr uint32_t kDestChEqReAddr = 0x31;
     constexpr uint32_t kDestChEqImAddr = 0x32;
 
+    constexpr uint32_t kDestIfChipSigEnergyNegAddr = 0x36;
+    constexpr uint32_t kDestVarThresholdAddr = 0x37;
+    constexpr uint32_t kDestChipVarInv = 0x38;
+
     const int kSrcThresholdFrac = 5;
+    const int kDestVarThresholdFrac = -3; //32,-3 then discard the bottom 16 bits to get 16,-19 
+    const int kDestLlrThresholdFrac = 38;
+    const int kDestIfChipSigEnergyNegFrac = 4;
     
     constexpr int kPktLen = 256;
     constexpr uint32_t kInPktAddr = 0x20;
@@ -67,8 +75,7 @@ namespace mmio {
     void InitBBCore (uhd::usrp::multi_usrp::sptr tx_usrp);
     void ReadBBCore (uhd::usrp::multi_usrp::sptr tx_usrp);
     void ClearAddrBuffer (uhd::usrp::multi_usrp::sptr tx_usrp);
-
-    void P2PStartTxRx(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp::sptr dest_tx_usrp, std::uint32_t mode_bits, std::uint32_t gpio_start_sel_bits, uint32_t fix_len_mode_bits, std::uint32_t start_sync_mode_bit, const bool skip_rst);
+    void P2PStartTxRx(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp::sptr dest_tx_usrp, std::uint32_t mode_bits, std::uint32_t gpio_start_sel_bits, uint32_t fix_len_mode_bits, std::uint32_t start_sync_mode_bit, std::uint32_t dest_interf_mode_bit, const bool skip_rst );
 }
 
 #endif  // MMIO_H
