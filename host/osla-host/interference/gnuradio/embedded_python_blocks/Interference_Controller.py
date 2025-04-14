@@ -56,7 +56,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         self.scale = 10
         Es = -171
         N_I = Es-Es_Ni
-        self.mu = N_I - 10*np.log10(noise_rate*noise_length*np.exp((self.scale*(np.log(10))**2)/200)) 
+        self.mu = N_I - 10*np.log10(noise_rate*noise_length*np.exp((self.scale*(np.log(10))**2)/200)) + 10*np.log10(self.BW)
 
         self.Pr = Pr
         
@@ -75,8 +75,8 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         fbin_width = 100
         #define gain to have normalized in band power
         #With this gain, we will have normalized digital power and receive ~Pr that we measured
-        PSD_i_low  = int(np.round((len(PSD)/2) + (F_of/fbin_width) - (self.BW/fbin_width)/2) + 1 - 15)
-        PSD_i_high = int(np.round((len(PSD)/2) + (F_of/fbin_width) + (self.BW/fbin_width)/2) + 15)    
+        PSD_i_low  = int(np.round((len(PSD)/2) + (F_of/fbin_width) - (self.BW/fbin_width)/2) - 1)
+        PSD_i_high = int(np.round((len(PSD)/2) + (F_of/fbin_width) + (self.BW/fbin_width)/2))    
 
         self.G = np.sqrt(1/(fbin_width*np.sum(PSD[PSD_i_low:PSD_i_high,0])))
         
@@ -96,7 +96,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))
         
         self.idx = 0
-        self.starved = False
+        self.full = False
         ########################
 
         self.DebugPortName = 'Debug'
@@ -107,7 +107,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         self.arrival_clk = self.arrival_clk + len(output_items[0])
         self.idx = next((i for i,j in enumerate(self.n_counters) if not j[0]),None)
         if (self.idx == None) and (self.arrival_clk >= self.wait_frame):
-            self.starved = True
+            self.full = True
         '''
         #use this to send messages from the debug port
             PMT_msg = pmt.from_bool(self.state)
@@ -115,13 +115,13 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         '''
 
         #run arrival clk and signal when packet should start transmitting
-        if ((self.arrival_clk >= self.wait_frame) and not self.starved):
+        if ((self.arrival_clk >= self.wait_frame) and not self.full):
             self.arrival_clk = self.arrival_clk - self.wait_frame
             self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))
             #Mark Interferer to start
             self.n_counters[self.idx][0] = True
             #generate gain value from parameters
-            P = np.random.normal(loc=self.mu, scale=self.scale)  + 10*np.log10(self.BW)
+            P = np.random.normal(loc=self.mu, scale=self.scale)
             self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
             #generate new phase offset
             self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -136,7 +136,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
                 #Mark Interferer to start
                 self.n_counters[self.idx][0] = True
                 #generate gain value from parameters
-                P = np.random.normal(loc=self.mu, scale=self.scale)  + 10*np.log10(self.BW)
+                P = np.random.normal(loc=self.mu, scale=self.scale)
                 self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
                 #generate new phase offset
                 self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -150,7 +150,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
                     #Mark Interferer to start
                     self.n_counters[self.idx][0] = True
                     #generate gain value from parameters
-                    P = np.random.normal(loc=self.mu, scale=self.scale)  + 10*np.log10(self.BW)
+                    P = np.random.normal(loc=self.mu, scale=self.scale)
                     self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
                     #generate new phase offset
                     self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -159,18 +159,18 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
             #PMT_msg = pmt.to_pmt(self.wait_frame)
             #self.message_port_pub(pmt.intern(self.DebugPortName), PMT_msg)
 
-        #If we are starved we want to start noise immediately and also reset the arrival clock to prevent error buildup
-        if ((self.idx != None) and self.starved):
+        #If we are full we want to start noise immediately and also reset the arrival clock to prevent error buildup
+        if ((self.idx != None) and self.full):
             self.arrival_clk = len(output_items[0])
             self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))
             #Mark Interferer to start
             self.n_counters[self.idx][0] = True
             #generate gain value from parameters
-            P = np.random.normal(loc=self.mu, scale=self.scale)  + 10*np.log10(self.BW)
+            P = np.random.normal(loc=self.mu, scale=self.scale)
             self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
             #generate new phase offset
             self.theta[self.idx] = np.random.uniform()*2j*np.pi
-            self.starved = False
+            self.full = False
 
             
         output_items[0][:] = 0
