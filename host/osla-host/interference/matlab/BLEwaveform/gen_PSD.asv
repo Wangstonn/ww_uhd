@@ -1,0 +1,72 @@
+bits = randi([0, 1], 100000, 1);
+bit_rate = 1e6;
+Fs = 10e6;
+Fs_M = Fs/1e6;
+modulation_idx = 0.5;
+carrier_freq = 0;
+waveform = BLEmodulate(bits, bit_rate, Fs, modulation_idx, carrier_freq);
+
+%f = fopen('../../gnuradio/log/c16_gfskPSDcsv_10M.bin', 'rb');
+%values = fread(f, Inf,'short');
+%grc_waveform = (values(1:2:end) + values(2:2:end)*1j)./32767;
+
+%%
+% resolution = 100;
+% 
+% padnum = Fs/resolution;
+% g = padnum/length(waveform);
+% 
+% waveform_padded = [waveform' zeros(1,padnum - length(waveform))];
+% 
+% wfp = g*fftshift(fft(waveform_padded));
+% Lp = length(wfp);
+% fp_bins = Fs_M*(-Lp/2 : Lp/2 - 1)/Lp;
+% figure();
+% plot(fp_bins,20*log10(abs(wfp/Lp)));
+% xlabel('Frequency (MHz)');
+% ylabel('Relative Amplitude (dB)');
+% title('Bluetooth Frequency Spectrum');
+% 
+% range = 1.3*1e6;
+% range_idx = range/resolution;
+% 
+% 
+% wf_cut = wfp((-range_idx + (length(wfp)/2)) : (range_idx + (length(wfp)/2) - 1));
+% figure();
+% plot(20*log10(abs(wf_cut/Lp)));
+
+%%
+%Pwelch table
+resolution = 100;
+fr = 1.3*1e6;
+idx = fr/resolution;
+[sxx, f] = pwelch(waveform,500,0,Fs/resolution,Fs,'centered');
+pwelch(waveform,500,0,Fs/resolution,Fs,'centered');
+hold on;
+%pwelch(grc_waveform,1000,0,Fs/resolution,Fs,'centered');
+
+sxx_cut = sxx(((length(sxx)/2) - idx):((length(sxx)/2) + idx - 1));
+f_cut = f(((length(f)/2) - idx):((length(f)/2) + idx - 1));
+
+psd_data = [sxx_cut,f_cut];
+
+%writematrix(psd_data,'BLE_PSD.csv');
+%%
+N = length(waveform);
+bin_width = Fs / N;                       % Frequency bin width (Hz)
+
+fft_vals = fftshift(fft(waveform));         % Centered FFT
+P = abs(fft_vals / N).^2;                 % Power spectrum
+
+f = linspace(-Fs/2, Fs/2, N);             % Centered frequency axis
+
+idx_band = (f >= -19000) & (f <= 19000);  % Index of bins in band
+
+%inBandPower = sum(P(idx_band)) * bin_width; % Multiply by bin width
+
+
+ 
+
+
+
+

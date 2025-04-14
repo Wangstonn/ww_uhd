@@ -1,6 +1,6 @@
-clear; clc;
+%clear; clc; close all;
 
-f = fopen('../../gnuradio/log/2_17_2025/c16_SingleTone_10M.bin', 'rb');
+f = fopen('../../gnuradio/log/4_10_25/c16_SingleTone_10M.bin', 'rb');
 values = fread(f, Inf,'short');
 d = values(1:2:end) + values(2:2:end)*1j;
 %%
@@ -11,6 +11,9 @@ plot(Fs/L*(-L/2:L/2-1),abs(fftshift(fft(d(1:10e6-1)))))
 title("fft Spectrum of captured samples")
 xlabel("f (Hz)")
 ylabel("|fft(X)|")
+%%
+figure();
+plot(real(d));
 %%
 t = (1/Fs)*(0:size(d)-1);
 
@@ -35,4 +38,4 @@ ylabel("|fft(X)|")
 
 A = (abs(sum(downcon))/size(d,1));
 P_r = 20*log10(A)-137;
-
+disp(P_r);
