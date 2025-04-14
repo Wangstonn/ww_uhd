@@ -20,13 +20,15 @@ if __name__ == '__main__':
         except:
             print("Warning: failed to XInitThreads()")
 
+from PyQt5 import Qt
+from gnuradio import qtgui
+from gnuradio.filter import firdes
+import sip
 from gnuradio import blocks
 from gnuradio import gr
-from gnuradio.filter import firdes
 from gnuradio.fft import window
 import sys
 import signal
-from PyQt5 import Qt
 from argparse import ArgumentParser
 from gnuradio.eng_arg import eng_float, intx
 from gnuradio import eng_notation
@@ -74,7 +76,7 @@ class Reciever(gr.top_block, Qt.QWidget):
         ##################################################
         # Variables
         ##################################################
-        self.time_s = time_s = 10
+        self.time_s = time_s = 4
         self.samp_rate = samp_rate = 10000000
         self.RX_ID = RX_ID = "addr=192.168.10.2"
 
@@ -97,8 +99,61 @@ class Reciever(gr.top_block, Qt.QWidget):
         self.uhd_usrp_source_0_0.set_antenna("RX2", 0)
         self.uhd_usrp_source_0_0.set_bandwidth(160000000, 0)
         self.uhd_usrp_source_0_0.set_gain(0, 0)
+        self.qtgui_time_sink_x_0 = qtgui.time_sink_c(
+            1024, #size
+            samp_rate, #samp_rate
+            "", #name
+            1, #number of inputs
+            None # parent
+        )
+        self.qtgui_time_sink_x_0.set_update_time(0.10)
+        self.qtgui_time_sink_x_0.set_y_axis(-1, 1)
+
+        self.qtgui_time_sink_x_0.set_y_label('Amplitude', "")
+
+        self.qtgui_time_sink_x_0.enable_tags(True)
+        self.qtgui_time_sink_x_0.set_trigger_mode(qtgui.TRIG_MODE_FREE, qtgui.TRIG_SLOPE_POS, 0.0, 0, 0, "")
+        self.qtgui_time_sink_x_0.enable_autoscale(False)
+        self.qtgui_time_sink_x_0.enable_grid(False)
+        self.qtgui_time_sink_x_0.enable_axis_labels(True)
+        self.qtgui_time_sink_x_0.enable_control_panel(False)
+        self.qtgui_time_sink_x_0.enable_stem_plot(False)
+
+
+        labels = ['Signal 1', 'Signal 2', 'Signal 3', 'Signal 4', 'Signal 5',
+            'Signal 6', 'Signal 7', 'Signal 8', 'Signal 9', 'Signal 10']
+        widths = [1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1]
+        colors = ['blue', 'red', 'green', 'black', 'cyan',
+            'magenta', 'yellow', 'dark red', 'dark green', 'dark blue']
+        alphas = [1.0, 1.0, 1.0, 1.0, 1.0,
+            1.0, 1.0, 1.0, 1.0, 1.0]
+        styles = [1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1]
+        markers = [-1, -1, -1, -1, -1,
+            -1, -1, -1, -1, -1]
+
+
+        for i in range(2):
+            if len(labels[i]) == 0:
+                if (i % 2 == 0):
+                    self.qtgui_time_sink_x_0.set_line_label(i, "Re{{Data {0}}}".format(i/2))
+                else:
+                    self.qtgui_time_sink_x_0.set_line_label(i, "Im{{Data {0}}}".format(i/2))
+            else:
+                self.qtgui_time_sink_x_0.set_line_label(i, labels[i])
+            self.qtgui_time_sink_x_0.set_line_width(i, widths[i])
+            self.qtgui_time_sink_x_0.set_line_color(i, colors[i])
+            self.qtgui_time_sink_x_0.set_line_style(i, styles[i])
+            self.qtgui_time_sink_x_0.set_line_marker(i, markers[i])
+            self.qtgui_time_sink_x_0.set_line_alpha(i, alphas[i])
+
+        self._qtgui_time_sink_x_0_win = sip.wrapinstance(self.qtgui_time_sink_x_0.qwidget(), Qt.QWidget)
+        self.top_layout.addWidget(self._qtgui_time_sink_x_0_win)
+        self.blocks_vector_to_stream_0 = blocks.vector_to_stream(gr.sizeof_short*2, 1)
+        self.blocks_interleaved_short_to_complex_0 = blocks.interleaved_short_to_complex(True, False,1.0)
         self.blocks_head_0 = blocks.head(gr.sizeof_short*2, time_s*samp_rate)
-        self.blocks_file_sink_0 = blocks.file_sink(gr.sizeof_short*2, '/tmp/samnolan/c16_BLE_10M.bin', False)
+        self.blocks_file_sink_0 = blocks.file_sink(gr.sizeof_short*2, '/tmp/samnolan/c16_BLE_constAmp_EsNi0dB_10M.bin', False)
         self.blocks_file_sink_0.set_unbuffered(False)
 
 
@@ -106,7 +161,10 @@ class Reciever(gr.top_block, Qt.QWidget):
         # Connections
         ##################################################
         self.connect((self.blocks_head_0, 0), (self.blocks_file_sink_0, 0))
+        self.connect((self.blocks_interleaved_short_to_complex_0, 0), (self.qtgui_time_sink_x_0, 0))
+        self.connect((self.blocks_vector_to_stream_0, 0), (self.blocks_interleaved_short_to_complex_0, 0))
         self.connect((self.uhd_usrp_source_0_0, 0), (self.blocks_head_0, 0))
+        self.connect((self.uhd_usrp_source_0_0, 0), (self.blocks_vector_to_stream_0, 0))
 
 
     def closeEvent(self, event):
@@ -130,6 +188,7 @@ class Reciever(gr.top_block, Qt.QWidget):
     def set_samp_rate(self, samp_rate):
         self.samp_rate = samp_rate
         self.blocks_head_0.set_length(self.time_s*self.samp_rate)
+        self.qtgui_time_sink_x_0.set_samp_rate(self.samp_rate)
         self.uhd_usrp_source_0_0.set_samp_rate(self.samp_rate)
 
     def get_RX_ID(self):

@@ -28,7 +28,7 @@ options:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [8, 8]
+    coordinate: [0, 4.0]
     rotation: 0
     state: enabled
 
@@ -42,7 +42,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [344, 148.0]
+    coordinate: [336, 148.0]
     rotation: 0
     state: true
 - name: BLE_sym_length
@@ -54,14 +54,14 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [432, 148.0]
+    coordinate: [424, 148.0]
     rotation: 0
     state: enabled
 - name: CH_gain
   id: variable
   parameters:
     comment: ''
-    value: '0'
+    value: '20'
   states:
     bus_sink: false
     bus_source: false
@@ -109,7 +109,7 @@ blocks:
   id: variable
   parameters:
     comment: ''
-    value: '-90.33'
+    value: '-92.89'
   states:
     bus_sink: false
     bus_source: false
@@ -150,7 +150,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [376, 84.0]
+    coordinate: [368, 84.0]
     rotation: 0
     state: true
 - name: time_s
@@ -175,14 +175,14 @@ blocks:
     maxoutbuf: '0'
     min: '0'
     minoutbuf: '0'
-    num_samps: '20000'
+    num_samps: '100000'
     repeat: 'True'
     type: byte
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [80, 268.0]
+    coordinate: [72, 268.0]
     rotation: 0
     state: true
 - name: blocks_freqshift_cc_0
@@ -199,7 +199,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [768, 220.0]
+    coordinate: [776, 284.0]
     rotation: 0
     state: true
 - name: digital_gfsk_mod_0_0_0
@@ -213,14 +213,14 @@ blocks:
     log: 'False'
     maxoutbuf: '0'
     minoutbuf: '0'
-    samples_per_symbol: round(BLE_sym_length*samp_rate)
-    sensitivity: sensitivity
+    samples_per_symbol: '10'
+    sensitivity: '.15708'
     verbose: 'False'
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [272, 268.0]
+    coordinate: [288, 268.0]
     rotation: 0
     state: true
 - name: epy_block_0
@@ -228,7 +228,7 @@ blocks:
   parameters:
     F_band: F_band
     F_of: '0'
-    P: '-135'
+    P: '-125.29'
     Pr: Pr
     _source_code: "\"\"\"\nEmbedded Python Blocks:\n\nThis block is a stand-alone\
       \ block that takes in 1 BLE interferer to test \nnormalizing in band noise capabilities\n\
@@ -249,8 +249,8 @@ blocks:
       )\n\n        fbin_width = 100\n        #define gain to have normalized in band\
       \ power\n        #With this gain, we will have normalized digital power and\
       \ receive ~Pr that we measured\n        PSD_i_low  = int(np.round((len(PSD)/2)\
-      \ + (F_of/fbin_width) - (BW/fbin_width)/2) + 1)\n        PSD_i_high = int(np.round((len(PSD)/2)\
-      \ + (F_of/fbin_width) + (BW/fbin_width)/2))    \n\n        self.G = np.sqrt(1/(fbin_width*np.sum(PSD[PSD_i_low:PSD_i_high,0])))*np.sqrt(10**((P-self.Pr)/10))\n\
+      \ + (F_of/fbin_width) - (BW/fbin_width)/2) + 1 + 20)\n        PSD_i_high = int(np.round((len(PSD)/2)\
+      \ + (F_of/fbin_width) + (BW/fbin_width)/2)-20)    \n\n        self.G = np.sqrt(1/(fbin_width*np.sum(PSD[PSD_i_low:PSD_i_high,0])))*(10**((P-self.Pr)/20))\n\
       \n    def work(self, input_items, output_items):\n        output_items[0][:]\
       \ = self.G*input_items[0]\n\n        return len(output_items[0])\n"
     affinity: ''
@@ -266,7 +266,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [536, 268.0]
+    coordinate: [528, 268.0]
     rotation: 0
     state: true
 - name: import_0
@@ -279,20 +279,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [32, 108.0]
-    rotation: 0
-    state: true
-- name: import_0_0
-  id: import
-  parameters:
-    alias: ''
-    comment: ''
-    imports: import math
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [184, 124.0]
+    coordinate: [24, 108.0]
     rotation: 0
     state: true
 - name: uhd_usrp_sink_0

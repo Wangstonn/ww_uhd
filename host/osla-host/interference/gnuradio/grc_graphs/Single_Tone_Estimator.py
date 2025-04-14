@@ -76,13 +76,15 @@ class Single_Tone_Estimator(gr.top_block, Qt.QWidget):
         ##################################################
         # Variables
         ##################################################
-        self.time_s = time_s = 1
         self.samp_rate = samp_rate = 10000000
+        self.BLE_fd = BLE_fd = 250000
+        self.time_s = time_s = 1
+        self.sensitivity = sensitivity = 2*math.pi*BLE_fd/samp_rate
         self.TX_ID = TX_ID = "addr=192.168.10.2"
-        self.RX_ID = RX_ID = "addr=192.168.10.2"
         self.F_Of = F_Of = 0
         self.F_IF = F_IF = 595238
-        self.CH_gain = CH_gain = 0
+        self.CH_gain = CH_gain = 20
+        self.BLE_sym_length = BLE_sym_length = .000001
 
         ##################################################
         # Blocks
@@ -123,31 +125,39 @@ class Single_Tone_Estimator(gr.top_block, Qt.QWidget):
 
         event.accept()
 
+    def get_samp_rate(self):
+        return self.samp_rate
+
+    def set_samp_rate(self, samp_rate):
+        self.samp_rate = samp_rate
+        self.set_sensitivity(2*math.pi*self.BLE_fd/self.samp_rate)
+        self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_IF/self.samp_rate)
+        self.uhd_usrp_sink_0.set_samp_rate(self.samp_rate)
+
+    def get_BLE_fd(self):
+        return self.BLE_fd
+
+    def set_BLE_fd(self, BLE_fd):
+        self.BLE_fd = BLE_fd
+        self.set_sensitivity(2*math.pi*self.BLE_fd/self.samp_rate)
+
     def get_time_s(self):
         return self.time_s
 
     def set_time_s(self, time_s):
         self.time_s = time_s
 
-    def get_samp_rate(self):
-        return self.samp_rate
+    def get_sensitivity(self):
+        return self.sensitivity
 
-    def set_samp_rate(self, samp_rate):
-        self.samp_rate = samp_rate
-        self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_IF/self.samp_rate)
-        self.uhd_usrp_sink_0.set_samp_rate(self.samp_rate)
+    def set_sensitivity(self, sensitivity):
+        self.sensitivity = sensitivity
 
     def get_TX_ID(self):
         return self.TX_ID
 
     def set_TX_ID(self, TX_ID):
         self.TX_ID = TX_ID
-
-    def get_RX_ID(self):
-        return self.RX_ID
-
-    def set_RX_ID(self, RX_ID):
-        self.RX_ID = RX_ID
 
     def get_F_Of(self):
         return self.F_Of
@@ -168,6 +178,12 @@ class Single_Tone_Estimator(gr.top_block, Qt.QWidget):
     def set_CH_gain(self, CH_gain):
         self.CH_gain = CH_gain
         self.uhd_usrp_sink_0.set_gain(self.CH_gain, 0)
+
+    def get_BLE_sym_length(self):
+        return self.BLE_sym_length
+
+    def set_BLE_sym_length(self, BLE_sym_length):
+        self.BLE_sym_length = BLE_sym_length
 
 
 
