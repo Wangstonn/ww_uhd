@@ -18,7 +18,7 @@ namespace mmio {
     constexpr uint32_t kMaxSrcTxAmp = 0x7FFF; //	UINT_MAX
     constexpr uint32_t kSrcThreshold = 0x10;
     
-
+    constexpr uint64_t kNullAddr = 0x0;
     constexpr uint64_t kDestDelayAddr = 0x80000033;
     constexpr uint64_t kDestNumBitShift = 0x80000034;
 
@@ -69,13 +69,17 @@ namespace mmio {
     uint32_t RdMmio(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t addr, bool verbose = false);
     void WrMmio(uhd::usrp::multi_usrp::sptr tx_usrp, const uint32_t addr, const uint32_t data);
     void wr_mem_cmd(uhd::usrp::multi_usrp::sptr tx_usrp, const uint64_t cmd);
+    void ClearAddrBuffer (uhd::usrp::multi_usrp::sptr tx_usrp);
+
     std::vector<std::complex<double>> ReadSampleMem(const uhd::usrp::multi_usrp::sptr tx_usrp, const bool mem_sel, const int NCapSamps = pow(2,12), const std::string& file = "");
     std::vector<double> ReadChipMem(const uhd::usrp::multi_usrp::sptr tx_usrp, const bool mem_sel, const int NCapSamps = pow(2,12), const std::string& file = "");
-    void StartTx(uhd::usrp::multi_usrp::sptr tx_usrp, std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits);
-    void InitBBCore (uhd::usrp::multi_usrp::sptr tx_usrp);
-    void ReadBBCore (uhd::usrp::multi_usrp::sptr tx_usrp);
-    void ClearAddrBuffer (uhd::usrp::multi_usrp::sptr tx_usrp);
+    
+    void StartTx(uhd::usrp::multi_usrp::sptr tx_usrp, std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits, uint32_t fix_len_mode_bits, std::uint32_t dest_interf_mode_bit);
+    // void StartTx(uhd::usrp::multi_usrp::sptr tx_usrp, std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits);
     void P2PStartTxRx(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp::sptr dest_tx_usrp, std::uint32_t mode_bits, std::uint32_t gpio_start_sel_bits, uint32_t fix_len_mode_bits, std::uint32_t start_sync_mode_bit, std::uint32_t dest_interf_mode_bit, const bool skip_rst );
+
+    void InitBBCore(uhd::usrp::multi_usrp::sptr tx_usrp);
+    void ReadBBCore(uhd::usrp::multi_usrp::sptr tx_usrp);
 }
 
 #endif  // MMIO_H

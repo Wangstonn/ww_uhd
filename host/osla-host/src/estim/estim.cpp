@@ -67,10 +67,10 @@ namespace estim {
         CompensateDelays(tx_usrp, D_test);
 
         //Configure runtime mode-------------------------------------------------------------------------------------------
-        mmio::WrMmio(tx_usrp, mmio::kDestChipCapEn, 0x0); //capture chips for sample analysis
+        mmio::WrMmio(tx_usrp, mmio::kDestChipCapEn, 0x0); //capture samples
 
-        std::uint32_t mode_bits{0x0};
-        mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
+        std::uint32_t mode_bits{0x0}; //sync mode
+        mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, 0x0,0x0);
 
         //Typically, preamble is so fast no delay is needed
         while(true) {
@@ -329,7 +329,6 @@ namespace estim {
         }
         D_hat += D_test; //account for the test delay we inserted. The actual D_hat is 4 less than this measured value
         
-
         ChParams ch_params;
         ch_params.D_hat = D_hat;
         ch_params.h_hat = h_hat;
@@ -349,7 +348,6 @@ namespace estim {
     /**
      * @brief After measuring the channel, initialize the destination
      * 
-     * This function estimates channel coefficient h_hat and delay d_hat.
      * 
      * @param src_tx_usrp A pointer to the UHD USRP object for transmission.
      * @param D_test The test delay to be compensated.
@@ -357,22 +355,29 @@ namespace estim {
      * @param is_forward Whether to perform forward or feedback channel estimation.
      * @return ChParams struct containing d_hat and h_hat 
      */
-    void InitDestIntfMitigation(const uhd::usrp::multi_usrp::sptr dest_tx_usrp, std::complex<double> h_hat, double chip_var) {
+    void ConfigDestIntfMitigation(const uhd::usrp::multi_usrp::sptr dest_tx_usrp, std::complex<double> h_hat, double chip_var) {
         double pf = 0.001;
         boost::math::chi_squared chi2_dist(2 * estim::kDestMovingSumM);
         // Compute the quantile (inverse CDF)
         double chi_2_inv_val = boost::math::quantile(chi2_dist, 1 - pf);
-        double var_threshold = std::norm(h_hat)*estim::kFwOsr*chip_var*chi_2_inv_val;
+        // std::cout << "chi_2_inv_val: " << chi_2_inv_val << std::endl;
+        double var_threshold = chip_var*chi_2_inv_val; //std::norm(h_hat)
         uint32_t var_threshold_uint32 = static_cast<uint32_t>(std::round(var_threshold*(std::pow(2,mmio::kDestVarThresholdFrac))));
-        mmio::WrMmio(dest_tx_usrp,mmio::kDestVarThresholdAddr, var_threshold_uint32);
+        mmio::WrMmio(dest_tx_usrp,mmio::kDestVarThresholdAddr, var_threshold_uint32); //0x7FFFFFFF
 
-        double llr_threshold = estim::kDestLlrThreshold*2*estim::kDestMovingSumM*std::norm(h_hat);
+        double llr_threshold = estim::kDestLlrThreshold/(2*estim::kDestMovingSumM*chip_var);//*std::sqrt(std::norm(h_hat)); //*std::norm(h_hat);
         uint32_t llr_threshold_uint32 = static_cast<uint32_t>(std::round(llr_threshold*(std::pow(2,mmio::kDestLlrThresholdFrac))));
-        mmio::WrMmio(dest_tx_usrp,mmio::kDestThresholdAddr, llr_threshold_uint32);
+        mmio::WrMmio(dest_tx_usrp,mmio::kDestThresholdAddr, llr_threshold_uint32); //0x1
 
         double dest_if_chip_sig_energy_neg =  -estim::kFwOsr * estim::kFwOsr * std::norm(h_hat);
         uint32_t dest_if_chip_sig_energy_neg_uint32 = static_cast<uint32_t>(std::round(dest_if_chip_sig_energy_neg*(std::pow(2,mmio::kDestIfChipSigEnergyNegFrac))));
-        mmio::WrMmio(dest_tx_usrp,mmio::kDestIfChipSigEnergyNegAddr, dest_if_chip_sig_energy_neg_uint32);
+        mmio::WrMmio(dest_tx_usrp,mmio::kDestIfChipSigEnergyNegAddr, dest_if_chip_sig_energy_neg_uint32); //0x0
+
+        std::cout << "dest_if_chip_sig_energy_neg: " << dest_if_chip_sig_energy_neg << std::endl;
+        std::cout << "var_threshold: " << var_threshold << std::endl;
+        std::cout << "llr_threshold: " << llr_threshold << std::endl;
+        std::cout << "h_hat: " << h_hat << std::endl;
+        std::cout << "chip_var: " << chip_var << std::endl;
 
         //std::cout << "h_hat_src mag: " << h_hat_mag << std::endl;
         //std::cout << "src threshold: " << src_threshold << std::endl;
@@ -451,7 +456,7 @@ namespace estim {
 
         mmio::WrMmio(tx_usrp, mmio::kDestChipCapEn, 0x0); //capture chips for sample analysis
 
-        mmio::StartTx(tx_usrp, 0x0, rx_ch_sel_bits, 0x0, 0x0); //Mode zero, only listen at src (no tx)
+        mmio::StartTx(tx_usrp, 0x0, rx_ch_sel_bits, 0x0, 0x0,0x0,0x0); //Mode zero, only listen at src (no tx)
 
         //Typically, capture is so fast no delay is needed
         while(true) {
@@ -501,11 +506,16 @@ namespace estim {
         uint32_t tx_amp = mmio::RdMmio(src_tx_usrp, mmio::kSrcTxAmpAddr);
         mmio::WrMmio(src_tx_usrp,mmio::kSrcTxAmpAddr,0x0);
 
+        //set phase equalization to 1
+        mmio::WrMmio(dest_tx_usrp,mmio::kDestChEqReAddr,0x00002000);
+        mmio::WrMmio(dest_tx_usrp,mmio::kDestChEqImAddr,0x00000000);
+
         mmio::WrMmio(dest_tx_usrp, mmio::kDestChipCapEn, 0x1); //capture chips for sample analysis
 
-        std::uint32_t mode_bits = 0b01; //connect afe to src module
+        std::uint32_t mode_bits = 0b00; //connect afe to src module
         mmio::P2PStartTxRx(src_tx_usrp, dest_tx_usrp, mode_bits, estim::kFwdGpioStartSelBits,0x0,0x0,0x0, false);
 
+        // mmio::ReadBBCore(dest_tx_usrp);
 
         //Typically, capture is so fast no delay is needed
         while(true) {
@@ -536,9 +546,6 @@ namespace estim {
         return var;
     }
 
-
-
-
     /**
      * Estimates the noise variance.
      * 
@@ -559,12 +566,12 @@ namespace estim {
         mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,0x0);
         mmio::WrMmio(tx_usrp, mmio::kDestChipCapEn, 0x1); //capture chips for sample analysis
 
-        mmio::StartTx(tx_usrp, 0b01, rx_ch_sel_bits, 0x0, 0x0); //Use the active pkt fctn, but capture noise instead of sufficient statistic
+        mmio::StartTx(tx_usrp, 0b00, rx_ch_sel_bits, 0x0, 0x0,0x0,0x0); //Use the active pkt fctn, but capture noise instead of sufficient statistic
 
         //Typically, capture is so fast no delay is needed
         while(true) {
             //Run and check received pkt    
-            mmio::WrMmio(tx_usrp,0x0,0x0); 
+            mmio::ClearAddrBuffer(tx_usrp);
             if((mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr) & mmio::kCapIdxMask) >= mmio::kCapMaxNumSamps-2) //Dest has finished recording
                 break;
         }
@@ -588,6 +595,63 @@ namespace estim {
 
         mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
         return var;
+    }
+
+    /**
+     * @brief Estimates and prints noise parameters based on chip variance.
+     *
+     * This function computes and logs three values based on the input chip variance (`var`):
+     *  - Estimated chip variance
+     *  - Received noise power in dBm (`rx_noise_dbW`)
+     *  - Estimated noise spectral density `N0` in dB (assumes 5 MHz bandwidth and 336 chips)
+     *
+     * The calculations take into account:
+     *  - ADC gain of 41.81 dB from antenna to digital domain
+     *  - ADC full-scale swing of 2V with 14-bit resolution
+     *  - A 50-ohm load for power normalization
+     *  - Oversampling ratio defined by `estim::kFwOsr`
+     *
+     * @param var The measured chip power variance (should reflect the power of received noise samples).
+     */
+    void CalcN0(double chip_var) {    
+        // Gain from antenna to ADC is 41.81 dB, ADC swing is 2V, 14-bit resolution
+        double rx_noise_dbW = 10 * std::log10(chip_var) 
+                            + 20 * std::log10(1.0 / estim::kFwOsr) //find the power in this chip
+                            + 20 * std::log10(std::pow(2, -13)) 
+                            - estim::rx_gain
+                            - 10 * std::log10(50); // 50-ohm termination
+    
+        std::cout << "rx_noise (dbm)= " << rx_noise_dbW << std::endl;
+    
+        // Estimated N0 for a 5 MHz bandwidth and 336 chips
+        double estimated_N0 = -10 * std::log10(1 / (2.0*5.0e-9 * 336.0)) + rx_noise_dbW + 30;
+    
+        std::cout << "Estimated N0 (dbm)= " << estimated_N0 << std::endl;
+    }
+
+    /**
+     * @brief Calculates and prints the received signal strength (RSS) in dBW.
+     *
+     * This function estimates the received signal strength based on the provided forward channel estimate (`h_hat_fwd`).
+     * It assumes:
+     *  - A 14-bit ADC with a full-scale voltage swing of 2V
+     *  - A total gain of 41.81 dB from antenna to ADC
+     *  - A 50-ohm termination for power calculation
+     *
+     * The RSS is calculated as:
+     * \f[
+     * \text{RSS}_{\text{dBW}} = 20 \log_{10}(|h\_hat| \cdot 2^{-13}) - 41.81 - 10 \log_{10}(50)
+     * \f]
+     * and then printed to the standard output in dBm.
+     *
+     * @param h_hat The estimated forward channel coefficient (linear scale, not dB).
+     */
+    double CalcRssdbW(std::complex<double> h_hat)
+    {    
+        //rx_gain used to be 41.81 not sure why this changed
+        double rss_dbW = 20*log10(std::abs(h_hat) * std::pow(2,-13)) - estim::rx_gain- 10*log10(50); //50 ohm resistor at end
+        std::cout << "Estimated rss (dbW)= " << rss_dbW << std::endl;
+        return rss_dbW;
     }
 
 
@@ -694,12 +758,12 @@ namespace estim {
      * @return int containing success of function
      */
     int PhaseEq(uhd::usrp::multi_usrp::sptr tx_usrp, const std::complex<double>& h_hat) {
+        std::complex<double> reciprocal_h_hat = 1.0 / h_hat;
+
         if(std::abs(h_hat) < .5 || std::abs(h_hat) > 1.5) {
             std::cerr << "Error: Digital compensation of h_mag is out of rand [0.66,2]. rx-gain is not set correctly or signal power is too high"  << std::endl;
-            return 1;
-        }
-        
-        std::complex<double> reciprocal_h_hat = 1.0 / h_hat;
+            reciprocal_h_hat = std::abs(h_hat) / h_hat;
+        }        
         
         //std::cout << reciprocal_h_hat << std::endl;
         double dest_ch_eq_re = std::real(reciprocal_h_hat)*std::pow(2, kEqFrac);

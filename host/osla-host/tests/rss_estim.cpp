@@ -594,10 +594,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             rx_usrp, "fc64", otw, file, spb, total_num_samps, settling, rx_channel_nums, 0); //save_rx = 0 so that we dont create a huge file
     });
 
-    std::uint32_t mode_bits{0b00};
-    std::uint32_t rx_ch_sel_bits{0b00}; 
-    std::uint32_t tx_core_bits{0b00}; 
-    std::uint32_t gpio_start_sel_bits{0b00};
 
     const int Num16BitSlices = mmio::kPktLen/32;
     for(int i = 0; i < Num16BitSlices; i++) {
@@ -606,7 +602,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     
     mmio::ReadBBCore(tx_usrp);
 
-    mmio::StartTx(tx_usrp, 0b11, 0b01, 0b10, 0b00);
+    mmio::StartTx(tx_usrp, 0b11, 0b01, 0b10, 0b00,0x0,0x0);
+
     std::cout << "Sending sinusoid..." << std::endl;
     while(true) {
         

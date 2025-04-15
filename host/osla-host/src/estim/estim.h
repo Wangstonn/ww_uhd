@@ -12,7 +12,10 @@ namespace estim {
     constexpr int kSrcProcDelay = 4; //samples it takes to process data at source
 
     constexpr int kDestMovingSumM = 96;
-    constexpr double kDestLlrThreshold = 10000; //unscaled llr threshold value. This will be scaled based on implementation.
+    constexpr double kDestLlrThreshold = 9700; //unscaled llr threshold value. This will be scaled based on implementation.
+
+    //measurements---
+    constexpr double rx_gain = 41.81; //gain of the receiver. used to be 41.81??? 18.237
 
     //P2P communication contains a GPIO channel from source to destination for signalling when the source starts
     constexpr std::uint32_t kFwdGpioStartSelBits = 0b01; //dest listens to gpio for start
@@ -37,11 +40,15 @@ namespace estim {
 
     double EstimNoise(const uhd::usrp::multi_usrp::sptr tx_usrp, const int NCapSamps, const uint32_t rx_ch_sel_bits = 0b01, const std::string& file = "");
     double EstimChipNoise(const uhd::usrp::multi_usrp::sptr tx_usrp, const int NCapSamps, const uint32_t rx_ch_sel_bits, const std::string& file = "");
+    void CalcN0(double chip_var);
+    double CalcRssdbW(std::complex<double> h_hat);
     double CalcSNR(const std::complex<double>& h_hat, const double var);
     double CalcEsN0(const std::complex<double>& h_hat, const int osr, const double var);
     double CalcChipEsN0(const std::complex<double>& h_hat, const double chip_var);
 
     void MaxSnrConfig(const uhd::usrp::multi_usrp::sptr tx_usrp, const std::complex<double> h_hat, const double measured_EsN0);
+    void ConfigDestIntfMitigation(const uhd::usrp::multi_usrp::sptr dest_tx_usrp, std::complex<double> h_hat, double chip_var);
+
 
     void CompensateDelays(const uhd::usrp::multi_usrp::sptr tx_usrp, const int D_hat);
     int PhaseEq(uhd::usrp::multi_usrp::sptr tx_usrp, const std::complex<double>& h_hat);

@@ -587,8 +587,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //--------------------------------------------------
     //WW - OSLA-BPSK Operation
     //--------------------------------------------------
-
-    //Captures preamble and chip noise to data
+    /**
+        fwd_alb_prmbl Captures preamble and chip noise to data
+     */
 
     //Preload some default threshold and angle settings
     mmio::InitBBCore(tx_usrp);
@@ -600,8 +601,21 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     //noise estimation
     std::cout << "Running noise estimation..." << std::endl;
-    double var = estim::EstimChipNoise(tx_usrp, pow(2,14),rx_ch_sel_bits, "../../data/fwd_alb_noise_samps.dat"); // 
-    std::cout << "Estimated var= " << var << std::endl;
+    double var = estim::EstimChipNoise(tx_usrp, pow(2,16),rx_ch_sel_bits, "../../data/fwd_alb_noise_chips.dat"); // 
+    std::cout << "Estimated chip var= " << var << std::endl;
+    estim::CalcN0(var);
+
+    //capture noise samples as well
+    estim::EstimNoise(tx_usrp,pow(2,16), rx_ch_sel_bits, "../../data/fwd_alb_noise_samps.dat");
+
+    // //write a loop that sweepx rx gain from 0 to 30 in 5 db steps and prints the noise values estimated by the code above
+    // for(int i = 0; i <= 31; i+=1){
+    //     std::cout<< "Setting rx gain to " << i << std::endl;
+    //     rx_usrp->set_rx_gain(i, 0);     
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(5000)); //wait for the gain to settle
+    //     var = estim::EstimChipNoise(tx_usrp, pow(2,14),rx_ch_sel_bits, ""); // 
+    //     estim::CalcN0(var);
+    // }
 
     // // Timing+flatfading estimation---------------------------------------------------------------------------------------------------------------------------
     //Because our window is small, need to sweep multiple time intervals by adjusting source and dest delay. Assumes channel coherence is quite long
@@ -624,7 +638,94 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << "EsN0= " << EsN0 << ", ";
     std::cout << "h_hat : abs= " << std::abs(h_hat) << " arg= " << std::arg(h_hat) << std::endl;
 
+    
+    //Test setup------------------------------------------------------------------
+    std::cout << "Performing compensation..." << std::endl;
+    int D_eff = D_hat;
+    estim::CompensateDelays(tx_usrp, D_eff);
 
+    std::complex<double> h_comp = h_hat/std::abs(h_hat); 
+    estim::PhaseEq(tx_usrp, h_comp);
+
+    uint16_t tx_amp = 0x3FFF;
+    std::cout << std::hex << "tx_amp:" << tx_amp << std::endl;
+    mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
+
+    //dont initialize intf mitigation for dest because alb test has very little noise and so we will overflow llr. Instead, run regular osla
+
+    //Run test------------------------------------------------------------------------------------
+    std::cout << "Running TX Cap--------------------------------------------------------" << std::endl;
+    //test settings
+    std::uint32_t fix_len_mode_bits{0b00};
+    std::uint32_t dest_interf_mode_bit{0b0};
+    std::uint32_t mode_bits{0b11};
+    bool samp_cap = 0;
+    if(samp_cap) {
+        mmio::WrMmio(tx_usrp, mmio::kDestChipCapEn, 0x0); //capture chips for sample analysis
+    } else {
+        mmio::WrMmio(tx_usrp, mmio::kDestChipCapEn, 0x1); //capture chips for sample analysis
+    }
+
+    double n_errors = 0; 
+
+    // Generate a random pkt
+    const int Num16BitSlices = mmio::kPktLen/32;
+    uint32_t input_pkt[Num16BitSlices] = {0};
+    uint32_t output_pkt[Num16BitSlices] = {0};
+
+    // Generate a random uint32_t
+    for(int i = 0; i < Num16BitSlices; i++)
+    {
+        input_pkt[i] = 0x5500AAFF; //0xFFFFFFFF
+
+        mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, input_pkt[i]);
+
+        // mmio::RdMmio(tx_usrp, mmio::kInPktAddr+i, true);
+    }
+
+    mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, fix_len_mode_bits, dest_interf_mode_bit);
+
+    while(true) {
+        //Run and check received pkt    
+        mmio::WrMmio(tx_usrp,0x0,0x0); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
+        bool pkt_valid = mmio::RdMmio(tx_usrp, mmio::kBbStatusAddr) & 0x2; //around 10 ms
+        if(pkt_valid)
+            break;
+    }
+
+    // read results ---------------------------------------------
+    int j = 0;
+    for(int i = 0; i*32 < mmio::kPktLen; i++) {
+        output_pkt[i] = mmio::RdMmio(tx_usrp, mmio::kOutPktAddr+i);
+        //std::cout << std::hex << input_pkt[i] << std::endl;
+
+        uint32_t xor_result = output_pkt[i] ^ input_pkt[i];
+        while (xor_result > 0) {
+            n_errors += xor_result & 1;
+            xor_result >>= 1;
+        }
+
+        std::cout << std::dec << "Bit slice: " << i << " Num errors: "<< n_errors <<std::endl;
+        std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
+        std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
+
+
+    }
+    if(samp_cap) {
+        mmio::ReadSampleMem(tx_usrp, 1, std::pow(2,14), std::string("../../data/fwd_alb_samps")+std::to_string(j)+".dat");
+    } else {
+        mmio::ReadChipMem(tx_usrp, 1, std::pow(2,14), std::string("../../data/fwd_alb_chips")+std::to_string(j)+".dat");
+    }
+    
+    mmio::ReadSampleMem(tx_usrp, 0, std::pow(2,14), std::string("../../data/fb_alb_samps")+std::to_string(j)+".dat"); 
+
+
+    mmio::ReadBBCore(tx_usrp);
+
+    std::cout << std::dec << "Reached " << n_errors << " errors"<< std::endl;
+    
+    // mmio::ReadSampleMem(tx_usrp, 0, std::pow(2,16), "../../data/fb_alb_samps.dat"); 
+    
 
     //----------------------------------------------------------------------------------
     // clean up transmit worker

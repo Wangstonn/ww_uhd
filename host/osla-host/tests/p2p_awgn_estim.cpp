@@ -249,8 +249,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("output reg", po::value<uint32_t>(&output_reg)->default_value(0), "output reg")
 
         //afe params
-        ("tx-freq", po::value<double>(&tx_freq)->default_value(.915e9), "transmit RF center frequency in Hz")
-        ("rx-freq", po::value<double>(&rx_freq)->default_value(.915e9), "receive RF center frequency in Hz")
+        ("tx-freq", po::value<double>(&tx_freq)->default_value(2.2e9), "transmit RF center frequency in Hz")
+        ("rx-freq", po::value<double>(&rx_freq)->default_value(2.2e9), "receive RF center frequency in Hz")
         ("tx-gain", po::value<double>(&tx_gain)->default_value(0), "gain for the transmit RF chain")
         ("rx-gain", po::value<double>(&rx_gain)->default_value(0), "gain for the receive RF chain")
         ("tx-bw", po::value<double>(&tx_bw)->default_value(160e6), "analog transmit filter bandwidth in Hz")
@@ -289,10 +289,10 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     double fwd_freq = 2.2e9; //5.80e9;
     double fb_freq = .915e9; //.915e9;
     double src_tx_gain = 0;
-    double dest_tx_gain = 15;
+    double dest_tx_gain = 20;
 
     double src_rx_gain = 0;
-    double dest_rx_gain = 0;
+    double dest_rx_gain = 31.5;
 
     double src_tx_freq = fwd_freq;
     double dest_rx_freq = fwd_freq;
@@ -913,16 +913,33 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //--------------------------------------------------------------------------------------------------------------------------
     //WW - OSLA-BPSK Operation
     //--------------------------------------------------------------------------------------------------------------------------
-
+    /**
+        p2p awgn estim performs point to point estimation for 2 usrp connection. 
+            This requires sync locking because the gpio channel is inconsistent
+    */
     //Preload some default threshold and angle settings
     mmio::InitBBCore(src_tx_usrp);
     mmio::InitBBCore(dest_tx_usrp);
 
     //noise estimation-----------------------------------------------------------------------------------------------------------------------
     std::cout << "Running noise estimation..." << std::endl;
-    double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2,12), ""); //../../data/fwd_p2p_noise_samps.dat
+    double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2,16), "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
     std::cout << "Estimated var= " << var << std::endl;
-    
+    estim::CalcN0(var);
+
+    // //write a loop that sweepx rx gain from 0 to 30 in 5 db steps and prints the noise values estimated by the code above
+    // for(int i = 0; i <= 0; i+=5){
+    //     std::cout<< "Setting rx gain to " << i << std::endl;
+    //     dest_rx_usrp->set_rx_gain(i, 0);     
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(5000)); //wait for the gain to settle
+    //     var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2,12), "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
+    //     std::cout << "Estimated var= " << var << std::endl;
+    //     rx_noise_dbW = 10*log10(var) + 20*log10(std::pow(2,-13)) - 41.81 - 10*log10(50); //50 ohm resistor at end
+    //     std::cout << "rx_noise (dbm)= " << rx_noise_dbW << std::endl;
+    //     estimated_N0 = -10*log10(1/(5.0*std::pow(10,-9)*336.0)) + rx_noise_dbW; //5MHz bandwidth
+    //     std::cout << "Estimated N0= " << estimated_N0 << std::endl<< std::endl;
+    // }
+
     // Feedback estimation ------------------------------------------------------------------------------------------------------------------
     std::cout << "Running fb estimation..." << std::endl;
     std::complex<double> h_hat_fb;
@@ -942,8 +959,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         }
     }
 
-
-
     // Timing+flatfading estimation---------------------------------------------------------------------------------------------------------------------------
     //wired loopback delay with 8inch sma cable + attenuator is 119
     std::cout << "Running fwd estimation..." << std::endl;
@@ -958,17 +973,18 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // std::cout << "EsN0= " << EsN0 << ", ";
     // std::cout << "h_hat_fb : abs= " << std::abs(h_hat_fw) << " arg= " << std::arg(h_hat_fw) << std::endl;
 
-
-
     //Fwd lock estim---------------------------------------------------------------------------------------------------------------------------------------------
-    //set sync lock estim and locked periods
-    uint32_t sync_start_periods = (0xFFFF << 16) + 0x00FF; //min is 0x000F
+    //set sync lock estim and locked periods. The first 16 bits is the estim delay the last 16 are transmission delay
+    bool capture_data = false;
+    uint32_t sync_start_periods = (0x7FFF << 16) + 0x007F; //min is 0x000F
+    if (capture_data)
+        sync_start_periods = (0x7FFF << 16) + 0x2FFF; //min is 0x000F
+
     mmio::WrMmio(src_tx_usrp, mmio::kSyncStartPeriodAddr,sync_start_periods);
     mmio::WrMmio(dest_tx_usrp, mmio::kSyncStartPeriodAddr,sync_start_periods);
 
     int D_hat_fwd;
     std::complex<double> h_hat_fwd;
-
 
     while (true) {
         auto ch_params = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,15), true, 0x1, false, "../../data/fwd_p2p_prmbl_samps0.dat"); //std::string("../../data/fwd_p2p_prmbl_samps")+std::to_string(j)+".dat"
@@ -983,46 +999,71 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     double EsN0 = estim::CalcChipEsN0(h_hat_fwd, var);
     mmio::ClearAddrBuffer(dest_tx_usrp);
 
-    double rss_dbW = 20*log10(std::abs(h_hat_fwd) * std::pow(2,4) * std::pow(2,-13)) - 41.81 - 10*log10(50); //50 ohm resistor at end
+    double rss_dbm = estim::CalcRssdbW(h_hat_fwd)+30;
+    // double rss_dbW = 20*log10(std::abs(h_hat_fwd) * std::pow(2,-13)) - 41.81 - 10*log10(50); //50 ohm resistor at end
+// * std::pow(2,4)
 
     std::cout << std::dec << "D_test= " << D_test << ", ";
     std::cout << "D_hat_fwd= " << D_hat_fwd << ", ";
     std::cout << "EsN0= " << EsN0 << ", ";
-    std::cout << "rss_adc (dbm)= " << rss_dbW << ", ";
+    std::cout << "Estimation rss_adc (dbm)= " << rss_dbm << ", ";
     std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd) << " arg= " << std::arg(h_hat_fwd) << std::endl;
 
     //Gain Control--------------------------------------------------------------------------------------------------------------------------
     //Set operating EsN0
-    double target_EsN0 = 10; //in dB
+    double target_EsN0 = 3; //in dB
     std::cout << "Target Es_N0 = " << target_EsN0 << std::endl;
-    double target_gain = target_EsN0-EsN0; //change in EsN0 needed to achieve target
-    double target_rx_gain = -(20*std::log10(std::abs(h_hat_fwd)) + target_gain); //rx_gain needed to bring signal amplitude to 1
-    std::cout << "target_rx_gain (db)= " << target_rx_gain << std::endl;
+    if(EsN0 < target_EsN0) {
+        std::cout << "Starting EsN0 is too low! Increase tx-gain" << std::endl;      
+        return EXIT_FAILURE;
+    }
+    double target_tx_gain = target_EsN0-EsN0; //change in EsN0 needed to achieve target
 
-    double tx_gain_base = src_tx_usrp->get_tx_gain(0); //base tx gain used for smaple capture
+    // double tx_gain_base = src_tx_usrp->get_tx_gain(0); //base tx gain used for smaple capture
     //assume tx amp is max
     //assume rx gain is 0
     
-    double lin_digital_gain = std::pow(10,(target_gain)/20);
-    uint16_t tx_amp = static_cast<uint16_t>(std::round(lin_digital_gain*(std::pow(2,15)-1)));
+    double lin_digital_gain = std::pow(10,(target_tx_gain)/20);
+    double calculated_tx_amp = lin_digital_gain * (std::pow(2, 15) - 1);
+    if (calculated_tx_amp > std::numeric_limits<int16_t>::max()) {
+        std::cerr << "Error: tx_amp value exceeds the maximum limit increase tx_gain, make sure starting tx_amp is 7FFF, and try again!" << std::endl;
+        return EXIT_FAILURE;
+    }
+    
+    uint16_t tx_amp = static_cast<uint16_t>(std::round(calculated_tx_amp));
+
+    // uint16_t tx_amp = static_cast<uint16_t>(std::round(lin_digital_gain*(std::pow(2,15)-1)));
     std::cout << std::hex << "tx_amp:" << tx_amp << std::endl;
     mmio::WrMmio(src_tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
-    std::complex<double> h = h_hat_fwd*std::complex<double>(lin_digital_gain,0);
-    std::cout << "Current signal level: " <<  abs(h) << std::endl;
-    
-    //Set number of bits shifted
-    if (abs(h) < 1){        
-        double dest_num_bit_shift = std::floor(-std::log2(std::abs(h_hat_fwd)*lin_digital_gain));
+    std::complex<double> h = h_hat_fwd*std::complex<double>(lin_digital_gain,0); //update the channel coefficient
+    std::cout << "Signal level after tx_amp adjustment: " <<  abs(h) << std::endl;
+    //update rss measurement
+    rss_dbm = rss_dbm+target_tx_gain;
+    std::cout << std::dec << "adjusted rss (dbm)= " << rss_dbm << std::endl;
+    // var = var/std::norm(h); //update the noise level. We will equalize h to become 1 (i.e. dividing by h), so update the noise level as well.
+    // std::cout << "Adjusted chip noise var: " <<  var << std::endl;
+
+    //Now that we have set tx_gain to achieve the desired EsN0, now bring the rx level so that we have enough bits
+    //To bring the rx level up, we have to bit shift. This is because we can't naturally bring the noise level up enough
+    if (abs(h) < 0.5){  
+        double dest_num_bit_shift = std::floor(-std::log2(std::abs(h)));
         std::cout << std::dec << "Bit shift: " << dest_num_bit_shift << std::endl;
 
         mmio::WrMmio(dest_tx_usrp, mmio::kDestNumBitShift, dest_num_bit_shift); //shift dest rx by 3 to the left (multiply by 8)
         std::cout << std::dec << "dest_num_bit_shift set to: " << static_cast<unsigned int>(dest_num_bit_shift) << std::endl;
         h = h * std::pow(2,dest_num_bit_shift);
+        
+        var = var * std::pow(std::pow(2,dest_num_bit_shift),2); //update the noise level, since bit shifting multiplies by powers of 2
+        std::cout << "Adjusted chip noise var: " <<  var << std::endl;
+        
+        if(dest_num_bit_shift > 6) {
+            std::cout << "Noise level is too low! Increase rx gain and add an attenuator" << std::endl;      
+            return EXIT_FAILURE;
+        }
     }
-    std::cout << "Current signal level: " <<  abs(h) << std::endl;
+    std::cout << "Current signal level h: " <<  abs(h) << std::endl;
     
-
-
+    
     //repeated estims for checking sample drift
     // for(int j = 1; j < 5; j++) {
 
@@ -1047,25 +1088,28 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     estim::SetSrcThreshold(src_tx_usrp, h_hat_fb);
 
-    mmio::RdMmio(src_tx_usrp, mmio::kSrcDelayAddr, true);
-    mmio::RdMmio(dest_tx_usrp, mmio::kDestDelayAddr, true);
+    // mmio::RdMmio(src_tx_usrp, mmio::kSrcDelayAddr, true);
+    // mmio::RdMmio(dest_tx_usrp, mmio::kDestDelayAddr, true);
 
-    // std::cout << "Source read:" << std::endl;    
-    // mmio::ReadBBCore(src_tx_usrp);
-    // std::cout << "Dest read:" << std::endl;
-    // mmio::ReadBBCore(dest_tx_usrp);
-
-    //Run test------------------------------------------------------------------------------------
-    std::cout << "Running pkt test..." << std::endl;
-
+    // Settings
     bool fixed_length = 0;
-    uint8_t fix_len_mode_bits;
-    if(fixed_length) {
-        fix_len_mode_bits = 0b11;
+    std::uint32_t dest_interf_mode_bit{0b0};
+    std::uint32_t mode_bits{0b11};
+
+    bool is_intf_mode = true;
+    if (is_intf_mode) {
+        //TODO: adjust for the fact that var will be diff after h multiplication
+        estim::ConfigDestIntfMitigation(dest_tx_usrp, h, var);
+        dest_interf_mode_bit = 0b1;
     }
-    else {
-        fix_len_mode_bits = 0b00;
-    }
+
+    uint8_t fix_len_mode_bits = fixed_length ? 0b11 : 0b00;
+    // if(fixed_length) {
+    //     fix_len_mode_bits = 0b11;
+    // }
+    // else {
+    //     fix_len_mode_bits = 0b00;
+    // }
 
     bool samp_cap = 0;
     if(samp_cap) {
@@ -1074,8 +1118,17 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         mmio::WrMmio(dest_tx_usrp, mmio::kDestChipCapEn, 0x1); //capture chips for sample analysis
     }
 
-    std::uint32_t mode_bits{0b11};
+    // std::cout << "Source read:" << std::endl;    
+    // mmio::ReadBBCore(src_tx_usrp);
+    // std::cout << "Dest read:" << std::endl;
+    mmio::ReadBBCore(dest_tx_usrp);
+
+    //Run test------------------------------------------------------------------------------------
+    std::cout << "Running pkt test..." << std::endl;
+
     double n_errors = 0; 
+    double avg_sym_len = 0;
+
     const int Num16BitSlices = mmio::kPktLen/32;
     uint32_t input_pkt[Num16BitSlices] = {0};
     uint32_t output_pkt[Num16BitSlices] = {0};
@@ -1090,43 +1143,70 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //array to make histogram for symbol lengths recorded on fpga
     //set kmaxSymLen in mmio.h (rn it's set to max)
     //depending on packet length and ntrial might need to change from 32 bit to 64 for overflow
-    const int kMaxSymLen = 3*estim::kNChips;
+    const int kMaxSymLen = 5*estim::kNChips;
     std::vector<int> sym_lens(kMaxSymLen, 0);
     // uint32_t sym_len_record[kMaxSymLen] = {0};
     
-
-    for(int j = 0; j < 50; j++) {
+    int num_pkts = 10;
+    for(int j = 0; j < num_pkts; j++) {
         // Generate a random uint32_t
         for(int i = 0; i < Num16BitSlices; i++)
         {
-            // input_pkt[i] = 0x0;
-            // input_pkt[i] = 0xAA00FFFF; //0xAA00FFFF;
             uint32_t randomValue = dist(mt);
             //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
             input_pkt[i] = randomValue;
+            // input_pkt[i] = 0xFFFFFF00;
+            // input_pkt[i] = 0xAA00FFFF; //0xAA00FFFF;
 
             mmio::WrMmio(src_tx_usrp, mmio::kInPktAddr+i, input_pkt[i]);
         }
+        //update config and run the next test. This skips the reset so that we keep the src and dest synced.
+        mmio::P2PStartTxRx(src_tx_usrp, dest_tx_usrp, mode_bits, estim::kFwdGpioStartSelBits,fix_len_mode_bits,0x1,dest_interf_mode_bit,true);
 
-        mmio::P2PStartTxRx(src_tx_usrp, dest_tx_usrp, mode_bits, estim::kFwdGpioStartSelBits,fix_len_mode_bits,0x1,true);
+        // std::this_thread::sleep_for(std::chrono::milliseconds(2000)); //Need to sleep for at least 500 ms before tx is active
+        // std::cout << "Reading chip data " << std::endl;
+        // mmio::ReadBBCore(dest_tx_usrp);
+        // mmio::ReadChipMem(dest_tx_usrp, 1, std::pow(2,14), std::string("../../data/fwd_p2p_chips")+std::to_string(j)+".dat");
+        // mmio::ReadSampleMem(src_tx_usrp, 0, std::pow(2,14), std::string("../../data/fb_p2p_samps")+std::to_string(j)+".dat");  
+        // //Symbol length statistics
+        // avg_sym_len = 0;
+        // for(int i = 0; i < mmio::kPktLen; i++) {
+        //     // uint32_t sym_len = mmio::rd_mem_cmd(tx_usrp, mmio::kSymLenAddr+i);
+        //     //not sure which function is real
+        //     uint32_t sym_len = mmio::RdMmio(src_tx_usrp, mmio::kSymLenAddr+i,false);
+        //     if(sym_len >= kMaxSymLen){
+        //         sym_len = kMaxSymLen - 1;
+        //     }
+        //     sym_lens[sym_len]++;
+        //     avg_sym_len += sym_len;
+        // }   
+        // std::cout << std::dec << "Average symbol length: " << avg_sym_len/(mmio::kPktLen) << std::endl;
+        // std::cout << estim::generateMatlabArray(sym_lens, "sym_lens");
+        
 
         //wait for the next start cycle
-        int current_ctr = mmio::RdMmio(dest_tx_usrp, mmio::kSyncCtrAddr) & 0xFFFF;
-        // std::cout << "Current lock idx: " << current_ctr << std::endl;
+        int current_ctr = mmio::RdMmio(dest_tx_usrp, mmio::kSyncCtrAddr) & 0xFFFF; //PC counter
+        int current_ctr_reading = current_ctr; //mmio counter
+        std::cout << "Current lock idx: " << current_ctr << std::endl;
         while(true){
             mmio::ClearAddrBuffer(dest_tx_usrp);
-            if((mmio::RdMmio(dest_tx_usrp, mmio::kSyncCtrAddr) & 0xFFFF) != current_ctr) {
+            current_ctr_reading = (mmio::RdMmio(dest_tx_usrp, mmio::kSyncCtrAddr) & 0xFFFF);
+            if(current_ctr_reading != current_ctr) {
                 break;
             }
         }
-        current_ctr++;
-        
+
+        current_ctr = current_ctr_reading;
         while(true) {
             //Run and check received pkt    
             mmio::ClearAddrBuffer(dest_tx_usrp);
             bool pkt_valid = mmio::RdMmio(dest_tx_usrp, mmio::kBbStatusAddr) & 0x2; //around 10 ms
             if(pkt_valid)
                 break;
+            current_ctr_reading = (mmio::RdMmio(dest_tx_usrp, mmio::kSyncCtrAddr) & 0xFFFF);
+            if(current_ctr_reading != current_ctr)
+                std::cout << "Error: Ctr advanced before packet was received! Increase duration of sync tx" << std::endl;
+                // return EXIT_FAILURE;
         }
 
         // read results ---------------------------------------------
@@ -1135,23 +1215,25 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             //std::cout << std::hex << input_pkt[i] << std::endl;
 
             uint32_t xor_result = output_pkt[i] ^ input_pkt[i];
+
             while (xor_result > 0) {
                 n_errors += xor_result & 1;
                 xor_result >>= 1;
             }
-            std::cout << std::dec << "Pkt: " << j <<std::endl;
-            std::cout << std::dec << "Bit slice: " << i << " Num errors: "<< n_errors <<std::endl;
-            std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
-            std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
+                std::cout << std::dec << "Pkt: " << j <<std::endl;
+                std::cout << std::dec << "Bit slice: " << i << " Num errors: "<< n_errors <<std::endl;
+                std::cout << std::hex << "Input:  " << input_pkt[i] << std::endl;
+                std::cout << std::hex << "Output: " << output_pkt[i] << std::endl << std::endl;
         }
-
-        // if(samp_cap) {
-        //     mmio::ReadSampleMem(dest_tx_usrp, 1, std::pow(2,14), std::string("../../data/fwd_p2p_samps")+std::to_string(j)+".dat");
-        // } else {
-        //     mmio::ReadChipMem(dest_tx_usrp, 1, std::pow(2,14), std::string("../../data/fwd_p2p_chips")+std::to_string(j)+".dat");
-        // }
-        
-        // mmio::ReadSampleMem(src_tx_usrp, 0, std::pow(2,14), std::string("../../data/fb_p2p_samps")+std::to_string(j)+".dat"); 
+        if(capture_data) {
+            if(samp_cap) {
+                mmio::ReadSampleMem(dest_tx_usrp, 1, std::pow(2,14), std::string("../../data/fwd_p2p_samps")+std::to_string(j)+".dat");
+            } else {
+                mmio::ReadChipMem(dest_tx_usrp, 1, std::pow(2,14), std::string("../../data/fwd_p2p_chips")+std::to_string(j)+".dat");
+            }
+            
+            mmio::ReadSampleMem(src_tx_usrp, 0, std::pow(2,14), std::string("../../data/fb_p2p_samps")+std::to_string(j)+".dat");     
+        }
 
         //Symbol length statistics
         for(int i = 0; i < mmio::kPktLen; i++) {
@@ -1162,8 +1244,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                 sym_len = kMaxSymLen - 1;
             }
             sym_lens[sym_len]++;
+            avg_sym_len += sym_len;
         }
-
 
         //make sure that sample read wasnt corrupted by the next run
         int post_read_ctr = mmio::RdMmio(dest_tx_usrp, mmio::kSyncCtrAddr) & 0xFFFF;
@@ -1175,6 +1257,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     }
     
     std::cout << std::dec << "Reached " << n_errors << " errors"<< std::endl;
+    std::cout << std::dec << "Average symbol length: " << avg_sym_len/(num_pkts*mmio::kPktLen) << std::endl;
 
     // ch_params = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,12), true, 0x1, true, ""); //std::string("../../data/fwd_p2p_prmbl_samps")+std::to_string(j)+".dat"
     // D_hat_fwd = ch_params.D_hat;
@@ -1191,7 +1274,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //     mmio::RdMmio(src_tx_usrp,mmio::kSymLenAddr+i, true);
     // }
 
-    
     std::cout << estim::generateMatlabArray(sym_lens, "sym_lens");
             
     // std::cout << "Source read:" << std::endl;    

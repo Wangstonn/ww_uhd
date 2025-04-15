@@ -246,8 +246,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("output reg", po::value<uint32_t>(&output_reg)->default_value(0), "output reg")
 
         //afe params
-        ("tx-freq", po::value<double>(&tx_freq)->default_value(.915e9), "transmit RF center frequency in Hz")
-        ("rx-freq", po::value<double>(&rx_freq)->default_value(.915e9), "receive RF center frequency in Hz")
+        ("tx-freq", po::value<double>(&tx_freq)->default_value(2.2e9), "transmit RF center frequency in Hz")
+        ("rx-freq", po::value<double>(&rx_freq)->default_value(2.2e9), "receive RF center frequency in Hz")
         ("tx-gain", po::value<double>(&tx_gain)->default_value(0), "gain for the transmit RF chain")
         ("rx-gain", po::value<double>(&rx_gain)->default_value(0), "gain for the receive RF chain")
         ("tx-bw", po::value<double>(&tx_bw)->default_value(160e6), "analog transmit filter bandwidth in Hz")
@@ -596,6 +596,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //--------------------------------------------------
     //WW - OSLA-BPSK Operation
     //--------------------------------------------------
+    /**
+        fwd_alb_cap performs performs an analog loopback test and captures samples for debugging.
+    */
 
     //Preload some default threshold and angle settings
     mmio::InitBBCore(tx_usrp);
@@ -603,7 +606,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //test settings
     std::uint32_t tx_core_bits{0b10}; 
     std::uint32_t rx_ch_sel_bits{0b01}; 
-    std::uint32_t gpio_start_sel_bits{0b00};
+    std::uint32_t gpio_start_sel_bits{0b01};
+    std::uint32_t fix_len_mode_bits{0b00};
+    std::uint32_t dest_interf_mode_bit{0b0};
 
     //noise estimation-----------------------------------------------------------------------------------------------------------------------
     std::cout << "Running noise estimation..." << std::endl;
@@ -638,6 +643,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     std::complex<double> h_comp = h_hat/std::abs(h_hat); 
     estim::PhaseEq(tx_usrp, h_comp);
+
+    //dont initialize intf mitigation for dest because alb test has very little noise and so we will overflow llr. Instead, run regular osla
 
     //Gain Control----------------------------------------------------------
     // estim::MaxSnrConfig(tx_usrp, h_hat, EsN0);
@@ -746,6 +753,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     
     int n_iters = kMaxIter;
     for(int iter = 1; iter <= kMaxIter; iter++) {
+        std::cout << "iter: " << iter << std::endl;
         // Generate a random pkt
         const int Num16BitSlices = mmio::kPktLen/32;
         uint32_t input_pkt[Num16BitSlices] = {0};
@@ -760,7 +768,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, input_pkt[i]);
         }
 
-        mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
+        mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, fix_len_mode_bits, dest_interf_mode_bit);
         
         while(true) {
             //Run and check received pkt    

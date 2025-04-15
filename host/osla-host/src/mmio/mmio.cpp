@@ -7,66 +7,44 @@
 #include <uhd/usrp/multi_usrp.hpp>
 
 namespace mmio {
-
     /**
-     *  Configures the runtime mode of the baseband core and initiates tx
+     * Formats the start command used to configure the operating mode for the usrp. To start the USRP, add (sum) 0x2 to the output of this function
      * 
-     * @param mode_bits bb-engine mode: active (pkt tx), sync. 
-     *      2 bits [src,dest]. For each, 1->active, 0->sync. ex: mode 3 =>both active
-     * @param rx_ch_sel_bits controls whther the src/dest are listening to the ch-emu or afe
-            2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
-            ex: mode 0 =>both digital loopback
-            ex: mode 1 =>dest rx to afe
-            ex: mode 2 =>src rx to afe
-            //1->fwd analog loopback
-    * @param tx_core_bits controls which engine transmits through the afe
-            2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
-            ex: mode 0 =>both digital loopback
-            ex: mode 1 =>dest afe tx
-            ex: mode 2 =>src afe tx
-            //2->fwd analog loopback
-        @param gpio_start_sel_bits controls whether [src,dest] uses register start or gpio start
-                2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
-                ex: mode 0 =>both register start
-                ex: mode 1 =>dest gpio start
-                ex: mode 2 =>src gpio start
+    @param mode_bits bb-engine mode: active (pkt tx), sync. 
+        2 bits [src,dest]. For each, 1->active, 0->sync. ex: mode 3 =>both active
+    @param rx_ch_sel_bits controls whther the src/dest are listening to the ch-emu or afe
+        2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
+        ex: mode 0 =>both digital loopback
+        ex: mode 1 =>dest rx to afe
+        ex: mode 2 =>src rx to afe
+        //1->fwd analog loopback
+    @param tx_core_bits controls which engine transmits through the afe
+        2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
+        ex: mode 0 =>both digital loopback
+        ex: mode 1 =>dest afe tx
+        ex: mode 2 =>src afe tx
+        //2->fwd analog loopback
+    @param gpio_start_sel_bits controls whether [src,dest] uses register start or gpio start
+        2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
+        ex: mode 0 =>both register start
+        ex: mode 1 =>dest gpio start
+        ex: mode 2 =>src gpio start
+    @param fix_len_mode_bits controls whether [src,dest] uses fixed length (bpsk) transmission or osla 
+        2 bits [src,dest]. For each, 1->bpsk, 0->osla. 
+        ex: mode 0 =>both OSLA
+        ex: mode 1 =>dest bpsk
+        ex: mode 2 =>src bpsk  
+    @param start_sync_mode_bit controls whether [src,dest] uses a fixed synchronization scheme to receive transmitted bits. This is used to avoid gpio non determinism
+        2 bits [src,dest]. For each, 1->start timer, 0->mmio start. 
+        ex: mode 0 =>both mmio
+        ex: mode 1 =>dest timer
+        ex: mode 2 =>src timer     
+    @param dest_interf_mode_bit controls whether [src,dest] uses interference mitigation or regular osla
+        2 bits [src,dest]. For each, 1->interf. mitigation, 0->regular osla. 
+        ex: mode 0 =>both osla
+        ex: mode 1 =>dest mitigation
+        ex: mode 2 =>src mitigation
     */
-    void StartTx(uhd::usrp::multi_usrp::sptr tx_usrp, std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits) {
-        std::uint32_t mode_bits_shift{mode_bits << 2};
-        std::uint32_t rx_ch_sel_bits_shift{rx_ch_sel_bits << 4}; 
-        std::uint32_t tx_core_bits_shift{tx_core_bits << 6}; 
-        std::uint32_t gpio_start_sel_bits_shift{gpio_start_sel_bits << 8};
-
-        uint64_t start_cmd = 0x80000001'00000002+mode_bits_shift+rx_ch_sel_bits_shift+tx_core_bits_shift+gpio_start_sel_bits_shift;
-        //std::cout << "mode: " << mode_bits << " rxChSel: " << rx_ch_sel_bits << " txCore: " << tx_core_bits << " gpio_start_sel_bits: << gpio_start_sel_bits << std::endl; 
-        //std::cout << std::hex << std::setw(8) << std::setfill('0') << start_data << std::endl;
-
-        //write rst command to device in case we run this multiple times. I forgot this but acqusition went fine...
-        wr_mem_cmd(tx_usrp, rst_cmd);
-
-        tx_usrp->set_rx_dc_offset(true);
-        std::this_thread::sleep_for(std::chrono::milliseconds(40)); //DC offset calibration time, minimum is 33.6 ms
-        tx_usrp->set_rx_dc_offset(false);
-
-        wr_mem_cmd(tx_usrp,0x80000000'00000000); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
-
-        //RdMmio(tx_usrp,0x00000001,1);
-
-        //std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 500 ms before tx is active
-        
-        //std::cout << "Start command issued...\n";
-        wr_mem_cmd(tx_usrp, start_cmd);
-        //RdMmio(tx_usrp,0x00000001,1);
-        
-        //should poll done until it flips to one, but this always seems to finish before its necessary. Also which bit to poll varies between test
-
-        // std::cout << "Reading results...\n";
-        // for(const auto& cmd : read_cmds) {
-        //     RdMmio(tx_usrp, cmd,true);
-        // }
-        // std::cout << "Done printing digital loopback results...\n";
-    }
-
     uint32_t MakeStartCmd(std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits, std::uint32_t fix_len_mode_bits, std::uint32_t start_sync_mode_bit, std::uint32_t dest_interf_mode_bit) {
         std::uint32_t mode_bits_shift{mode_bits << 2};
         std::uint32_t rx_ch_sel_bits_shift{rx_ch_sel_bits << 4}; 
@@ -81,6 +59,81 @@ namespace mmio {
         return config_data;
     }
 
+    /**
+    Configures the runtime mode of the baseband core and initiates tx for single device testing. 
+        Two usrp testing requires using P2PStartTx
+
+    @param mode_bits bb-engine mode: active (pkt tx), sync. 
+        2 bits [src,dest]. For each, 1->active, 0->sync. ex: mode 3 =>both active
+    @param rx_ch_sel_bits controls whther the src/dest are listening to the ch-emu or afe
+        2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
+        ex: mode 0 =>both digital loopback
+        ex: mode 1 =>dest rx to afe
+        ex: mode 2 =>src rx to afe
+        //1->fwd analog loopback
+    @param tx_core_bits controls which engine transmits through the afe
+        2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
+        ex: mode 0 =>both digital loopback
+        ex: mode 1 =>dest afe tx
+        ex: mode 2 =>src afe tx
+        //2->fwd analog loopback
+    @param gpio_start_sel_bits controls whether [src,dest] uses register start or gpio start
+        2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
+        ex: mode 0 =>both register start
+        ex: mode 1 =>dest gpio start
+        ex: mode 2 =>src gpio start
+    @param fix_len_mode_bits controls whether [src,dest] uses fixed length (bpsk) transmission or osla 
+        2 bits [src,dest]. For each, 1->bpsk, 0->osla. 
+        ex: mode 0 =>both OSLA
+        ex: mode 1 =>dest bpsk
+        ex: mode 2 =>src bpsk    
+    @param dest_interf_mode_bit controls whether [src,dest] uses interference mitigation or regular osla
+        2 bits [src,dest]. For each, 1->interf. mitigation, 0->regular osla. 
+        ex: mode 0 =>both osla
+        ex: mode 1 =>dest mitigation
+        ex: mode 2 =>src mitigation
+    */
+    void StartTx(uhd::usrp::multi_usrp::sptr tx_usrp, std::uint32_t mode_bits, std::uint32_t rx_ch_sel_bits, std::uint32_t tx_core_bits, std::uint32_t gpio_start_sel_bits, uint32_t fix_len_mode_bits, std::uint32_t dest_interf_mode_bit) {
+        //Reset device in case we run this multiple times. I forgot this but acqusition went fine...
+        WrMmio(tx_usrp, kConfigAddr, 0x0000001); //       wr_mem_cmd(tx_usrp, rst_cmd);
+        std::this_thread::sleep_for(std::chrono::nanoseconds(5*5)); //Leave the reset for a couple of cycles
+
+        // tx_usrp->set_rx_dc_offset(true);
+        // std::this_thread::sleep_for(std::chrono::milliseconds(40)); //DC offset calibration time, minimum is 33.6 ms
+        // tx_usrp->set_rx_dc_offset(false);
+
+        uint32_t StartCmd = MakeStartCmd(mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, fix_len_mode_bits, 0, dest_interf_mode_bit)+0x2;
+        // std::uint32_t mode_bits_shift{mode_bits << 2};
+        // std::uint32_t rx_ch_sel_bits_shift{rx_ch_sel_bits << 4};
+        // std::uint32_t tx_core_bits_shift{tx_core_bits << 6}; 
+        // std::uint32_t gpio_start_sel_bits_shift{gpio_start_sel_bits << 8};
+
+        // uint64_t start_cmd = 0x80000001'00000002+mode_bits_shift+rx_ch_sel_bits_shift+tx_core_bits_shift+gpio_start_sel_bits_shift;
+        // //std::cout << "mode: " << mode_bits << " rxChSel: " << rx_ch_sel_bits << " txCore: " << tx_core_bits << " gpio_start_sel_bits: << gpio_start_sel_bits << std::endl; 
+        // //std::cout << std::hex << std::setw(8) << std::setfill('0') << start_data << std::endl;
+
+        ClearAddrBuffer(tx_usrp); //clear address buffer so that we can write to the config address again    
+        wr_mem_cmd(tx_usrp,0x80000000'00000000); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
+
+        WrMmio(tx_usrp, kConfigAddr, StartCmd); 
+
+        //RdMmio(tx_usrp,0x00000001,1);
+
+        //std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 500 ms before tx is active
+        
+        //std::cout << "Start command issued...\n";
+        // wr_mem_cmd(tx_usrp, start_cmd);
+        //RdMmio(tx_usrp,0x00000001,1);
+        
+        //should poll done until it flips to one, but this always seems to finish before its necessary. Also which bit to poll varies between test
+
+        // std::cout << "Reading results...\n";
+        // for(const auto& cmd : read_cmds) {
+        //     RdMmio(tx_usrp, cmd,true);
+        // }
+        // std::cout << "Done printing digital loopback results...\n";
+    }
+
     const std::uint32_t kP2PSrcTxCoreBits = 0b10; //connect afe to src module
     const std::uint32_t kP2PSrcRxChSelBits = 0b10;
     const std::uint32_t kP2PDestTxCoreBits = 0b01; //connect afe to dest module
@@ -89,8 +142,36 @@ namespace mmio {
      *  Configures the runtime mode of the baseband core for p2p communications and initiates it.
      * There are much less params since There is only one real possible configuration for p2p comms
      * 
-     * @param mode_bits bb-engine mode: active (pkt tx), sync. 
-     *      2 bits [src,dest]. For each, 1->active, 0->sync. ex: mode 3 =>both active
+    @param mode_bits bb-engine mode: active (pkt tx), sync. 
+        2 bits [src,dest]. For each, 1->active, 0->sync. ex: mode 3 =>both active
+    @param rx_ch_sel_bits controls whther the src/dest are listening to the ch-emu or afe
+        2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
+        ex: mode 0 =>both digital loopback
+        ex: mode 1 =>dest rx to afe
+        ex: mode 2 =>src rx to afe
+        //1->fwd analog loopback
+    @param tx_core_bits controls which engine transmits through the afe
+        2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
+        ex: mode 0 =>both digital loopback
+        ex: mode 1 =>dest afe tx
+        ex: mode 2 =>src afe tx
+        //2->fwd analog loopback
+    @param gpio_start_sel_bits controls whether [src,dest] uses register start or gpio start
+        2 bits [src,dest]. For each, 1->afe, 0->digital channel emulator. 
+        ex: mode 0 =>both register start
+        ex: mode 1 =>dest gpio start
+        ex: mode 2 =>src gpio start
+    @param fix_len_mode_bits controls whether [src,dest] uses fixed length (bpsk) transmission or osla 
+        2 bits [src,dest]. For each, 1->bpsk, 0->osla. 
+        ex: mode 0 =>both OSLA
+        ex: mode 1 =>dest bpsk
+        ex: mode 2 =>src bpsk    
+    @param dest_interf_mode_bit controls whether [src,dest] uses interference mitigation or regular osla
+        2 bits [src,dest]. For each, 1->interf. mitigation, 0->regular osla. 
+        ex: mode 0 =>both osla
+        ex: mode 1 =>dest mitigation
+        ex: mode 2 =>src mitigation
+    @param skip_rst If the usrp is in sync lock mode, we want to update config without resetting the control loop
     */
     void P2PStartTxRx(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp::sptr dest_tx_usrp, std::uint32_t mode_bits, std::uint32_t gpio_start_sel_bits, uint32_t fix_len_mode_bits, std::uint32_t start_sync_mode_bit, std::uint32_t dest_interf_mode_bit, const bool skip_rst ) {
         if(!skip_rst){
@@ -116,14 +197,11 @@ namespace mmio {
             WrMmio(dest_tx_usrp, kConfigAddr, DestStartCmd); //make dest ready for start signal
             std::this_thread::sleep_for(std::chrono::nanoseconds(500*5)); //Ensure that dest is ready for source
             WrMmio(src_tx_usrp, kConfigAddr, SrcStartCmd);
-
         } else if (gpio_start_sel_bits == 0b10){ //src triggered by gpio -> dest get mmio start
             DestStartCmd += 0x2;
             WrMmio(src_tx_usrp, kConfigAddr, SrcStartCmd); //make source ready for gpio start signal from dest
             std::this_thread::sleep_for(std::chrono::nanoseconds(500*5)); 
             WrMmio(dest_tx_usrp, kConfigAddr, DestStartCmd);
-            
-
         } else {
             std::cerr << "P2PStartTxRx: Error: gpio input invalid" << std::endl;
         }
@@ -146,9 +224,9 @@ namespace mmio {
         0x80000033'00000075,
         0x80000034'00000000,
         0x80000035'00000000,
-        0x80000036'00000000,
-        0x80000037'00000000,
-        0x80000038'00000000,
+        0x80000036'FFC1FC00,
+        0x80000037'031D1E4A,
+        0x80000038'0000006E,
     };
 
     //Readback input bit, phase, and threshold settings, valid and done, and pkt out
@@ -234,7 +312,6 @@ namespace mmio {
         tx_usrp->set_gpio_attr("FP0B", "OUT", read_addr); 
         //std::this_thread::sleep_for(std::chrono::nanoseconds(5)); //Arguably no delay is necessary per https://stackoverflow.com/questions/18071664/stdthis-threadsleep-for-and-nanoseconds 
 
-
         uint32_t readback_addr, data;
         readback_addr = tx_usrp->get_gpio_attr("FP0B", "READBACK"); 
         data = tx_usrp->get_gpio_attr("FP0A", "READBACK"); 
@@ -289,8 +366,13 @@ namespace mmio {
         wr_mem_cmd(tx_usrp, cmd);
     }
 
+    /**
+     * @brief Resets the MMIO address buffer. Because the PC to usrp communication channel can't ensure data and address arrive at the same time, we made it
+     *          asynchronous by having the MMIO only execute commands once the address changes. However, this means that if we want to write to the same address twice,
+     *          we need to clear the address buffer by sending a command to address 0x0, which does nothing.
+    */
     void ClearAddrBuffer (uhd::usrp::multi_usrp::sptr tx_usrp) {
-        WrMmio(tx_usrp,0,0); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
+        WrMmio(tx_usrp,mmio::kNullAddr,0);
     }
     
 
@@ -338,7 +420,7 @@ namespace mmio {
         }
 
         // Check how many sample were written and only read those
-        end_addr = std::min(start_addr + mmio::RdMmio(tx_usrp, idx_addr,true)-1,end_addr); //samp_cap_idx displays the last written memory address. Seems to be bugged but I cant find the problem
+        end_addr = std::min(start_addr + mmio::RdMmio(tx_usrp, idx_addr,false)-1,end_addr); //samp_cap_idx displays the last written memory address. Seems to be bugged but I cant find the problem
 
         for(uint32_t addr = start_addr; addr <= end_addr; addr++) {
             uint32_t prmbl_samp = RdMmio(tx_usrp, addr);
@@ -447,6 +529,7 @@ namespace mmio {
         }
 
         // Check how many sample were written and only read those
+        mmio::ClearAddrBuffer(tx_usrp);
         end_addr = std::min(start_addr + mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr)-1,end_addr); //samp_cap_idx displays the last written memory address. Seems to be bugged but I cant find the problem
 
         for(uint32_t addr = start_addr; addr <= end_addr; addr++) {
@@ -484,8 +567,8 @@ namespace mmio {
      * @return A vector of complex doubles containing the captured samples.
      */
     std::vector<double> ReadChipMem(const uhd::usrp::multi_usrp::sptr tx_usrp, const bool mem_sel, const int NCapSamps , const std::string& file) {
-        const int ACCUM_WIDTH = 42;
-        const int ACCUM_FRAC = 38;
+        const int ACCUM_WIDTH = 48;
+        const int ACCUM_FRAC = 19;
         const int CAP_WIDTH = 32;
         const int kDestChipFracLen = ACCUM_FRAC-(ACCUM_WIDTH-32); //17 is accum frac, 40 is accum width, 32 is capture width, truncation is performed
         

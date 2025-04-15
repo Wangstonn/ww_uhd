@@ -197,10 +197,6 @@ void recv_to_file(uhd::usrp::multi_usrp::sptr usrp,
     }
 }
 
-
-
-
-
 /***********************************************************************
  * Main function
  **********************************************************************/
@@ -226,8 +222,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     desc.add_options()
         ("help", "help message")
         //usrp selection
-        ("tx-args", po::value<std::string>(&tx_args)->default_value("type=x300,addr=192.168.110.2"), "uhd transmit device address args")
-        ("rx-args", po::value<std::string>(&rx_args)->default_value("type=x300,addr=192.168.110.2"), "uhd receive device address args")
+        ("tx-args", po::value<std::string>(&tx_args)->default_value("type=x300,addr=192.168.10.2"), "uhd transmit device address args")
+        ("rx-args", po::value<std::string>(&rx_args)->default_value("type=x300,addr=192.168.10.2"), "uhd receive device address args")
         ("ref", po::value<std::string>(&ref)->default_value("internal"), "clock reference (internal, external, mimo)")
         
         //streaming to file
@@ -593,10 +589,15 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                 << std::endl
                 << std::endl;
 
+    rx_gain = 0;
+    rx_usrp->set_rx_gain(rx_gain, 0); //only using channel 0
+    std::cout << boost::format("Actual RX Gain: %f dB...") % rx_usrp->get_rx_gain(0) << std::endl << std::endl;
     //--------------------------------------------------
     //WW - OSLA-BPSK Operation
     //--------------------------------------------------
-
+    /**
+        fwd_alb_cap performs performs an analog loopback test and captures samples for debugging.
+     */
     //Preload some default threshold and angle settings
     mmio::InitBBCore(tx_usrp);
 
@@ -604,8 +605,10 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::uint32_t tx_core_bits{0b10}; 
     std::uint32_t rx_ch_sel_bits{0b01}; 
     std::uint32_t gpio_start_sel_bits{0b01};
+    std::uint32_t fix_len_mode_bits{0b00};
+    std::uint32_t dest_interf_mode_bit{0b0};
 
-    //noise estimation-----------------------------------------------------------------------------------------------------------------------
+    //noise estimation----------------------------------------------------------------------------------------------------------------------------------------
     std::cout << "Running noise estimation..." << std::endl;
     double var = estim::EstimChipNoise(tx_usrp, pow(2,15),rx_ch_sel_bits, "../../data/fwd_alb_noise_samps.dat"); 
     std::cout << "Estimated var= " << var << std::endl;
@@ -620,7 +623,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::complex<double> h_hat;
 
     int D_test = 0;
-    for(int i = 0; i<100;i++) {
+    for(int i = 0; i<5;i++) {
     auto ch_params = estim::ChEstim(tx_usrp, D_test, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, pow(2,12), "../../data/fwd_alb_prmbl_samps.dat");
     D_hat = ch_params.D_hat;
     h_hat = ch_params.h_hat;
@@ -639,121 +642,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     std::complex<double> h_comp = h_hat/std::abs(h_hat); 
     estim::PhaseEq(tx_usrp, h_comp);
-    rx_gain = 0;
-    rx_usrp->set_rx_gain(rx_gain, 0); //only using channel 0
-    std::cout << boost::format("Actual RX Gain: %f dB...") % rx_usrp->get_rx_gain(0) << std::endl << std::endl;
 
-    //Gain Control----------------------------------------------------------
-    // estim::MaxSnrConfig(tx_usrp, h_hat, EsN0);
-    
-    // //analog loopback test at specific snr ----------------------------------------------
-    // std::cout << "Performing gain control---------------------------------------------" << std::endl;
-    // double tx_gain_base = tx_usrp->get_tx_gain(0); //base tx gain used for smaple capture
-    // //assume tx amp is max
-    // //assume rx gain is 0
-    // std::complex<double> h_phase = h_hat/std::abs(h_hat); //save the unit magnitude component
-
-    // //Set operating EsN0
-    // double target_EsN0 = EsN0-0; //in dB
-    // std::cout << "Target Es_N0 = " << target_EsN0 << std::endl;
-    // double target_gain = target_EsN0-EsN0; //change in EsN0 needed to achieve target
-    // double target_rx_gain = -(20*std::log10(std::abs(h_hat)) + target_gain); //rx_gain needed to bring signal amplitude to 1
-    // std::cout << "target_rx_gain = " << target_rx_gain << std::endl;
-
-    // //Set number of bits shifted
-    // uint8_t dest_num_bit_shift = 0;
-    // //Each bit shift introduces noise -> decreases EsN0 by 6 (increases target_gain, decreases target_rx_gain). It also increases rx_gain (decreases target rx_gain) by 6
-    // if (target_rx_gain > estim::kMaxRxGain) {
-    //     dest_num_bit_shift = std::ceil((target_rx_gain-estim::kMaxRxGain)/(2*estim::kDBPerBit));
-    // }
-    // mmio::WrMmio(tx_usrp, mmio::kDestNumBitShift, dest_num_bit_shift); //shift dest rx by 3 to the left (multiply by 8)
-    // std::cout << std::dec << "dest_num_bit_shift set to: " << static_cast<unsigned int>(dest_num_bit_shift) << std::endl;
-
-    // target_gain = target_EsN0-(EsN0 - dest_num_bit_shift*estim::kDBPerBit); //Target gain needed to test system, accounting for quantization noise
-    // std::cout << "target gain:" << target_gain << std::endl;
-
-    // //if target gain > 0, boost tx gain.
-    // if(target_gain > 0) {
-    //     tx_gain = tx_gain_base + std::ceil(target_gain * 2) / 2.0; //round up to nearest half integer. Then decrease tx amp to achieve desired EsN0
-    //     if(tx_gain > estim::kMaxTxGain){
-    //         std::cerr << "Error: target EsN0 is out of tx_gain range. The maximum tx power is not enough"  << std::endl;
-    //         return EXIT_FAILURE;
-    //     }
-
-    //     std::cout << boost::format("Setting TX Gain: %f dB...") % tx_gain << std::endl;
-    //     tx_usrp->set_tx_gain(tx_gain, 0); //only using channel 0
-    //     std::cout << boost::format("Actual TX Gain: %f dB...") % tx_usrp->get_tx_gain(0) << std::endl << std::endl;
-
-    //     //decrease tx_amp to achieve desired EsN0
-    //     double lin_digital_gain = std::pow(10,(target_gain-(tx_gain-tx_gain_base))/20);
-    //     uint16_t tx_amp = static_cast<uint16_t>(std::round(lin_digital_gain*(std::pow(2,16)-1)));
-    //     mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
-
-    // } else {
-    //     tx_gain = std::max(std::ceil((tx_gain_base + target_gain) * 2) / 2.0, 0.0); //decrease tx_gain until just above target, then decrease tx amp
-    //     std::cout << boost::format("Setting TX Gain: %f dB...") % tx_gain << std::endl;
-    //     tx_usrp->set_tx_gain(tx_gain, 0); //only using channel 0
-    //     std::cout << boost::format("Actual TX Gain: %f dB...") % tx_usrp->get_tx_gain(0) << std::endl << std::endl;
-        
-    //     double lin_digital_gain = std::pow(10,(target_gain-(tx_gain-tx_gain_base))/20);
-    //     uint16_t tx_amp = static_cast<uint16_t>(std::round(lin_digital_gain*(std::pow(2,16)-1)));
-    //     std::cout << std::hex << "tx_amp:" << tx_amp << std::endl;
-    //     mmio::WrMmio(tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
-
-    //     if(tx_amp == 0) {
-    //         std::cerr << "Error: tx_amp is zero. The tx power is too strong"  << std::endl;
-    //         return EXIT_FAILURE;
-    //     }
-    // }
-    // //Rounding will not have a significant impact. rouding introduces an error of .5 for a signal with max value 2^16-1. Consider 2^8. Adding 1 to it has 
-    // // adds .01 db. This has a bigger impact if tx_amp is very low, but that only occurs in the case that we have A LOT of tx power (aka a very clean channel).
-    // // This wont occur in any case with tx_amp > 0 since then tx-amp will be decreased by at most 3db (to 2^8).
-
-    // //Set rx gain so that signal is amplitude 1---------------------------------
-    // //Digital gain is [0.66,2]. 
-    // //First set tx gain to achieve higher than target SNR. Then use analog gain/tx amplitude/digital gain to set signal amplitude to 1. 
-    // double h_mag = std::abs(h_hat);
-    // std::cout << "h_hat: " << h_hat << std::endl;
-
-    // target_rx_gain = -(20*std::log10(h_mag) + target_gain) - 20*std::log10(1 << dest_num_bit_shift); //total gain needed in system to equalize 
-    // std::cout << std::dec << "target_rx_gain: " << target_rx_gain << std::endl;
-
-    // if(target_rx_gain > 0) {
-    //     rx_gain = std::ceil(target_rx_gain * 2) / 2.0;
-    //     if (rx_gain > estim::kMaxRxGain) {
-    //         std::cerr << "Error: target EsN0 is out of rx_gain range. The maximum tx power is not enough or the channel is not noisy enough"  << std::endl;
-    //         return EXIT_FAILURE;
-    //     }
-    //     std::cout << boost::format("Setting RX Gain: %f dB...") % rx_gain << std::endl;
-    //     rx_usrp->set_rx_gain(rx_gain, 0); //only using channel 0
-    //     std::cout << boost::format("Actual RX Gain: %f dB...") % rx_usrp->get_rx_gain(0) << std::endl << std::endl;
-    // } 
-    // else {
-    //     rx_gain = 0;
-    //     std::cout << boost::format("Setting RX Gain: %f dB...") % rx_gain << std::endl;
-    //     rx_usrp->set_rx_gain(rx_gain, 0); //only using channel 0
-    //     std::cout << boost::format("Actual RX Gain: %f dB...") % rx_usrp->get_rx_gain(0) << std::endl << std::endl;
-    // }
-
-    // //Digital Compensation
-    // double h_mag_comp = std::pow(10,(target_rx_gain-rx_gain)/20);
-    // std::cout << "h_mag_comp: " << h_mag_comp << std::endl;
-
-    // if(h_mag_comp < 2.0/3.0 || h_mag_comp > 2) {
-    //     std::cerr << "Error: Digital compensation of h_mag is out of rand [0.66,2]. rx-gain is not set correctly or signal power is too high"  << std::endl;
-    //     return EXIT_FAILURE;
-    // }
-    
-    // std::cout << "Performing digital compensation..." << std::endl;
-    // //Use the high SNR estimate because its more reliable. Set the digital gain to 1
-    // h_hat = 1/h_mag_comp*h_phase; //Calculate current channel coefficient (with tx/rx gains)
-    // std::cout << "h_hat: " << h_hat << std::endl;
-    // //Phase Compensation
-    // int phase_eq_result = estim::PhaseEq(tx_usrp, h_hat); 
-    // if (phase_eq_result){
-    //     std::cout << "Error: Unable to write to phase mmio. Try again" << std::endl;
-    //     return EXIT_FAILURE;
-    // }
+    //dont initialize intf mitigation for dest because alb test has very little noise and so we will overflow llr. Instead, run regular osla
 
     //Run test------------------------------------------------------------------------------------
     std::uint32_t mode_bits{0b11};
@@ -768,15 +658,15 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // Generate a random uint32_t
     for(int i = 0; i < Num16BitSlices; i++)
     {
-        input_pkt[i] = 0xFFFFFFFF;
+        input_pkt[i] = 0x5500AAFF; //0xFFFFFFFF
 
         mmio::WrMmio(tx_usrp, mmio::kInPktAddr+i, input_pkt[i]);
 
         // mmio::RdMmio(tx_usrp, mmio::kInPktAddr+i, true);
     }
 
-    mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits);
-    
+    mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, fix_len_mode_bits, dest_interf_mode_bit);
+
     while(true) {
         //Run and check received pkt    
         mmio::WrMmio(tx_usrp,0x0,0x0); //need to clear addr buffer, not sure why its 0x8. 0x0 should work fine...
