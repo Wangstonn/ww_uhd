@@ -974,7 +974,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // std::cout << "h_hat_fb : abs= " << std::abs(h_hat_fw) << " arg= " << std::arg(h_hat_fw) << std::endl;
 
     //set sync lock estim and locked periods. The first 16 bits is the estim delay the last 16 are transmission delay
-    bool capture_data = false;
+    bool capture_data = true;
     uint32_t sync_start_periods = (0x7FFF << 16) + 0x00FF; //min is 0x000F
     if (capture_data)
         sync_start_periods = (0x7FFF << 16) + 0x2FFF; //min is 0x000F
@@ -1145,7 +1145,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::vector<int> sym_lens(kMaxSymLen, 0);
     // uint32_t sym_len_record[kMaxSymLen] = {0};
     
-    int num_pkts = 10;
+    int num_pkts = 5;
     for(int j = 0; j < num_pkts; j++) {
         // Generate a random uint32_t
         for(int i = 0; i < Num16BitSlices; i++)
@@ -1154,7 +1154,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             //std::cout << "Random uint32_t: " << std::hex << std::setw(4) << std::setfill('0') << randomValue << std::endl;
             input_pkt[i] = randomValue;
             // input_pkt[i] = 0xFFFFFF00;
-            // input_pkt[i] = 0xAA00FFFF; //0xAA00FFFF;
+            input_pkt[i] = 0xAA00FFFF; //0xAA00FFFF;
 
             mmio::WrMmio(src_tx_usrp, mmio::kInPktAddr+i, input_pkt[i]);
         }
