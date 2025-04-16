@@ -69,18 +69,6 @@ blocks:
     coordinate: [1064, 100.0]
     rotation: 0
     state: true
-- name: Es_Ni
-  id: variable
-  parameters:
-    comment: ''
-    value: '0'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [544, 148.0]
-    rotation: 0
-    state: true
 - name: F_IF
   id: variable
   parameters:
@@ -105,23 +93,11 @@ blocks:
     coordinate: [792, 172.0]
     rotation: 0
     state: true
-- name: Pr
-  id: variable
-  parameters:
-    comment: ''
-    value: '-94.82'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [544, 212.0]
-    rotation: 0
-    state: true
 - name: TX_ID
   id: variable
   parameters:
     comment: ''
-    value: '"addr=192.168.10.2"'
+    value: '"addr=192.168.110.2"'
   states:
     bus_sink: false
     bus_source: false
@@ -227,7 +203,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [744, 308.0]
+    coordinate: [784, 340.0]
     rotation: 0
     state: true
 - name: blocks_message_debug_0
@@ -310,9 +286,8 @@ blocks:
 - name: epy_block_0
   id: epy_block
   parameters:
-    Es_Ni: Es_Ni
     F_of: F_Of
-    Pr: Pr
+    PSD_path: '"/n/houghton/z/wangston/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/BLE_PSD.csv"'
     _source_code: "\"\"\"\nAuthor: Samuel Nolan\nDescription:\nTakes in three noise\
       \ sources on the input and randomly adds them together\naccording to a poisson\
       \ distribution. Internally normalizes inband noise power\nfrom settings and\
@@ -320,9 +295,10 @@ blocks:
       \"\n\nimport numpy as np\nfrom gnuradio import gr\nimport pmt\n\n\nclass blk(gr.sync_block):\
       \  # other base classes are basic_block, decim_block, interp_block\n    \"\"\
       \"Embedded Python Block Noise Controller\"\"\"\n\n    def __init__(self, sampling_rate\
-      \ = 32000, noise_rate = 1.0, noise_length = 1.0, Es_Ni = 0, Pr = 0, F_of = 0):\
-      \  # only default arguments here\n        \"\"\"\n        Parameters:\n    \
-      \    sampling rate (Hz): Needed to calculate length of noise frame and wait\
+      \ = 32000, PSD_path = \"/n/houghton/z/wangston/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/BLE_PSD.csv\"\
+      , noise_rate = 1.0, noise_length = 1.0, target_Pi = 0, estimated_Pr = 0, F_of\
+      \ = 0):  # only default arguments here\n        \"\"\"\n        Parameters:\n\
+      \        sampling rate (Hz): Needed to calculate length of noise frame and wait\
       \ frame\n        noise_rate (arrivals/second): noise packet rate /s (can overlap\
       \ up to 3 packets)\n        noise length (seconds): length of interference packet\
       \ (if too large may just overlap constantly)\n        Es_Ni(dBm): Desired Es/Ni\
@@ -340,37 +316,39 @@ blocks:
       \n        #######################\n        #Calculate desired P_I#\n       \
       \ #######################\n\n        #Bandwidth of OSLA signal hardcoded here\n\
       \        #336 samples/chip\n        #32 chips/symbol\n        #200000000 samples/second\n\
-      \        #W = 1/R\n        Ts = 336*32/200000000\n        BW = 2/Ts\n      \
-      \  \n        #calculate desired interference power to be used in log normal\
-      \ distribution\n\n        Es = -171\n        P_I = Es-Es_Ni + 10*np.log10(BW)\n\
-      \        self.mu = P_I - 10*np.log10(noise_rate) - 10*np.log10(noise_length)\n\
-      \n        self.Pr = Pr\n        \n        ########################\n       \
-      \ #Normalize In-Band Gain#\n        ########################\n\n        #generate\
-      \ normalizer gain from LUT\n        #file_path = '/n/deer/z/samnolan/BLE_PSD.csv'\n\
-      \        #try:\n        #    PSD = np.genfromtxt(file_path,delimiter=',', dtype=np.double)\n\
-      \        #except FileNotFoundError:\n        #   print(f\"Error: File not found\
-      \ at {file_path}\")\n\n\n        in_band_power = .0345\n        #define gain\
-      \ to have normalized in band power\n        #With this gain, we will have normalized\
-      \ digital power and receive ~Pr that we measured\n        #PSD_i_low  = int(np.round((len(PSD)/2)\
-      \ + (F_of/fbin_width) - (BW/fbin_width)/2) + 1)\n        #PSD_i_high = int(np.round((len(PSD)/2)\
-      \ + (F_of/fbin_width) + (BW/fbin_width)/2))    \n\n        self.G = np.sqrt(1/in_band_power)\n\
-      \n        self.scale = 0\n        \n        ##############################\n\
-      \        #set up interferer parameters#\n        ##############################\n\
-      \        #phase shift\n        self.theta = np.random.uniform(size=len(self.n_counters))*2j*np.pi\n\
+      \        #W = 1/R\n        Ts = 336*32/200000000\n        self.BW = 2/Ts\n \
+      \       \n        #calculate desired interference power to be used in log normal\
+      \ distribution\n        self.scale = 10\n        #Es = -171\n        #N_I =\
+      \ Es-Es_Ni\n        #self.mu = N_I - 10*np.log10(noise_rate*noise_length*np.exp((self.scale*(np.log(10))**2)/200))\
+      \ + 10*np.log10(self.BW)\n        self.mu = target_Pi - 10*np.log10(noise_rate*noise_length*np.exp((self.scale*(np.log(10))**2)/200))\n\
+      \n        self.Pr = estimated_Pr\n        \n        ########################\n\
+      \        #Normalize In-Band Gain#\n        ########################\n\n    \
+      \    #generate normalizer gain from LUT\n        #run locally from grc_graphs\
+      \ folder\n        try:\n            PSD = np.genfromtxt(PSD_path,delimiter=',',\
+      \ dtype=np.double)\n        except FileNotFoundError:\n            print(f\"\
+      Error: File not found at {file_path}\")\n\n\n        fbin_width = 100\n    \
+      \    #define gain to have normalized in band power\n        #With this gain,\
+      \ we will have normalized digital power and receive ~Pr that we measured\n \
+      \       PSD_i_low  = int(np.round((len(PSD)/2) + (F_of/fbin_width) - (self.BW/fbin_width)/2)\
+      \ - 1)\n        PSD_i_high = int(np.round((len(PSD)/2) + (F_of/fbin_width) +\
+      \ (self.BW/fbin_width)/2))    \n\n        self.G = np.sqrt(1/(fbin_width*np.sum(PSD[PSD_i_low:PSD_i_high,0])))\n\
+      \        \n        ##############################\n        #set up interferer\
+      \ parameters#\n        ##############################\n        #phase shift\n\
+      \        self.theta = np.random.uniform(size=len(self.n_counters))*2j*np.pi\n\
       \n        self.sampling_rate = sampling_rate\n        self.rate = noise_rate\n\
       \        self.noise_length = noise_length\n\n        self.noise_frame = np.round((sampling_rate*self.noise_length),0)\n\
       \n        self.arrival_clk = 0\n        self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))\n\
-      \        \n        self.idx = 0\n        self.starved = False\n        ########################\n\
+      \        \n        self.idx = 0\n        self.full = False\n        ########################\n\
       \n        self.DebugPortName = 'Debug'\n        self.message_port_register_out(pmt.intern(self.DebugPortName))\n\
       \n\n    def work(self, input_items, output_items):\n        self.arrival_clk\
       \ = self.arrival_clk + len(output_items[0])\n        self.idx = next((i for\
       \ i,j in enumerate(self.n_counters) if not j[0]),None)\n        if (self.idx\
-      \ == None) and (self.arrival_clk >= self.wait_frame):\n            self.starved\
+      \ == None) and (self.arrival_clk >= self.wait_frame):\n            self.full\
       \ = True\n        '''\n        #use this to send messages from the debug port\n\
       \            PMT_msg = pmt.from_bool(self.state)\n            self.message_port_pub(pmt.intern(self.DebugPortName),\
       \ PMT_msg)\n        '''\n\n        #run arrival clk and signal when packet should\
       \ start transmitting\n        if ((self.arrival_clk >= self.wait_frame) and\
-      \ not self.starved):\n            self.arrival_clk = self.arrival_clk - self.wait_frame\n\
+      \ not self.full):\n            self.arrival_clk = self.arrival_clk - self.wait_frame\n\
       \            self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))\n\
       \            #Mark Interferer to start\n            self.n_counters[self.idx][0]\
       \ = True\n            #generate gain value from parameters\n            P =\
@@ -402,17 +380,17 @@ blocks:
       \ = np.random.uniform()*2j*np.pi\n                    self.n_counters[self.idx][3]\
       \ = self.arrival_clk\n            \n            #PMT_msg = pmt.to_pmt(self.wait_frame)\n\
       \            #self.message_port_pub(pmt.intern(self.DebugPortName), PMT_msg)\n\
-      \n        #If we are starved we want to start noise immediately and also reset\
+      \n        #If we are full we want to start noise immediately and also reset\
       \ the arrival clock to prevent error buildup\n        if ((self.idx != None)\
-      \ and self.starved):\n            self.arrival_clk = len(output_items[0])\n\
-      \            self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))\n\
+      \ and self.full):\n            self.arrival_clk = len(output_items[0])\n   \
+      \         self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))\n\
       \            #Mark Interferer to start\n            self.n_counters[self.idx][0]\
       \ = True\n            #generate gain value from parameters\n            P =\
       \ np.random.normal(loc=self.mu, scale=self.scale)\n            self.n_counters[self.idx][2]\
       \ = self.G*np.sqrt(10**((P-self.Pr)/10))\n            #generate new phase offset\n\
       \            self.theta[self.idx] = np.random.uniform()*2j*np.pi\n         \
-      \   self.starved = False\n\n            \n        output_items[0][:] = 0\n \
-      \       for i in range(len(self.n_counters)):\n            if(self.n_counters[i][0]):\n\
+      \   self.full = False\n\n            \n        output_items[0][:] = 0\n    \
+      \    for i in range(len(self.n_counters)):\n            if(self.n_counters[i][0]):\n\
       \n                if(self.n_counters[i][3] != 0):\n                    self.n_counters[i][1]\
       \ = self.n_counters[i][1] + self.n_counters[i][3]\n                    output_items[0][-int(self.n_counters[i][3]):]\
       \ = output_items[0][-int(self.n_counters[i][3]):] + self.n_counters[i][2]*input_items[i][-int(self.n_counters[i][3]):]*np.exp(self.theta[i])\n\
@@ -428,25 +406,46 @@ blocks:
       \n                \n\n        if(abs(output_items[0][0]) > 1):\n           \
       \ PMT_msg = pmt.string_to_symbol(\"Warning: USRP is saturated, please edit analog\
       \ gain in flowgraph\")\n            self.message_port_pub(pmt.intern(self.DebugPortName),\
-      \ PMT_msg)\n        #    return -1\n        return len(output_items[0][:])\n"
+      \ PMT_msg)\n            #return -1\n        return len(output_items[0][:])\n\
+      \n"
     affinity: ''
     alias: ''
     comment: ''
+    estimated_Pr: estPr
     maxoutbuf: '0'
     minoutbuf: '0'
     noise_length: '.002'
     noise_rate: '200'
     sampling_rate: samp_rate
+    target_Pi: tgPi
   states:
-    _io_cache: ('Noise Controller', 'blk', [('sampling_rate', '32000'), ('noise_rate',
-      '1.0'), ('noise_length', '1.0'), ('Es_Ni', '0'), ('Pr', '0'), ('F_of', '0')],
-      [('0', 'complex', 1), ('1', 'complex', 1), ('2', 'complex', 1)], [('0', 'complex',
-      1), ('Debug', 'message', 1)], 'Embedded Python Block Noise Controller', ['Pr',
-      'noise_length', 'sampling_rate'])
+    _io_cache: ('Noise Controller', 'blk', [('sampling_rate', '32000'), ('PSD_path',
+      "'/n/houghton/z/wangston/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/BLE_PSD.csv'"),
+      ('noise_rate', '1.0'), ('noise_length', '1.0'), ('target_Pi', '0'), ('estimated_Pr',
+      '0'), ('F_of', '0')], [('0', 'complex', 1), ('1', 'complex', 1), ('2', 'complex',
+      1)], [('0', 'complex', 1), ('Debug', 'message', 1)], 'Embedded Python Block
+      Noise Controller', ['noise_length', 'sampling_rate'])
     bus_sink: false
     bus_source: false
     bus_structure: null
     coordinate: [504, 292.0]
+    rotation: 0
+    state: true
+- name: estPr
+  id: parameter
+  parameters:
+    alias: ''
+    comment: ''
+    hide: none
+    label: estimated_Pr
+    short_id: ''
+    type: ''
+    value: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [416, 36.0]
     rotation: 0
     state: true
 - name: import_0
@@ -557,6 +556,23 @@ blocks:
     bus_source: false
     bus_structure: null
     coordinate: [816, 452.0]
+    rotation: 0
+    state: true
+- name: tgPi
+  id: parameter
+  parameters:
+    alias: ''
+    comment: ''
+    hide: none
+    label: target_Pi
+    short_id: ''
+    type: ''
+    value: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [544, 68.0]
     rotation: 0
     state: true
 - name: uhd_usrp_sink_0

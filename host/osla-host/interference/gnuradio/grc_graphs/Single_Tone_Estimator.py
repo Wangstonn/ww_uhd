@@ -80,7 +80,7 @@ class Single_Tone_Estimator(gr.top_block, Qt.QWidget):
         self.BLE_fd = BLE_fd = 250000
         self.time_s = time_s = 1
         self.sensitivity = sensitivity = 2*math.pi*BLE_fd/samp_rate
-        self.TX_ID = TX_ID = "addr=192.168.10.2"
+        self.TX_ID = TX_ID = "addr=192.168.110.2"
         self.F_Of = F_Of = 0
         self.F_IF = F_IF = 595238
         self.CH_gain = CH_gain = 20
