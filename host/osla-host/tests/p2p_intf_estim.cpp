@@ -926,50 +926,52 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     if (init_calibration) {
         std::cout << "Running interference calibration." << std::endl;
         
-        std::cout << "Running noise estimation..." << std::endl;
-        double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2,16), "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
-        std::cout << "Estimated var= " << var << std::endl;
-        estim::CalcN0(var);
+        // std::cout << "Running noise estimation..." << std::endl;
+        // double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2,16), "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
+        // std::cout << "Estimated var= " << var << std::endl;
+        // estim::CalcN0(var);
 
 
-        std::cout << "Running fwd estimation..." << std::endl;
-        int D_hat_fwd;
-        std::complex<double> h_hat_fwd;
+        // std::cout << "Running fwd estimation..." << std::endl;
+        // int D_hat_fwd;
+        // std::complex<double> h_hat_fwd;
     
-        while (true) {
-            auto ch_params = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, 0, std::pow(2,15), true, 0x1, false, ""); //std::string("../../data/fwd_p2p_prmbl_samps")+std::to_string(j)+".dat"
-            D_hat_fwd = ch_params.D_hat;
-            h_hat_fwd = ch_params.h_hat;
+        // while (true) {
+        //     auto ch_params = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, 0, std::pow(2,15), true, 0x1, false, ""); //std::string("../../data/fwd_p2p_prmbl_samps")+std::to_string(j)+".dat"
+        //     D_hat_fwd = ch_params.D_hat;
+        //     h_hat_fwd = ch_params.h_hat;
             
-            if(D_hat_fwd > 0 && D_hat_fwd < 500) {
-                break;
-            }
-        }
-        double EsN0 = estim::CalcChipEsN0(h_hat_fwd, var);
-        mmio::ClearAddrBuffer(dest_tx_usrp);
+        //     if(D_hat_fwd > 0 && D_hat_fwd < 500) {
+        //         break;
+        //     }
+        // }
+        // double EsN0 = estim::CalcChipEsN0(h_hat_fwd, var);
+        // mmio::ClearAddrBuffer(dest_tx_usrp);
     
-        double rss_dbm = estim::CalcRssdbW(h_hat_fwd)+30;
-
-        double intf_rss_dbm = estim::IntfChEstim(dest_tx_usrp, std::pow(2,15), "../../data/interf_cal_samps.dat");
-
-    
-        std::cout << std::dec << "D_test= " << 0 << ", ";
-        std::cout << "D_hat_fwd= " << D_hat_fwd << ", ";
-        std::cout << "EsN0= " << EsN0 << ", ";
-        std::cout << "Estimation rss_adc (dbm)= " << rss_dbm << ", ";
-        std::cout << "Interference rss_adc (dbm)= " << intf_rss_dbm << ", ";
-        std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd) << " arg= " << std::arg(h_hat_fwd) << std::endl;
+        // double rss_dbm = estim::CalcRssdbW(h_hat_fwd)+30;
         
         // write a loop that waits for the user to enter a key to exit loop
         std::cout << "Waiting for sinusoid setup. Press any key when ready..." << std::endl;
         while (true) {
-            if (std::cin.get()) {
+            if (std::cin.get()) 
                 break;
-            }
         }
         std::cout << "Estimating Interferer strength..." << std::endl;
 
-    
+        double intf_rss_dbm = estim::IntfChEstim(dest_tx_usrp, std::pow(2,15), "../../data/interf_cal_samps.dat");
+
+        // std::cout << std::dec << "D_test= " << 0 << ", ";
+        // std::cout << "D_hat_fwd= " << D_hat_fwd << ", ";
+        // std::cout << "EsN0= " << EsN0 << ", ";
+        // std::cout << "Estimation rss_adc (dbm)= " << rss_dbm << ", ";
+        std::cout << "Interference rss (dbm)= " << intf_rss_dbm << std::endl;
+        // std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd) << " arg= " << std::arg(h_hat_fwd) << std::endl;
+
+        std::cout << "Waiting to end sinusoid. Press any key when ready to move on..." << std::endl;
+        while (true) {
+            if (std::cin.get()) 
+                break;
+        }
     }
 
 
@@ -977,40 +979,22 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << "Running noise estimation..." << std::endl;
     double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2,16), "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
     std::cout << "Estimated var= " << var << std::endl;
-    estim::CalcN0(var);
-
-    // //write a loop that sweepx rx gain from 0 to 30 in 5 db steps and prints the noise values estimated by the code above
-    // for(int i = 0; i <= 0; i+=5){
-    //     std::cout<< "Setting rx gain to " << i << std::endl;
-    //     dest_rx_usrp->set_rx_gain(i, 0);     
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(5000)); //wait for the gain to settle
-    //     var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2,12), "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
-    //     std::cout << "Estimated var= " << var << std::endl;
-    //     rx_noise_dbW = 10*log10(var) + 20*log10(std::pow(2,-13)) - 41.81 - 10*log10(50); //50 ohm resistor at end
-    //     std::cout << "rx_noise (dbm)= " << rx_noise_dbW << std::endl;
-    //     estimated_N0 = -10*log10(1/(5.0*std::pow(10,-9)*336.0)) + rx_noise_dbW; //5MHz bandwidth
-    //     std::cout << "Estimated N0= " << estimated_N0 << std::endl<< std::endl;
-    // }
-
+    double noise_rss_dbw = estim::CalcNoiseRssDbm(var);
     // Feedback estimation ------------------------------------------------------------------------------------------------------------------
     std::cout << "Running fb estimation..." << std::endl;
     std::complex<double> h_hat_fb;
     int D_test = 0;
 
     while (true){
-        auto ch_params = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,15), true, 0x1, false, "../../data/fwd_p2p_prmbl_samps0.dat"); //std::string("../../data/fwd_p2p_prmbl_samps")+std::to_string(j)+".dat"
-        auto D_hat_fwd = ch_params.D_hat;
-        auto h_hat_fwd = ch_params.h_hat;
+        auto ch_params_fb = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,15), false, 0x0, false, "../../data/fb_p2p_prmbl_samps.dat"); //"../../data/fb_p2p_prmbl_samps.dat"
+        int D_hat_fb = ch_params_fb.D_hat;
+        h_hat_fb = ch_params_fb.h_hat;
         
-        if(D_hat_fwd > 0 && D_hat_fwd < 500) {
-            break;
-        }
-
         std::cout << std::dec << "D_test= " << D_test << ", ";
-        std::cout << "D_hat_fwd = " << D_hat_fwd << ", ";
-        std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd) << " arg= " << std::arg(h_hat_fwd) << std::endl;
+        std::cout << "D_hat_fb= " << D_hat_fb << ", ";
+        std::cout << "h_hat_fb : abs= " << std::abs(h_hat_fb) << " arg= " << std::arg(h_hat_fb) << std::endl;
 
-        if(D_hat_fwd > 0 && D_hat_fwd < 500){
+        if(D_hat_fb > 0 && D_hat_fb < 500){
             break;
         }
     }
@@ -1031,9 +1015,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     //set sync lock estim and locked periods. The first 16 bits is the estim delay the last 16 are transmission delay
     bool capture_data = false;
-    uint32_t sync_start_periods = (0x7FFF << 16) + 0x007F; //min is 0x000F
+    uint32_t sync_start_periods = (0xFFFF << 16) + 0x03FF; //min is 0x007F, guess this is how long the pkt will take w interference
     if (capture_data)
-        sync_start_periods = (0x7FFF << 16) + 0x2FFF; //min is 0x000F
+        sync_start_periods = (0xFFFF << 16) + 0x2FFF; //min is 0x000F
 
     mmio::WrMmio(src_tx_usrp, mmio::kSyncStartPeriodAddr,sync_start_periods);
     mmio::WrMmio(dest_tx_usrp, mmio::kSyncStartPeriodAddr,sync_start_periods);
@@ -1067,6 +1051,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //Gain Control--------------------------------------------------------------------------------------------------------------------------
     //Set operating EsN0
     double target_EsN0 = 3; //in dB
+    double target_EsNi = 6; //in dB
     std::cout << "Target Es_N0 = " << target_EsN0 << std::endl;
     if(EsN0 < target_EsN0) {
         std::cout << "Starting EsN0 is too low! Increase tx-gain" << std::endl;      
@@ -1117,22 +1102,15 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         }
     }
     std::cout << "Current signal level h: " <<  abs(h) << std::endl;
-    
-    
-    //repeated estims for checking sample drift
-    // for(int j = 1; j < 5; j++) {
 
-    //     ch_params = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,12), true, 0x1, true, ""); //std::string("../../data/fwd_p2p_prmbl_samps")+std::to_string(j)+".dat"
-    //     D_hat_fwd = ch_params.D_hat;
-    //     h_hat_fwd = ch_params.h_hat;
-
-    //     mmio::ClearAddrBuffer(dest_tx_usrp);
-
-    //     std::cout << std::dec << "D_test= " << D_test << ", ";
-    //     std::cout << "D_hat_fwd= " << D_hat_fwd << ", ";
-    //     std::cout << "EsN0= " << EsN0 << ", ";
-    //     std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd) << " arg= " << std::arg(h_hat_fwd) << std::endl;
-    // }
+        //Interference adjustment
+        double target_intf_rss_dbm = noise_rss_dbw + target_EsN0-target_EsNi;
+        std::cout << "Load interferer with target interference rss (dbm)= " << target_intf_rss_dbm << std::endl;
+        std::cout << "Press any key when ready" << std::endl;
+        while (true) 
+            if (std::cin.get()) 
+                break;
+                
 
     //Test setup------------------------------------------------------------------
     std::cout << "Performing compensation..." << std::endl;
@@ -1153,7 +1131,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     bool is_intf_mode = true;
     if (is_intf_mode) {
-        //TODO: adjust for the fact that var will be diff after h multiplication
         estim::ConfigDestIntfMitigation(dest_tx_usrp, h, var);
         dest_interf_mode_bit = 0b1;
     }
@@ -1314,20 +1291,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << std::dec << "Reached " << n_errors << " errors"<< std::endl;
     std::cout << std::dec << "Average symbol length: " << avg_sym_len/(num_pkts*mmio::kPktLen) << std::endl;
 
-    // ch_params = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, D_test, std::pow(2,12), true, 0x1, true, ""); //std::string("../../data/fwd_p2p_prmbl_samps")+std::to_string(j)+".dat"
-    // D_hat_fwd = ch_params.D_hat;
-    // h_hat_fwd = ch_params.h_hat;
-
-    // mmio::ClearAddrBuffer(dest_tx_usrp);
-
-    // std::cout << std::dec << "D_test= " << D_test << ", ";
-    // std::cout << "D_hat_fwd= " << D_hat_fwd << ", ";
-    // std::cout << "EsN0= " << EsN0 << ", ";
-    // std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd) << " arg= " << std::arg(h_hat_fwd) << std::endl;
-
-    // for(int i = 0; i < 5; i++){
-    //     mmio::RdMmio(src_tx_usrp,mmio::kSymLenAddr+i, true);
-    // }
 
     std::cout << estim::generateMatlabArray(sym_lens, "sym_lens");
             

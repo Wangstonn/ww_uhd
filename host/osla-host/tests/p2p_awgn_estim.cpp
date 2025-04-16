@@ -925,7 +925,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << "Running noise estimation..." << std::endl;
     double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2,16), "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
     std::cout << "Estimated var= " << var << std::endl;
-    estim::CalcN0(var);
+    double noise_rss_dbw = estim::CalcNoiseRssDbm(var);
 
     // //write a loop that sweepx rx gain from 0 to 30 in 5 db steps and prints the noise values estimated by the code above
     // for(int i = 0; i <= 0; i+=5){
@@ -973,7 +973,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // std::cout << "EsN0= " << EsN0 << ", ";
     // std::cout << "h_hat_fb : abs= " << std::abs(h_hat_fw) << " arg= " << std::arg(h_hat_fw) << std::endl;
 
-    //Fwd lock estim---------------------------------------------------------------------------------------------------------------------------------------------
     //set sync lock estim and locked periods. The first 16 bits is the estim delay the last 16 are transmission delay
     bool capture_data = false;
     uint32_t sync_start_periods = (0x7FFF << 16) + 0x007F; //min is 0x000F
@@ -1098,7 +1097,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     bool is_intf_mode = true;
     if (is_intf_mode) {
-        //TODO: adjust for the fact that var will be diff after h multiplication
         estim::ConfigDestIntfMitigation(dest_tx_usrp, h, var);
         dest_interf_mode_bit = 0b1;
     }

@@ -41,7 +41,7 @@ namespace estim {
 
     double EstimNoise(const uhd::usrp::multi_usrp::sptr tx_usrp, const int NCapSamps, const uint32_t rx_ch_sel_bits = 0b01, const std::string& file = "");
     double EstimChipNoise(const uhd::usrp::multi_usrp::sptr tx_usrp, const int NCapSamps, const uint32_t rx_ch_sel_bits, const std::string& file = "");
-    void CalcN0(double chip_var);
+    double CalcNoiseRssDbm(double chip_var);
     double CalcRssdbW(std::complex<double> h_hat);
     double CalcSNR(const std::complex<double>& h_hat, const double var);
     double CalcEsN0(const std::complex<double>& h_hat, const int osr, const double var);

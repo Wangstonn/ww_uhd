@@ -518,7 +518,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp
     std::cout << "Running noise estimation..." << std::endl;
     double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2,16), "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
     std::cout << "Estimated var= " << var << std::endl;
-    estim::CalcN0(var);
+    estim::CalcNoiseRssDbm(var);
     
     // Feedback estimation ------------------------------------------------------------------------------------------------------------------
     std::cout << "Running fb estimation..." << std::endl;

@@ -227,11 +227,9 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp
     mmio::StartTx(dest_tx_usrp, 0b11, 0b01, 0b10, 0b00,0b00,0b0); 
     // write a loop that waits for the user to enter a key to exit loop
     std::cout << "Sending sinusoid. Press any key to exit the loop..." << std::endl;
-    while (true) {
-        if (std::cin.get()) {
+    while (true) 
+        if (std::cin.get()) 
             break;
-        }
-    }
 
     //noise estimation-----------------------------------------------------------------------------------------------------------------------
     std::cout << "Running noise estimation..." << std::endl;
@@ -304,8 +302,8 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp
     mmio::WrMmio(src_tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
     std::complex<double> h = h_hat_fwd*std::complex<double>(lin_digital_gain,0);
     std::cout << "Current signal level: " <<  abs(h) << std::endl;
-    double rss_dbW = 20*log10(std::abs(h) * std::pow(2,4) * std::pow(2,-13)) - 41.81 - 10*log10(50); //50 ohm resistor at end
-    std::cout << "Current rss (dbW) is: " << rss_dbW << "\n";
+    double rss_dbm = 20*log10(std::abs(h) * std::pow(2,4) * std::pow(2,-13)) - 41.81 - 10*log10(50) + 30; //50 ohm resistor at end
+    std::cout << "Current rss (dbW) is: " << rss_dbm << "\n";
     
     //Set number of bits shifted
     if (abs(h) < 1){        
@@ -317,6 +315,8 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp
         h = h * std::pow(2,dest_num_bit_shift);
     }
     std::cout << "Current signal level: " <<  abs(h) << std::endl;
+
+
     
     //Test setup------------------------------------------------------------------
     std::cout << "Performing compensation..." << std::endl;
@@ -451,7 +451,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp
     ber_result.num_bits = n_iters*mmio::kPktLen;
     ber_result.num_errs = n_errors;
     ber_result.ber = static_cast<double>(ber_result.num_errs)/static_cast<double>(ber_result.num_bits);
-    ber_result.rss_dbm = rss_dbW + 30;
+    ber_result.rss_dbm = rss_dbm;
     ber_result.avg_sym_len = avg_sym_len/static_cast<double>(n_iters*mmio::kPktLen);
 
     std::cout << "Test EsN0_db = " << EsN0_db << " Fixed length = " << is_fixed_length << std::endl;

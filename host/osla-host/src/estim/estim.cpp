@@ -378,7 +378,6 @@ namespace estim {
         std::cout << "h_hat mag: " << std::abs(h_hat) << std::endl;
         double rss_dbm = CalcRssdbW(h_hat) + 30; //convert to dbm
 
-
         return rss_dbm;
     }
     
@@ -665,20 +664,21 @@ namespace estim {
      *
      * @param var The measured chip power variance (should reflect the power of received noise samples).
      */
-    void CalcN0(double chip_var) {    
+    double CalcNoiseRssDbm(double chip_var) {    
         // Gain from antenna to ADC is 41.81 dB, ADC swing is 2V, 14-bit resolution
-        double rx_noise_dbW = 10 * std::log10(chip_var) 
+        double noise_rss_dbm = 10 * std::log10(chip_var) 
                             + 20 * std::log10(1.0 / estim::kFwOsr) //find the power in this chip
                             + 20 * std::log10(std::pow(2, -13)) 
                             - estim::rx_gain
                             - 10 * std::log10(50); // 50-ohm termination
     
-        std::cout << "rx_noise (dbm)= " << rx_noise_dbW << std::endl;
+        std::cout << "rx_noise (dbm)= " << noise_rss_dbm << std::endl;
     
         // Estimated N0 for a 5 MHz bandwidth and 336 chips
-        double estimated_N0 = -10 * std::log10(1 / (2.0*5.0e-9 * 336.0)) + rx_noise_dbW + 30;
-    
+        double estimated_N0 = -10 * std::log10(1 / (2.0*5.0e-9 * 336.0)) + noise_rss_dbm + 30;
         std::cout << "Estimated N0 (dbm)= " << estimated_N0 << std::endl;
+
+        return noise_rss_dbm;
     }
 
     /**
