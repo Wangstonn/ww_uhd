@@ -14,7 +14,7 @@ import pmt
 class blk(gr.sync_block):  # other base classes are basic_block, decim_block, interp_block
     """Embedded Python Block Noise Controller"""
 
-    def __init__(self, sampling_rate = 32000, noise_rate = 1.0, noise_length = 1.0, Es_Ni = 0, Pr = 0, F_of = 0):  # only default arguments here
+    def __init__(self, sampling_rate = 32000, noise_rate = 1.0, noise_length = 1.0, Es_Ni = 0, Pr = 0, F_of = 0, PSD_path = ''):  # only default arguments here
         """
         Parameters:
         sampling rate (Hz): Needed to calculate length of noise frame and wait frame
@@ -65,9 +65,9 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         ########################
 
         #generate normalizer gain from LUT
-        file_path = '/home/samnolan/OSLA_research/OSLA/bpsk/interference/MATLAB/BLEwaveform/BLE_PSD.csv'
+        #run locally from grc_graphs folder
         try:
-            PSD = np.genfromtxt(file_path,delimiter=',', dtype=np.double)
+            PSD = np.genfromtxt(PSD_path,delimiter=',', dtype=np.double)
         except FileNotFoundError:
             print(f"Error: File not found at {file_path}")
 
