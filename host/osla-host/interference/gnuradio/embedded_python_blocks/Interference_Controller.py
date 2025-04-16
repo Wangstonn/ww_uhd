@@ -14,7 +14,7 @@ import pmt
 class blk(gr.sync_block):  # other base classes are basic_block, decim_block, interp_block
     """Embedded Python Block Noise Controller"""
 
-    def __init__(self, sampling_rate = 32000, noise_rate = 1.0, noise_length = 1.0, Es_Ni = 0, Pr = 0, F_of = 0, PSD_path = ''):  # only default arguments here
+    def __init__(self, sampling_rate = 32000, noise_rate = 1.0, noise_length = 1.0, Pi = 0, Pr = 0, F_of = 0, PSD_path = ''):  # only default arguments here
         """
         Parameters:
         sampling rate (Hz): Needed to calculate length of noise frame and wait frame
@@ -54,9 +54,10 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         
         #calculate desired interference power to be used in log normal distribution
         self.scale = 10
-        Es = -171
-        N_I = Es-Es_Ni
-        self.mu = N_I - 10*np.log10(noise_rate*noise_length*np.exp((self.scale*(np.log(10))**2)/200)) + 10*np.log10(self.BW)
+        #Es = -171
+        #N_I = Es-Es_Ni
+        #self.mu = N_I - 10*np.log10(noise_rate*noise_length*np.exp((self.scale*(np.log(10))**2)/200)) + 10*np.log10(self.BW)
+        self.mu = Pi - 10*np.log10(noise_rate*noise_length*np.exp((self.scale*(np.log(10))**2)/200))
 
         self.Pr = Pr
         
