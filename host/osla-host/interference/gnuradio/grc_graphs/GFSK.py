@@ -24,7 +24,6 @@ from PyQt5 import Qt
 from gnuradio import qtgui
 from gnuradio.filter import firdes
 import sip
-from gnuradio import analog
 from gnuradio import blocks
 import math
 import numpy
@@ -36,8 +35,9 @@ import signal
 from argparse import ArgumentParser
 from gnuradio.eng_arg import eng_float, intx
 from gnuradio import eng_notation
-import GFSK_epy_block_0_0 as epy_block_0_0  # embedded python block
-import numpy as np
+from gnuradio import uhd
+import time
+import GFSK_epy_block_0 as epy_block_0  # embedded python block
 
 
 
@@ -45,7 +45,7 @@ from gnuradio import qtgui
 
 class GFSK(gr.top_block, Qt.QWidget):
 
-    def __init__(self):
+    def __init__(self, estPr=0, tgPi=0):
         gr.top_block.__init__(self, "BLE_Interference_test", catch_exceptions=True)
         Qt.QWidget.__init__(self)
         self.setWindowTitle("BLE_Interference_test")
@@ -77,22 +77,43 @@ class GFSK(gr.top_block, Qt.QWidget):
             pass
 
         ##################################################
+        # Parameters
+        ##################################################
+        self.estPr = estPr
+        self.tgPi = tgPi
+
+        ##################################################
         # Variables
         ##################################################
         self.samp_rate = samp_rate = 10000000
         self.BLE_fd = BLE_fd = 250000
         self.sensitivity = sensitivity = 2*math.pi*BLE_fd/samp_rate
-        self.samp_rate_0 = samp_rate_0 = 10000000
-        self.Pr = Pr = -93.38235
-        self.F_band = F_band = 2*200000000/336/32
+        self.TX_ID = TX_ID = "addr=192.168.110.2"
         self.F_Of = F_Of = 0
         self.F_IF = F_IF = 595238
-        self.Es_Ni = Es_Ni = -5
+        self.CH_gain = CH_gain = 20
         self.BLE_sym_length = BLE_sym_length = .000001
 
         ##################################################
         # Blocks
         ##################################################
+        self.uhd_usrp_sink_0 = uhd.usrp_sink(
+            ",".join((TX_ID, '')),
+            uhd.stream_args(
+                cpu_format="fc32",
+                args='',
+                channels=list(range(0,1)),
+            ),
+            "",
+        )
+        self.uhd_usrp_sink_0.set_clock_source('external', 0)
+        self.uhd_usrp_sink_0.set_samp_rate(samp_rate)
+        self.uhd_usrp_sink_0.set_time_unknown_pps(uhd.time_spec(0))
+
+        self.uhd_usrp_sink_0.set_center_freq(2400000000, 0)
+        self.uhd_usrp_sink_0.set_antenna("TX/RX", 0)
+        self.uhd_usrp_sink_0.set_bandwidth(160000000, 0)
+        self.uhd_usrp_sink_0.set_gain(CH_gain, 0)
         self.qtgui_time_sink_x_0 = qtgui.time_sink_c(
             1024, #size
             samp_rate, #samp_rate
@@ -144,7 +165,7 @@ class GFSK(gr.top_block, Qt.QWidget):
 
         self._qtgui_time_sink_x_0_win = sip.wrapinstance(self.qtgui_time_sink_x_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_time_sink_x_0_win)
-        self.epy_block_0_0 = epy_block_0_0.blk(sampling_rate=samp_rate, noise_rate=250, noise_length=.002, Es_Ni=Es_Ni, Pr=Pr, F_of=-F_Of)
+        self.epy_block_0 = epy_block_0.blk(sampling_rate=samp_rate, PSD_path="/n/houghton/z/wangston/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/BLE_PSD.csv", noise_rate=200, noise_length=.002, target_Pi=tgPi, estimated_Pr=estPr, F_of=F_Of)
         self.digital_gfsk_mod_0_0_0_1 = digital.gfsk_mod(
             samples_per_symbol=round(BLE_sym_length*samp_rate),
             sensitivity=sensitivity,
@@ -166,54 +187,26 @@ class GFSK(gr.top_block, Qt.QWidget):
             verbose=False,
             log=False,
             do_unpack=False)
-        self.blocks_throttle_0_0_0 = blocks.throttle(gr.sizeof_gr_complex*1, samp_rate,True)
-        self.blocks_streams_to_vector_0 = blocks.streams_to_vector(gr.sizeof_short*1, 2)
-        self.blocks_null_source_0 = blocks.null_source(gr.sizeof_gr_complex*1)
-        self.blocks_null_sink_0 = blocks.null_sink(gr.sizeof_gr_complex*1)
-        self.blocks_multiply_const_xx_0 = blocks.multiply_const_cc(10**((Pr+137)/20), 1)
         self.blocks_message_debug_0 = blocks.message_debug(True)
-        self.blocks_head_0_0 = blocks.head(gr.sizeof_short*2, 20000000)
-        self.blocks_head_0 = blocks.head(gr.sizeof_gr_complex*1, 20000000)
-        self.blocks_freqshift_cc_0 = blocks.rotator_cc(2.0*math.pi*-F_IF/samp_rate)
-        self.blocks_float_to_short_0_0 = blocks.float_to_short(1, 1)
-        self.blocks_float_to_short_0 = blocks.float_to_short(1, 1)
-        self.blocks_file_sink_0_0 = blocks.file_sink(gr.sizeof_short*2, '/home/samnolan/OSLA_research/ww_uhd/host/osla-host/interference/gnuradio/log/c16_sim_gfsk_10M.bin', False)
-        self.blocks_file_sink_0_0.set_unbuffered(False)
-        self.blocks_complex_to_real_0 = blocks.complex_to_real(1)
-        self.blocks_complex_to_imag_0 = blocks.complex_to_imag(1)
-        self.blocks_add_xx_0 = blocks.add_vcc(1)
-        self.analog_random_source_x_0_1 = blocks.vector_source_b(list(map(int, numpy.random.randint(0, 2, 2000))), True)
-        self.analog_random_source_x_0_0 = blocks.vector_source_b(list(map(int, numpy.random.randint(0, 2, 2000))), True)
-        self.analog_random_source_x_0 = blocks.vector_source_b(list(map(int, numpy.random.randint(0, 2, 2000))), True)
-        self.analog_noise_source_x_0 = analog.noise_source_c(analog.GR_GAUSSIAN, 7.5, 0)
+        self.blocks_freqshift_cc_0 = blocks.rotator_cc(2.0*math.pi*F_IF/samp_rate)
+        self.analog_random_source_x_0_1 = blocks.vector_source_b(list(map(int, numpy.random.randint(0, 2, 100000))), True)
+        self.analog_random_source_x_0_0 = blocks.vector_source_b(list(map(int, numpy.random.randint(0, 2, 100000))), True)
+        self.analog_random_source_x_0 = blocks.vector_source_b(list(map(int, numpy.random.randint(0, 2, 100000))), True)
 
 
         ##################################################
         # Connections
         ##################################################
-        self.msg_connect((self.epy_block_0_0, 'Debug'), (self.blocks_message_debug_0, 'print'))
-        self.connect((self.analog_noise_source_x_0, 0), (self.blocks_add_xx_0, 1))
+        self.msg_connect((self.epy_block_0, 'Debug'), (self.blocks_message_debug_0, 'print'))
         self.connect((self.analog_random_source_x_0, 0), (self.digital_gfsk_mod_0_0_0, 0))
         self.connect((self.analog_random_source_x_0_0, 0), (self.digital_gfsk_mod_0_0_0_0, 0))
         self.connect((self.analog_random_source_x_0_1, 0), (self.digital_gfsk_mod_0_0_0_1, 0))
-        self.connect((self.blocks_add_xx_0, 0), (self.blocks_null_sink_0, 0))
-        self.connect((self.blocks_complex_to_imag_0, 0), (self.blocks_float_to_short_0, 0))
-        self.connect((self.blocks_complex_to_real_0, 0), (self.blocks_float_to_short_0_0, 0))
-        self.connect((self.blocks_float_to_short_0, 0), (self.blocks_streams_to_vector_0, 1))
-        self.connect((self.blocks_float_to_short_0_0, 0), (self.blocks_streams_to_vector_0, 0))
-        self.connect((self.blocks_freqshift_cc_0, 0), (self.blocks_head_0, 0))
-        self.connect((self.blocks_head_0, 0), (self.blocks_multiply_const_xx_0, 0))
-        self.connect((self.blocks_head_0_0, 0), (self.blocks_file_sink_0_0, 0))
-        self.connect((self.blocks_multiply_const_xx_0, 0), (self.blocks_throttle_0_0_0, 0))
-        self.connect((self.blocks_null_source_0, 0), (self.blocks_add_xx_0, 0))
-        self.connect((self.blocks_streams_to_vector_0, 0), (self.blocks_head_0_0, 0))
-        self.connect((self.blocks_throttle_0_0_0, 0), (self.blocks_complex_to_imag_0, 0))
-        self.connect((self.blocks_throttle_0_0_0, 0), (self.blocks_complex_to_real_0, 0))
-        self.connect((self.digital_gfsk_mod_0_0_0, 0), (self.epy_block_0_0, 0))
-        self.connect((self.digital_gfsk_mod_0_0_0_0, 0), (self.epy_block_0_0, 1))
-        self.connect((self.digital_gfsk_mod_0_0_0_1, 0), (self.epy_block_0_0, 2))
-        self.connect((self.epy_block_0_0, 0), (self.blocks_freqshift_cc_0, 0))
-        self.connect((self.epy_block_0_0, 0), (self.qtgui_time_sink_x_0, 0))
+        self.connect((self.blocks_freqshift_cc_0, 0), (self.uhd_usrp_sink_0, 0))
+        self.connect((self.digital_gfsk_mod_0_0_0, 0), (self.epy_block_0, 0))
+        self.connect((self.digital_gfsk_mod_0_0_0_0, 0), (self.epy_block_0, 1))
+        self.connect((self.digital_gfsk_mod_0_0_0_1, 0), (self.epy_block_0, 2))
+        self.connect((self.epy_block_0, 0), (self.blocks_freqshift_cc_0, 0))
+        self.connect((self.epy_block_0, 0), (self.qtgui_time_sink_x_0, 0))
 
 
     def closeEvent(self, event):
@@ -224,16 +217,28 @@ class GFSK(gr.top_block, Qt.QWidget):
 
         event.accept()
 
+    def get_estPr(self):
+        return self.estPr
+
+    def set_estPr(self, estPr):
+        self.estPr = estPr
+
+    def get_tgPi(self):
+        return self.tgPi
+
+    def set_tgPi(self, tgPi):
+        self.tgPi = tgPi
+
     def get_samp_rate(self):
         return self.samp_rate
 
     def set_samp_rate(self, samp_rate):
         self.samp_rate = samp_rate
         self.set_sensitivity(2*math.pi*self.BLE_fd/self.samp_rate)
-        self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*-self.F_IF/self.samp_rate)
-        self.blocks_throttle_0_0_0.set_sample_rate(self.samp_rate)
-        self.epy_block_0_0.sampling_rate = self.samp_rate
+        self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_IF/self.samp_rate)
+        self.epy_block_0.sampling_rate = self.samp_rate
         self.qtgui_time_sink_x_0.set_samp_rate(self.samp_rate)
+        self.uhd_usrp_sink_0.set_samp_rate(self.samp_rate)
 
     def get_BLE_fd(self):
         return self.BLE_fd
@@ -248,25 +253,11 @@ class GFSK(gr.top_block, Qt.QWidget):
     def set_sensitivity(self, sensitivity):
         self.sensitivity = sensitivity
 
-    def get_samp_rate_0(self):
-        return self.samp_rate_0
+    def get_TX_ID(self):
+        return self.TX_ID
 
-    def set_samp_rate_0(self, samp_rate_0):
-        self.samp_rate_0 = samp_rate_0
-
-    def get_Pr(self):
-        return self.Pr
-
-    def set_Pr(self, Pr):
-        self.Pr = Pr
-        self.blocks_multiply_const_xx_0.set_k(10**((self.Pr+137)/20))
-        self.epy_block_0_0.Pr = self.Pr
-
-    def get_F_band(self):
-        return self.F_band
-
-    def set_F_band(self, F_band):
-        self.F_band = F_band
+    def set_TX_ID(self, TX_ID):
+        self.TX_ID = TX_ID
 
     def get_F_Of(self):
         return self.F_Of
@@ -279,13 +270,14 @@ class GFSK(gr.top_block, Qt.QWidget):
 
     def set_F_IF(self, F_IF):
         self.F_IF = F_IF
-        self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*-self.F_IF/self.samp_rate)
+        self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_IF/self.samp_rate)
 
-    def get_Es_Ni(self):
-        return self.Es_Ni
+    def get_CH_gain(self):
+        return self.CH_gain
 
-    def set_Es_Ni(self, Es_Ni):
-        self.Es_Ni = Es_Ni
+    def set_CH_gain(self, CH_gain):
+        self.CH_gain = CH_gain
+        self.uhd_usrp_sink_0.set_gain(self.CH_gain, 0)
 
     def get_BLE_sym_length(self):
         return self.BLE_sym_length
@@ -295,8 +287,14 @@ class GFSK(gr.top_block, Qt.QWidget):
 
 
 
+def argument_parser():
+    parser = ArgumentParser()
+    return parser
+
 
 def main(top_block_cls=GFSK, options=None):
+    if options is None:
+        options = argument_parser().parse_args()
 
     if StrictVersion("4.5.0") <= StrictVersion(Qt.qVersion()) < StrictVersion("5.0.0"):
         style = gr.prefs().get_string('qtgui', 'style', 'raster')
