@@ -37,6 +37,7 @@ namespace estim {
     };
     ChParams ChEstim(const uhd::usrp::multi_usrp::sptr tx_usrp, const int D_test, const std::uint32_t rx_ch_sel_bits, const std::uint32_t tx_core_bits, const std::uint32_t gpio_start_sel_bits, const int& NCapSamps, const std::string& file);
     ChParams FbChEstim(const uhd::usrp::multi_usrp::sptr tx_usrp, const int D_test, const std::uint32_t rx_ch_sel_bits, const std::uint32_t tx_core_bits, const std::uint32_t gpio_start_sel_bits, const int& NCapSamps, const std::string& file);
+    double IntfChEstim(const uhd::usrp::multi_usrp::sptr tx_usrp, const int& NCapSamps, const std::string& file);
 
     double EstimNoise(const uhd::usrp::multi_usrp::sptr tx_usrp, const int NCapSamps, const uint32_t rx_ch_sel_bits = 0b01, const std::string& file = "");
     double EstimChipNoise(const uhd::usrp::multi_usrp::sptr tx_usrp, const int NCapSamps, const uint32_t rx_ch_sel_bits, const std::string& file = "");

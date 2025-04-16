@@ -334,6 +334,53 @@ namespace estim {
         ch_params.h_hat = h_hat;
         return ch_params;
     }
+
+    /**
+     * @brief Estimates strength of sinusoid driven by interferer for calibration
+     * 
+     * This function estimates rss of inteferer.
+     * 
+     * @param tx_usrp A pointer to the UHD USRP object for transmission.
+     * @param NCapSamps Number of samples to be captured.
+     * @param var Variance of the captured samples.
+     * @return h_hat mag
+     */
+    double IntfChEstim(const uhd::usrp::multi_usrp::sptr tx_usrp, const int& NCapSamps, const std::string& file) {
+        //Configure runtime mode-------------------------------------------------------------------------------------------
+        CompensateDelays(tx_usrp, 0);
+        const std::uint32_t rx_ch_sel_bits = 0b01;
+        const std::uint32_t tx_core_bits = 0b00; 
+        const std::uint32_t gpio_start_sel_bits = 0b00;
+        mmio::WrMmio(tx_usrp, mmio::kDestChipCapEn, 0x0); //capture samples
+        std::uint32_t mode_bits{0x0}; //sync mode
+
+        mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, 0x0,0x0);
+
+        //Make sure dest is done recording before reading
+        while(true) {
+            mmio::ClearAddrBuffer(tx_usrp); 
+            if((mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr) & mmio::kCapIdxMask) == mmio::kCapMaxNumSamps-1) //Dest has finished recording
+                break;
+        }
+        mmio::ClearAddrBuffer(tx_usrp); 
+
+        //Read data
+        std::vector<std::complex<double>> cap_samps = mmio::ReadSampleMem(tx_usrp, 0b1, NCapSamps, file); 
+        int N_w = static_cast<int>(cap_samps.size()); //number of captured samples
+
+        std::vector<std::complex<double>> rx_if(N_w); //downconverted rx
+        const double pi = std::acos(-1);
+        for (int n = 0; n < N_w; ++n) {
+            rx_if[n] = cap_samps[n] * std::exp(std::complex<double>(0, -2*pi/estim::kFwOsr*n)); //The phase measurement will be off because the two sinusoids are not synced yet
+        }
+
+        std::complex<double> h_hat = std::accumulate(rx_if.begin(), rx_if.end(), std::complex<double>(0, 0)) / static_cast<double>(N_w);
+        std::cout << "h_hat mag: " << std::abs(h_hat) << std::endl;
+        double rss_dbm = CalcRssdbW(h_hat) + 30; //convert to dbm
+
+
+        return rss_dbm;
+    }
     
     void SetSrcThreshold(const uhd::usrp::multi_usrp::sptr tx_usrp, std::complex<double> h_hat) {
 
@@ -373,11 +420,16 @@ namespace estim {
         uint32_t dest_if_chip_sig_energy_neg_uint32 = static_cast<uint32_t>(std::round(dest_if_chip_sig_energy_neg*(std::pow(2,mmio::kDestIfChipSigEnergyNegFrac))));
         mmio::WrMmio(dest_tx_usrp,mmio::kDestIfChipSigEnergyNegAddr, dest_if_chip_sig_energy_neg_uint32); //0x0
 
+        double chip_var_inv = 1/(2*estim::kDestMovingSumM*chip_var);
+        uint32_t chip_var_inv_uint32 = static_cast<uint32_t>(std::round(chip_var_inv*(std::pow(2,mmio::kDestVarChipInvFrac))));
+        mmio::WrMmio(dest_tx_usrp,mmio::kDestChipVarInvAddr, chip_var_inv_uint32); 
+
+        std::cout << "h_hat: " << h_hat << std::endl;
+        std::cout << "chip_var: " << chip_var << std::endl;
         std::cout << "dest_if_chip_sig_energy_neg: " << dest_if_chip_sig_energy_neg << std::endl;
         std::cout << "var_threshold: " << var_threshold << std::endl;
         std::cout << "llr_threshold: " << llr_threshold << std::endl;
-        std::cout << "h_hat: " << h_hat << std::endl;
-        std::cout << "chip_var: " << chip_var << std::endl;
+        std::cout << "chip_var_inv: " << chip_var_inv << std::endl;
 
         //std::cout << "h_hat_src mag: " << h_hat_mag << std::endl;
         //std::cout << "src threshold: " << src_threshold << std::endl;

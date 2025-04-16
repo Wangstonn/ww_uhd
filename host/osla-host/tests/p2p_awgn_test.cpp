@@ -542,11 +542,13 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp
     // Timing+flatfading estimation---------------------------------------------------------------------------------------------------------------------------
     //wired loopback delay with 8inch sma cable + attenuator is 119
     std::cout << "Running fwd estimation..." << std::endl;
-//Fwd lock estim---------------------------------------------------------------------------------------------------------------------------------------------
-//set sync lock estim and locked periods. The first 16 bits is the estim delay the last 16 are transmission delay
+    //set sync lock estim and locked periods. The first 16 bits is the estim delay the last 16 are transmission delay
     // uint32_t sync_start_periods = (0x7FFF << 16) + 0x2FFF; //min is 0x000F
 
-    uint32_t sync_start_periods = (0x7FFF << 16) + 0x00FF;
+    uint32_t sync_start_periods = (0x3FFF << 16) + 0x00FF;//7F
+    if (is_intf_mode)
+        sync_start_periods = (0x7FFF << 16) + 0x00FF; //min is 0x000F
+
     mmio::WrMmio(src_tx_usrp, mmio::kSyncStartPeriodAddr,sync_start_periods);
     mmio::WrMmio(dest_tx_usrp, mmio::kSyncStartPeriodAddr,sync_start_periods);
 
@@ -564,10 +566,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp
     }
 
     double EsN0 = estim::CalcChipEsN0(h_hat_fwd, var);
-    mmio::ClearAddrBuffer(dest_tx_usrp);
-
     double rss_dbm = estim::CalcRssdbW(h_hat_fwd)+30;
-
 
     std::cout << std::dec << "D_test= " << D_test << ", ";
     std::cout << "D_hat_fwd= " << D_hat_fwd << ", ";
@@ -583,29 +582,23 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp
         std::cout << "Error: Starting EsN0 is too low! Increase tx-gain" << std::endl;      
     }
     double target_tx_gain = target_EsN0-EsN0; //change in EsN0 needed to achieve target
-
-    // double tx_gain_base = src_tx_usrp->get_tx_gain(0); //base tx gain used for smaple capture
-    //assume tx amp is max
-    //assume rx gain is 0
     
     double lin_digital_gain = std::pow(10,(target_tx_gain)/20);
     double calculated_tx_amp = lin_digital_gain * (std::pow(2, 15) - 1);
     if (calculated_tx_amp > std::numeric_limits<int16_t>::max()) {
         std::cerr << "Error: tx_amp value exceeds the maximum limit increase tx_gain, make sure starting tx_amp is 7FFF, and try again!" << std::endl;
     }
-    
     uint16_t tx_amp = static_cast<uint16_t>(std::round(calculated_tx_amp));
-
-    // uint16_t tx_amp = static_cast<uint16_t>(std::round(lin_digital_gain*(std::pow(2,15)-1)));
     std::cout << std::hex << "tx_amp:" << tx_amp << std::endl;
     mmio::WrMmio(src_tx_usrp,mmio::kSrcTxAmpAddr,tx_amp);
+    
     std::complex<double> h = h_hat_fwd*std::complex<double>(lin_digital_gain,0); //update the channel coefficient
     std::cout << "Signal level after tx_amp adjustment: " <<  abs(h) << std::endl;
     //update rss measurement
     rss_dbm = rss_dbm+target_tx_gain;
     std::cout << std::dec << "adjusted rss (dbm)= " << rss_dbm << std::endl;
 
-    //Now that we have set tx_gain to achieve the desired EsN0, now bring the rx level so that we have enough bits
+    //Now that we have set tx_gain to achieve the desired EsN0, now bring the rx level up so that we have enough bits
     //To bring the rx level up, we have to bit shift. This is because we can't naturally bring the noise level up enough
     if (abs(h) < 0.5){  
         double dest_num_bit_shift = std::floor(-std::log2(std::abs(h)));
@@ -640,7 +633,8 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp
 
     if (is_intf_mode) {
         estim::ConfigDestIntfMitigation(dest_tx_usrp, h, var);
-        dest_interf_mode_bit = 0b1;
+        dest_interf_mode_bit = 0b1; //0 FOR TEMP TEST
+        // std::cout << "TEMP TEST CHANGE THIS BACK" << std::endl;
     }
 
     uint8_t fix_len_mode_bits = fixed_length ? 0b11 : 0b00;
@@ -655,7 +649,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp
     // std::cout << "Source read:" << std::endl;    
     // mmio::ReadBBCore(src_tx_usrp);
     // std::cout << "Dest read:" << std::endl;
-    // mmio::ReadBBCore(dest_tx_usrp);
+    mmio::ReadBBCore(dest_tx_usrp);
 
     //Run test------------------------------------------------------------------------------------
     std::cout << "Running BER test..." << std::endl;
@@ -740,8 +734,6 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp
 
             //Symbol length statistics
             for(int i = 0; i < mmio::kPktLen; i++) {
-                // uint32_t sym_len = mmio::rd_mem_cmd(tx_usrp, mmio::kSymLenAddr+i);
-                //not sure which function is real
                 uint32_t sym_len = mmio::RdMmio(src_tx_usrp, mmio::kSymLenAddr+i,false);
                 avg_sym_len += sym_len;
             }
@@ -754,8 +746,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp
                 << "post read ctr: " << post_read_ctr << std::endl;
             }
         }
-       
-
+        
         if(iter % 100 == 0) {
             std::cout << std::dec << "Num bits: " << iter*mmio::kPktLen << ", num errors: " << n_errors << std::endl;
         }
@@ -776,6 +767,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp, uhd::usrp::multi_usrp
     std::cout << std::dec << "Reached " << ber_result.num_errs  << " errors in " << ber_result.num_bits << " bits" << std::endl;
     std::cout << "ber = " << ber_result.ber << std::endl;
     std::cout << "avg sym len = " << ber_result.avg_sym_len << std::endl;
+    std::cout << std::endl;
 
     return ber_result;  
 };
@@ -1513,18 +1505,18 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         p2p awgn test performs ber testing for awgn channel
     */
     
-    std::vector<double> EsN0_dbs = {0,1,2,3,4,5,6};//{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
+    std::vector<double> EsN0_dbs = {0};//{0,1,2,3,4,5,6};//{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
     std::vector<double> bers(EsN0_dbs.size(), 0.0);
     std::vector<int> num_errs(EsN0_dbs.size(), 0);
     std::vector<int> num_bits(EsN0_dbs.size(), 0);
     std::vector<double> rss_dbms(EsN0_dbs.size(), 0.0);
     std::vector<double> avg_sym_len(EsN0_dbs.size(), 0.0);
 
-    const int kTargetErrs = 100;
-    const int kMaxBits = 1e6;
+    const int kTargetErrs = 100;//500;
+    const int kMaxBits = 1e7; //1e7;
 
     bool is_fixed_length = false;
-    bool is_intf_mode = false;
+    bool is_intf_mode = true;
 
     for(int i = 0; i<EsN0_dbs.size(); i++) {
         std::cout << "Running BER test for EsN0_db = " << EsN0_dbs[i] << std::endl;

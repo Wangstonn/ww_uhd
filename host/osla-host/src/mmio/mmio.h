@@ -17,6 +17,7 @@ namespace mmio {
     constexpr uint32_t kSrcTxAmpAddr = 0x12;
     constexpr uint32_t kMaxSrcTxAmp = 0x7FFF; //	UINT_MAX
     constexpr uint32_t kSrcThreshold = 0x10;
+    const int kSrcThresholdFrac = 5;
     
     constexpr uint64_t kNullAddr = 0x0;
     constexpr uint64_t kDestDelayAddr = 0x80000033;
@@ -27,17 +28,19 @@ namespace mmio {
 
     //Compensation
     constexpr uint32_t kDestThresholdAddr = 0x30;
+    const int kDestLlrThresholdFrac = 37;
+
     constexpr uint32_t kDestChEqReAddr = 0x31;
     constexpr uint32_t kDestChEqImAddr = 0x32;
 
     constexpr uint32_t kDestIfChipSigEnergyNegAddr = 0x36;
-    constexpr uint32_t kDestVarThresholdAddr = 0x37;
-    constexpr uint32_t kDestChipVarInv = 0x38;
-
-    const int kSrcThresholdFrac = 5;
-    const int kDestVarThresholdFrac = -3; //32,-3 then discard the bottom 16 bits to get 16,-19 
-    const int kDestLlrThresholdFrac = 38;
     const int kDestIfChipSigEnergyNegFrac = 4;
+
+    constexpr uint32_t kDestVarThresholdAddr = 0x37;
+    const int kDestVarThresholdFrac = -3; //32,-3 then discard the bottom 16 bits to get 16,-19 
+
+    constexpr uint32_t kDestChipVarInvAddr = 0x38;
+    const int kDestVarChipInvFrac = 35;
     
     constexpr int kPktLen = 256;
     constexpr uint32_t kInPktAddr = 0x20;
