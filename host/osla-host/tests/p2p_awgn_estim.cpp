@@ -292,7 +292,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     double dest_tx_gain = 20;
 
     double src_rx_gain = 0;
-    double dest_rx_gain = 31.5;
+    double dest_rx_gain = 0;
 
     double src_tx_freq = fwd_freq;
     double dest_rx_freq = fwd_freq;
@@ -975,7 +975,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     //set sync lock estim and locked periods. The first 16 bits is the estim delay the last 16 are transmission delay
     bool capture_data = false;
-    uint32_t sync_start_periods = (0x7FFF << 16) + 0x007F; //min is 0x000F
+    uint32_t sync_start_periods = (0x7FFF << 16) + 0x00FF; //min is 0x000F
     if (capture_data)
         sync_start_periods = (0x7FFF << 16) + 0x2FFF; //min is 0x000F
 

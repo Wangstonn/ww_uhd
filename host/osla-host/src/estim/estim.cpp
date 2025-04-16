@@ -702,7 +702,7 @@ namespace estim {
     {    
         //rx_gain used to be 41.81 not sure why this changed
         double rss_dbW = 20*log10(std::abs(h_hat) * std::pow(2,-13)) - estim::rx_gain- 10*log10(50); //50 ohm resistor at end
-        std::cout << "Estimated rss (dbW)= " << rss_dbW << std::endl;
+        // std::cout << "Estimated rss (dbW)= " << rss_dbW << std::endl;
         return rss_dbW;
     }
 

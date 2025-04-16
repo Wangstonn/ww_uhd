@@ -478,6 +478,23 @@ blocks:
     coordinate: [600, 44.0]
     rotation: 0
     state: true
+- name: tx_freq
+  id: parameter
+  parameters:
+    alias: ''
+    comment: ''
+    hide: none
+    label: Analog Frontend Tx frequency
+    short_id: ''
+    type: eng_float
+    value: 2.2e9
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [1032, 420.0]
+    rotation: 0
+    state: true
 - name: uhd_usrp_sink_0
   id: uhd_usrp_sink
   parameters:
@@ -547,7 +564,7 @@ blocks:
     bw7: '0'
     bw8: '0'
     bw9: '0'
-    center_freq0: '2400000000'
+    center_freq0: tx_freq
     center_freq1: '0'
     center_freq10: '0'
     center_freq11: '0'

@@ -1505,7 +1505,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         p2p awgn test performs ber testing for awgn channel
     */
     
-    std::vector<double> EsN0_dbs = {0};//{0,1,2,3,4,5,6};//{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
+    std::vector<double> EsN0_dbs = {0,1,2,3,4,5,6};//{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
     std::vector<double> bers(EsN0_dbs.size(), 0.0);
     std::vector<int> num_errs(EsN0_dbs.size(), 0);
     std::vector<int> num_bits(EsN0_dbs.size(), 0);
@@ -1516,7 +1516,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     const int kMaxBits = 1e7; //1e7;
 
     bool is_fixed_length = false;
-    bool is_intf_mode = true;
+    bool is_intf_mode = false;
 
     for(int i = 0; i<EsN0_dbs.size(); i++) {
         std::cout << "Running BER test for EsN0_db = " << EsN0_dbs[i] << std::endl;

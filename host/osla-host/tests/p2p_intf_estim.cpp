@@ -922,7 +922,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     mmio::InitBBCore(dest_tx_usrp);
 
     // Interference Calibration---------------------------------------------------------------------------------------------------------------------------
-    bool init_calibration = true;
+    bool init_calibration = false;
     if (init_calibration) {
         std::cout << "Running interference calibration." << std::endl;
         
@@ -1103,13 +1103,13 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     }
     std::cout << "Current signal level h: " <<  abs(h) << std::endl;
 
-        //Interference adjustment
-        double target_intf_rss_dbm = noise_rss_dbw + target_EsN0-target_EsNi;
-        std::cout << "Load interferer with target interference rss (dbm)= " << target_intf_rss_dbm << std::endl;
-        std::cout << "Press any key when ready" << std::endl;
-        while (true) 
-            if (std::cin.get()) 
-                break;
+    //Interference adjustment
+    double target_intf_rss_dbm = noise_rss_dbw + target_EsN0-target_EsNi;
+    std::cout << "Load interferer with target interference rss (dbm)= " << target_intf_rss_dbm << std::endl;
+    std::cout << "Press any key when ready" << std::endl;
+    while (true) 
+        if (std::cin.get()) 
+            break;
                 
 
     //Test setup------------------------------------------------------------------

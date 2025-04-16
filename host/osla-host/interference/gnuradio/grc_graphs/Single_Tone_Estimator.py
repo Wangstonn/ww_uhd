@@ -42,7 +42,7 @@ from gnuradio import qtgui
 
 class Single_Tone_Estimator(gr.top_block, Qt.QWidget):
 
-    def __init__(self):
+    def __init__(self, tx_freq=2.2e9):
         gr.top_block.__init__(self, "Single_Tone_Estimator", catch_exceptions=True)
         Qt.QWidget.__init__(self)
         self.setWindowTitle("Single_Tone_Estimator")
@@ -74,17 +74,17 @@ class Single_Tone_Estimator(gr.top_block, Qt.QWidget):
             pass
 
         ##################################################
+        # Parameters
+        ##################################################
+        self.tx_freq = tx_freq
+
+        ##################################################
         # Variables
         ##################################################
         self.samp_rate = samp_rate = 10000000
-        self.BLE_fd = BLE_fd = 250000
-        self.time_s = time_s = 1
-        self.sensitivity = sensitivity = 2*math.pi*BLE_fd/samp_rate
         self.TX_ID = TX_ID = "addr=192.168.110.2"
-        self.F_Of = F_Of = 0
         self.F_IF = F_IF = 595238
         self.CH_gain = CH_gain = 20
-        self.BLE_sym_length = BLE_sym_length = .000001
 
         ##################################################
         # Blocks
@@ -102,7 +102,7 @@ class Single_Tone_Estimator(gr.top_block, Qt.QWidget):
         self.uhd_usrp_sink_0.set_samp_rate(samp_rate)
         self.uhd_usrp_sink_0.set_time_unknown_pps(uhd.time_spec(0))
 
-        self.uhd_usrp_sink_0.set_center_freq(2400000000, 0)
+        self.uhd_usrp_sink_0.set_center_freq(tx_freq, 0)
         self.uhd_usrp_sink_0.set_antenna("TX/RX", 0)
         self.uhd_usrp_sink_0.set_bandwidth(160000000, 0)
         self.uhd_usrp_sink_0.set_gain(CH_gain, 0)
@@ -125,45 +125,26 @@ class Single_Tone_Estimator(gr.top_block, Qt.QWidget):
 
         event.accept()
 
+    def get_tx_freq(self):
+        return self.tx_freq
+
+    def set_tx_freq(self, tx_freq):
+        self.tx_freq = tx_freq
+        self.uhd_usrp_sink_0.set_center_freq(self.tx_freq, 0)
+
     def get_samp_rate(self):
         return self.samp_rate
 
     def set_samp_rate(self, samp_rate):
         self.samp_rate = samp_rate
-        self.set_sensitivity(2*math.pi*self.BLE_fd/self.samp_rate)
         self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_IF/self.samp_rate)
         self.uhd_usrp_sink_0.set_samp_rate(self.samp_rate)
-
-    def get_BLE_fd(self):
-        return self.BLE_fd
-
-    def set_BLE_fd(self, BLE_fd):
-        self.BLE_fd = BLE_fd
-        self.set_sensitivity(2*math.pi*self.BLE_fd/self.samp_rate)
-
-    def get_time_s(self):
-        return self.time_s
-
-    def set_time_s(self, time_s):
-        self.time_s = time_s
-
-    def get_sensitivity(self):
-        return self.sensitivity
-
-    def set_sensitivity(self, sensitivity):
-        self.sensitivity = sensitivity
 
     def get_TX_ID(self):
         return self.TX_ID
 
     def set_TX_ID(self, TX_ID):
         self.TX_ID = TX_ID
-
-    def get_F_Of(self):
-        return self.F_Of
-
-    def set_F_Of(self, F_Of):
-        self.F_Of = F_Of
 
     def get_F_IF(self):
         return self.F_IF
@@ -179,23 +160,26 @@ class Single_Tone_Estimator(gr.top_block, Qt.QWidget):
         self.CH_gain = CH_gain
         self.uhd_usrp_sink_0.set_gain(self.CH_gain, 0)
 
-    def get_BLE_sym_length(self):
-        return self.BLE_sym_length
-
-    def set_BLE_sym_length(self, BLE_sym_length):
-        self.BLE_sym_length = BLE_sym_length
 
 
+def argument_parser():
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--tx-freq", dest="tx_freq", type=eng_float, default=eng_notation.num_to_str(float(2.2e9)),
+        help="Set Analog Front end Tx frequency [default=%(default)r]")
+    return parser
 
 
 def main(top_block_cls=Single_Tone_Estimator, options=None):
+    if options is None:
+        options = argument_parser().parse_args()
 
     if StrictVersion("4.5.0") <= StrictVersion(Qt.qVersion()) < StrictVersion("5.0.0"):
         style = gr.prefs().get_string('qtgui', 'style', 'raster')
         Qt.QApplication.setGraphicsSystem(style)
     qapp = Qt.QApplication(sys.argv)
 
-    tb = top_block_cls()
+    tb = top_block_cls(tx_freq=options.tx_freq)
 
     tb.start()
 
