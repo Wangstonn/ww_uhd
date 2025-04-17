@@ -919,6 +919,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         p2p awgn estim performs point to point estimation for 2 usrp connection. 
             This requires sync locking because the gpio channel is inconsistent
     */
+
     //Preload some default threshold and angle settings
     mmio::InitBBCore(src_tx_usrp);
     mmio::InitBBCore(dest_tx_usrp);

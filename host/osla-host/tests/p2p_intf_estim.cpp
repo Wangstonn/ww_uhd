@@ -288,7 +288,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::string src_args = "type=x300,addr=192.168.110.2"; //top
     std::string dest_args = "type=x300,addr=192.168.10.2"; //bottom
     ref = "external"; //octoclock
-    double fwd_freq = 2.1e9; //5.80e9;
+    double fwd_freq = 2.4e9; //5.80e9;
     double fb_freq = .900e9; //.915e9;
     double src_tx_gain = 0;
     double dest_tx_gain = 31.5;
@@ -919,17 +919,19 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         p2p awgn estim performs point to point estimation for 2 usrp connection. 
             This requires sync locking because the gpio channel is inconsistent
     */
+
+    int serverSock = estim::connectToServerSock();
+
     //Preload some default threshold and angle settings
     mmio::InitBBCore(src_tx_usrp);
     mmio::InitBBCore(dest_tx_usrp);
 
     // Interference Calibration---------------------------------------------------------------------------------------------------------------------------
-    bool init_calibration = false;
+    bool init_calibration = true;
+    double intf_rss_dbm = 87.3152;
     if (init_calibration) {
         std::cout << "Running interference calibration." << std::endl;
-        // estim::startGNUSocket(true,0,0);
         std::this_thread::sleep_for(std::chrono::milliseconds(5000));
-
         
         // write a loop that waits for the user to enter a key to exit loop
         std::cout << "Waiting for sinusoid setup. Press any key when ready..." << std::endl;
@@ -939,7 +941,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         }
         std::cout << "Estimating Interferer strength..." << std::endl;
 
-        double intf_rss_dbm = estim::IntfChEstim(dest_tx_usrp, std::pow(2,15), "../../data/interf_cal_samps.dat");
+        intf_rss_dbm = estim::IntfChEstim(dest_tx_usrp, std::pow(2,15), "../../data/interf_cal_samps.dat");
 
         std::cout << "Interference rss (dbm)= " << intf_rss_dbm << std::endl;
         std::cout << "Waiting to end sinusoid. Press any key when ready to move on..." << std::endl;
@@ -1080,11 +1082,17 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //Interference adjustment
     double target_intf_rss_dbm = noise_rss_dbw + target_EsN0-target_EsNi;
     std::cout << "Load interferer with target interference rss (dbm)= " << target_intf_rss_dbm << std::endl;
-    std::cout << "Press any key when ready" << std::endl;
-    // estim::startGNUSocket(true,intf_rss_dbm,target_intf_rss_dbm);
-    while (true) 
-        if (std::cin.get()) 
-            break;
+    estim::send_message(serverSock, true, intf_rss_dbm, target_intf_rss_dbm);
+    std::this_thread::sleep_for(std::chrono::milliseconds(5000)); //Need to sleep for at least 500 ms before tx is active
+
+    
+
+    // std::cout << "Load interferer with target interference rss (dbm)= " << target_intf_rss_dbm << std::endl;
+    // std::cout << "Press any key when ready" << std::endl;
+    // // estim::startGNUSocket(true,intf_rss_dbm,target_intf_rss_dbm);
+    // while (true) 
+    //     if (std::cin.get()) 
+    //         break;
                 
 
     //Test setup------------------------------------------------------------------
