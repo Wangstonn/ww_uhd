@@ -41,9 +41,11 @@ namespace po = boost::program_options;
  * Signal handlers
  **********************************************************************/
 static bool stop_signal_called = false;
-void sig_int_handler(int)
+void sig_int_handler(int sigint)
 {
+    std::cout << "Killing da file sigint" << sigint << std::endl;
     stop_signal_called = true;
+    std::exit(sigint);
 }
 
 /***********************************************************************
@@ -580,7 +582,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::string src_args = "type=x300,addr=192.168.110.2"; //top
     std::string dest_args = "type=x300,addr=192.168.10.2"; //bottom
     ref = "external"; //octoclock
-    double fwd_freq = 2.2e9; //5.80e9;
+    double fwd_freq = 2.1e9; //5.80e9;
     double fb_freq = .915e9; //.915e9;
     double src_tx_gain = 0;
     double dest_tx_gain = 20;
@@ -1222,7 +1224,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     const int kMaxBits = 1e7; //1e7;
 
     bool is_fixed_length = false;
-    bool is_intf_mode = false;
+    bool is_intf_mode = true;
 
     for(int i = 0; i<EsN0_dbs.size(); i++) {
         std::cout << "Running BER test for EsN0_db = " << EsN0_dbs[i] << std::endl;

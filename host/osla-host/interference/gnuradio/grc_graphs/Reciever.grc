@@ -76,7 +76,7 @@ blocks:
     alias: ''
     append: 'False'
     comment: ''
-    file: /tmp/samnolan/c16_BLE_constAmp_EsNi0dB_10M.bin
+    file: /tmp/samnolan/c16_noise_10M.bin
     type: short
     unbuffered: 'False'
     vlen: '2'
@@ -256,7 +256,7 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
-    ant0: '"RX2"'
+    ant0: '"TX/RX"'
     ant1: '"RX2"'
     ant10: '"RX2"'
     ant11: '"RX2"'

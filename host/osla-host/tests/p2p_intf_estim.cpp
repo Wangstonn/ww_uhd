@@ -41,9 +41,11 @@ namespace po = boost::program_options;
  * Signal handlers
  **********************************************************************/
 static bool stop_signal_called = false;
-void sig_int_handler(int)
+void sig_int_handler(int sigint)
 {
+    std::cout << "Killing da file sigint" << sigint << std::endl;
     stop_signal_called = true;
+    std::exit(sigint);
 }
 
 /***********************************************************************
@@ -286,13 +288,13 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::string src_args = "type=x300,addr=192.168.110.2"; //top
     std::string dest_args = "type=x300,addr=192.168.10.2"; //bottom
     ref = "external"; //octoclock
-    double fwd_freq = 2.2e9; //5.80e9;
-    double fb_freq = .915e9; //.915e9;
+    double fwd_freq = 2.1e9; //5.80e9;
+    double fb_freq = .900e9; //.915e9;
     double src_tx_gain = 0;
-    double dest_tx_gain = 20;
+    double dest_tx_gain = 31.5;
 
     double src_rx_gain = 0;
-    double dest_rx_gain = 31.5;
+    double dest_rx_gain = 0;
 
     double src_tx_freq = fwd_freq;
     double dest_rx_freq = fwd_freq;
@@ -925,30 +927,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     bool init_calibration = false;
     if (init_calibration) {
         std::cout << "Running interference calibration." << std::endl;
-        
-        // std::cout << "Running noise estimation..." << std::endl;
-        // double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2,16), "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
-        // std::cout << "Estimated var= " << var << std::endl;
-        // estim::CalcN0(var);
+        // estim::startGNUSocket(true,0,0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 
-
-        // std::cout << "Running fwd estimation..." << std::endl;
-        // int D_hat_fwd;
-        // std::complex<double> h_hat_fwd;
-    
-        // while (true) {
-        //     auto ch_params = estim::P2PChEstim(src_tx_usrp, dest_tx_usrp, 0, std::pow(2,15), true, 0x1, false, ""); //std::string("../../data/fwd_p2p_prmbl_samps")+std::to_string(j)+".dat"
-        //     D_hat_fwd = ch_params.D_hat;
-        //     h_hat_fwd = ch_params.h_hat;
-            
-        //     if(D_hat_fwd > 0 && D_hat_fwd < 500) {
-        //         break;
-        //     }
-        // }
-        // double EsN0 = estim::CalcChipEsN0(h_hat_fwd, var);
-        // mmio::ClearAddrBuffer(dest_tx_usrp);
-    
-        // double rss_dbm = estim::CalcRssdbW(h_hat_fwd)+30;
         
         // write a loop that waits for the user to enter a key to exit loop
         std::cout << "Waiting for sinusoid setup. Press any key when ready..." << std::endl;
@@ -960,20 +941,13 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
         double intf_rss_dbm = estim::IntfChEstim(dest_tx_usrp, std::pow(2,15), "../../data/interf_cal_samps.dat");
 
-        // std::cout << std::dec << "D_test= " << 0 << ", ";
-        // std::cout << "D_hat_fwd= " << D_hat_fwd << ", ";
-        // std::cout << "EsN0= " << EsN0 << ", ";
-        // std::cout << "Estimation rss_adc (dbm)= " << rss_dbm << ", ";
         std::cout << "Interference rss (dbm)= " << intf_rss_dbm << std::endl;
-        // std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd) << " arg= " << std::arg(h_hat_fwd) << std::endl;
-
         std::cout << "Waiting to end sinusoid. Press any key when ready to move on..." << std::endl;
         while (true) {
             if (std::cin.get()) 
                 break;
         }
     }
-
 
     //noise estimation-----------------------------------------------------------------------------------------------------------------------
     std::cout << "Running noise estimation..." << std::endl;
@@ -1014,7 +988,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // std::cout << "h_hat_fb : abs= " << std::abs(h_hat_fw) << " arg= " << std::arg(h_hat_fw) << std::endl;
 
     //set sync lock estim and locked periods. The first 16 bits is the estim delay the last 16 are transmission delay
-    bool capture_data = false;
+    bool capture_data = true;
     uint32_t sync_start_periods = (0xFFFF << 16) + 0x03FF; //min is 0x007F, guess this is how long the pkt will take w interference
     if (capture_data)
         sync_start_periods = (0xFFFF << 16) + 0x2FFF; //min is 0x000F
@@ -1050,8 +1024,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     //Gain Control--------------------------------------------------------------------------------------------------------------------------
     //Set operating EsN0
-    double target_EsN0 = 3; //in dB
-    double target_EsNi = 6; //in dB
+    double target_EsN0 = 4; //in dB
+    double target_EsNi = -20; //in dB
     std::cout << "Target Es_N0 = " << target_EsN0 << std::endl;
     if(EsN0 < target_EsN0) {
         std::cout << "Starting EsN0 is too low! Increase tx-gain" << std::endl;      
@@ -1107,6 +1081,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     double target_intf_rss_dbm = noise_rss_dbw + target_EsN0-target_EsNi;
     std::cout << "Load interferer with target interference rss (dbm)= " << target_intf_rss_dbm << std::endl;
     std::cout << "Press any key when ready" << std::endl;
+    // estim::startGNUSocket(true,intf_rss_dbm,target_intf_rss_dbm);
     while (true) 
         if (std::cin.get()) 
             break;
@@ -1143,7 +1118,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //     fix_len_mode_bits = 0b00;
     // }
 
-    bool samp_cap = 0;
+    bool samp_cap = false;
     if(samp_cap) {
         mmio::WrMmio(dest_tx_usrp, mmio::kDestChipCapEn, 0x0); //capture chips for sample analysis
     } else {

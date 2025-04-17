@@ -41,9 +41,11 @@ namespace po = boost::program_options;
  * Signal handlers
  **********************************************************************/
 static bool stop_signal_called = false;
-void sig_int_handler(int)
+void sig_int_handler(int sigint)
 {
+    std::cout << "Killing da file sigint" << sigint << std::endl;
     stop_signal_called = true;
+    std::exit(sigint);
 }
 
 /***********************************************************************
@@ -1010,7 +1012,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     //Gain Control--------------------------------------------------------------------------------------------------------------------------
     //Set operating EsN0
-    double target_EsN0 = 3; //in dB
+    double target_EsN0 = 5; //in dB
     std::cout << "Target Es_N0 = " << target_EsN0 << std::endl;
     if(EsN0 < target_EsN0) {
         std::cout << "Starting EsN0 is too low! Increase tx-gain" << std::endl;      
@@ -1086,9 +1088,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     estim::PhaseEq(dest_tx_usrp, h);
 
     estim::SetSrcThreshold(src_tx_usrp, h_hat_fb);
-
-    // mmio::RdMmio(src_tx_usrp, mmio::kSrcDelayAddr, true);
-    // mmio::RdMmio(dest_tx_usrp, mmio::kDestDelayAddr, true);
 
     // Settings
     bool fixed_length = 0;

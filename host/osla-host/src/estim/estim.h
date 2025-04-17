@@ -27,6 +27,8 @@ namespace estim {
     constexpr double kMinTxGain{0}, kMinRxGain{0};
 
     constexpr double kDBPerBit = 20*std::log10(2);
+    // void startGNUSocket(bool tx_on, double intf_rss_dbm, double target_intf_rss_dbm);
+
     void XcorrSlow(const std::vector<std::complex<double>>& x, const std::vector<std::complex<double>>& y, std::vector<std::complex<double>>& r, std::vector<int>& lags);
     struct ChParams {
         int D_hat; //delay of the channel

@@ -10,9 +10,51 @@
 #include <sstream>
 #include <type_traits>
 #include <boost/math/distributions/chi_squared.hpp> // For chi_squared distribution
+#include <zmq.hpp>
+#include <pmt/pmt.h>
 
 
 namespace estim {
+
+    //  /**
+    //  * @brief Sends two double values and a control boolean over a ZeroMQ PUB socket.
+    //  *
+    //  * This function initializes a ZeroMQ PUB socket bound to TCP port 5555,
+    //  * waits briefly for subscribers to connect, and sends two double-precision
+    //  * values followed by a boolean flag as a single binary message.
+    //  *
+    //  * @param intf_rss_dbm Measured interference rss
+    //  * @param target_intf_rss_dbm The second double-precision value to send.
+    //  * @param startTx Boolean flag indicating start (`true`) or stop (`false`) transmission.
+    //  *
+    //  * @note The message is sent as raw binary: [double][double][uint8_t(bool)]
+    //  */
+    // void startGNUSocket(bool tx_on, double intf_rss_dbm, double target_intf_rss_dbm) {
+    //     zmq::context_t context(1);
+    //     zmq::socket_t publisher(context, ZMQ_PUB);
+
+    //     publisher.bind("tcp://*:5555");
+
+    //     std::this_thread::sleep_for(std::chrono::seconds(1));
+
+    //     // Allocate message for two doubles and a bool (1 byte)
+    //     size_t msg_size = sizeof(double) * 2 + sizeof(uint8_t);
+    //     zmq::message_t message(msg_size);
+
+    //     // Create a buffer and copy values
+    //     uint8_t flag = static_cast<uint8_t>(tx_on);  // Convert bool to byte
+
+    //     std::memcpy(static_cast<char*>(message.data()), &intf_rss_dbm, sizeof(double));
+    //     std::memcpy(static_cast<char*>(message.data()) + sizeof(double), &target_intf_rss_dbm, sizeof(double));
+    //     std::memcpy(static_cast<char*>(message.data()) + sizeof(double) * 2, &flag, sizeof(uint8_t));
+
+    //     publisher.send(message, zmq::send_flags::none);
+
+    //     std::cout << "Sent: intf_rss_dbm = " << intf_rss_dbm
+    //               << ", target_intf_rss_dbm = " << target_intf_rss_dbm
+    //               << ", tx_on = " << std::boolalpha << tx_on << std::endl;
+    // }
+
     const double prmbl_amp = (1 - std::pow(2, -15));
 
     /**
@@ -953,4 +995,5 @@ namespace estim {
     // Explicit instantiation for types you plan to use
     template std::vector<double> Upsample(const std::vector<double>& input, int N);
     template std::vector<std::complex<double>> Upsample(const std::vector<std::complex<double>>& input, int N);
-    }
+}
+

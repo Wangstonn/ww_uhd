@@ -9,7 +9,7 @@ options:
     description: ''
     gen_cmake: 'On'
     gen_linking: dynamic
-    generate_options: qt_gui
+    generate_options: no_gui
     hier_block_src_path: '.:'
     id: Single_Tone_Estimator
     max_nouts: '0'
@@ -19,7 +19,7 @@ options:
     realtime_scheduling: ''
     run: 'True'
     run_command: '{python} -u {filename}'
-    run_options: prompt
+    run_options: run
     sizing_mode: fixed
     thread_safe_setters: ''
     title: Single_Tone_Estimator
@@ -61,7 +61,7 @@ blocks:
   id: variable
   parameters:
     comment: ''
-    value: '"addr=192.168.110.2"'
+    value: '"addr=192.168.10.2"'
   states:
     bus_sink: false
     bus_source: false
@@ -78,7 +78,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [184, 12]
+    coordinate: [200, 12.0]
     rotation: 0
     state: enabled
 - name: analog_const_source_x_0
@@ -115,6 +115,23 @@ blocks:
     coordinate: [576, 228.0]
     rotation: 0
     state: true
+- name: ch_gain
+  id: parameter
+  parameters:
+    alias: ''
+    comment: ''
+    hide: none
+    label: Analog Antenna Gain (dB)
+    short_id: ''
+    type: eng_float
+    value: '20'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [624, 356.0]
+    rotation: 0
+    state: true
 - name: import_0
   id: import
   parameters:
@@ -125,7 +142,24 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [32, 108.0]
+    coordinate: [16, 132.0]
+    rotation: 0
+    state: true
+- name: tx_freq
+  id: parameter
+  parameters:
+    alias: ''
+    comment: ''
+    hide: none
+    label: Analog Antenna TX Frequency
+    short_id: ''
+    type: eng_float
+    value: 2.4e9
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [944, 356.0]
     rotation: 0
     state: true
 - name: tx_freq

@@ -96,7 +96,7 @@ class Reciever(gr.top_block, Qt.QWidget):
         self.uhd_usrp_source_0_0.set_time_unknown_pps(uhd.time_spec(0))
 
         self.uhd_usrp_source_0_0.set_center_freq(2400000000, 0)
-        self.uhd_usrp_source_0_0.set_antenna("RX2", 0)
+        self.uhd_usrp_source_0_0.set_antenna("TX/RX", 0)
         self.uhd_usrp_source_0_0.set_bandwidth(160000000, 0)
         self.uhd_usrp_source_0_0.set_gain(0, 0)
         self.qtgui_time_sink_x_0 = qtgui.time_sink_c(
@@ -153,7 +153,7 @@ class Reciever(gr.top_block, Qt.QWidget):
         self.blocks_vector_to_stream_0 = blocks.vector_to_stream(gr.sizeof_short*2, 1)
         self.blocks_interleaved_short_to_complex_0 = blocks.interleaved_short_to_complex(True, False,1.0)
         self.blocks_head_0 = blocks.head(gr.sizeof_short*2, time_s*samp_rate)
-        self.blocks_file_sink_0 = blocks.file_sink(gr.sizeof_short*2, '/tmp/samnolan/c16_BLE_constAmp_EsNi0dB_10M.bin', False)
+        self.blocks_file_sink_0 = blocks.file_sink(gr.sizeof_short*2, '/tmp/samnolan/c16_noise_10M.bin', False)
         self.blocks_file_sink_0.set_unbuffered(False)
 
 
