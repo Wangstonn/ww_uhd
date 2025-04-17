@@ -9,9 +9,9 @@ options:
     description: ''
     gen_cmake: 'On'
     gen_linking: dynamic
-    generate_options: qt_gui
+    generate_options: no_gui
     hier_block_src_path: '.:'
-    id: BLE_Interference_test
+    id: BLE_Interference
     max_nouts: '0'
     output_language: python
     placement: (0,0)
@@ -19,10 +19,10 @@ options:
     realtime_scheduling: ''
     run: 'True'
     run_command: '{python} -u {filename}'
-    run_options: prompt
+    run_options: run
     sizing_mode: fixed
     thread_safe_setters: ''
-    title: BLE_Interference_test
+    title: BLE_Interference
     window_size: (1000,1000)
   states:
     bus_sink: false
