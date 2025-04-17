@@ -57,18 +57,6 @@ blocks:
     coordinate: [288, 140.0]
     rotation: 0
     state: enabled
-- name: CH_gain
-  id: variable
-  parameters:
-    comment: ''
-    value: '20'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [1064, 100.0]
-    rotation: 0
-    state: true
 - name: F_IF
   id: variable
   parameters:
@@ -97,7 +85,7 @@ blocks:
   id: variable
   parameters:
     comment: ''
-    value: '"addr=192.168.110.2"'
+    value: '"addr=192.168.10.2"'
   states:
     bus_sink: false
     bus_source: false
@@ -105,6 +93,18 @@ blocks:
     coordinate: [1024, 172.0]
     rotation: 0
     state: true
+- name: psd_file_path
+  id: variable
+  parameters:
+    comment: ''
+    value: '"/n/deer/z/samnolan/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/BLE_PSD.csv"'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [504, 172.0]
+    rotation: 0
+    state: enabled
 - name: samp_rate
   id: variable
   parameters:
@@ -220,6 +220,23 @@ blocks:
     coordinate: [184, 616.0]
     rotation: 0
     state: true
+- name: ch_gain
+  id: parameter
+  parameters:
+    alias: ''
+    comment: ''
+    hide: none
+    label: Analog Antenna Gain (dB)
+    short_id: ''
+    type: eng_float
+    value: '20'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [1008, 68.0]
+    rotation: 0
+    state: true
 - name: digital_gfsk_mod_0_0_0
   id: digital_gfsk_mod
   parameters:
@@ -287,7 +304,7 @@ blocks:
   id: epy_block
   parameters:
     F_of: F_Of
-    PSD_path: '"/n/houghton/z/wangston/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/BLE_PSD.csv"'
+    PSD_path: psd_file_path
     _source_code: "\"\"\"\nAuthor: Samuel Nolan\nDescription:\nTakes in three noise\
       \ sources on the input and randomly adds them together\naccording to a poisson\
       \ distribution. Internally normalizes inband noise power\nfrom settings and\
@@ -295,7 +312,7 @@ blocks:
       \"\n\nimport numpy as np\nfrom gnuradio import gr\nimport pmt\n\n\nclass blk(gr.sync_block):\
       \  # other base classes are basic_block, decim_block, interp_block\n    \"\"\
       \"Embedded Python Block Noise Controller\"\"\"\n\n    def __init__(self, sampling_rate\
-      \ = 32000, PSD_path = \"/n/houghton/z/wangston/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/BLE_PSD.csv\"\
+      \ = 32000, PSD_path = \"/n/deer/z/samnolan/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/BLE_PSD.csv\"\
       , noise_intensity = 1.0, noise_length = 1.0, target_Pi = 0, estimated_Pr = 0,\
       \ F_of = 0):  # only default arguments here\n        \"\"\"\n        Parameters:\n\
       \        sampling rate (Hz): Needed to calculate length of noise frame and wait\
@@ -420,7 +437,7 @@ blocks:
     target_Pi: targPi
   states:
     _io_cache: ('Noise Controller', 'blk', [('sampling_rate', '32000'), ('PSD_path',
-      "'/n/houghton/z/wangston/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/BLE_PSD.csv'"),
+      "'/n/deer/z/samnolan/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/BLE_PSD.csv'"),
       ('noise_intensity', '1.0'), ('noise_length', '1.0'), ('target_Pi', '0'), ('estimated_Pr',
       '0'), ('F_of', '0')], [('0', 'complex', 1), ('1', 'complex', 1), ('2', 'complex',
       1)], [('0', 'complex', 1), ('Debug', 'message', 1)], 'Embedded Python Block
@@ -440,7 +457,7 @@ blocks:
     label: estimated_Pr
     short_id: ''
     type: eng_float
-    value: '-90'
+    value: '-86.98'
   states:
     bus_sink: false
     bus_source: false
@@ -470,12 +487,29 @@ blocks:
     label: target_Pi
     short_id: ''
     type: eng_float
-    value: '-137'
+    value: '-125'
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [600, 44.0]
+    coordinate: [608, 44.0]
+    rotation: 0
+    state: true
+- name: tx_freq
+  id: parameter
+  parameters:
+    alias: ''
+    comment: ''
+    hide: none
+    label: Analog Antenna TX Frequency
+    short_id: ''
+    type: eng_float
+    value: 2.4e9
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [1016, 404.0]
     rotation: 0
     state: true
 - name: uhd_usrp_sink_0
@@ -547,7 +581,7 @@ blocks:
     bw7: '0'
     bw8: '0'
     bw9: '0'
-    center_freq0: '2400000000'
+    center_freq0: tx_freq
     center_freq1: '0'
     center_freq10: '0'
     center_freq11: '0'
@@ -591,7 +625,7 @@ blocks:
     comment: ''
     dev_addr: TX_ID
     dev_args: ''
-    gain0: CH_gain
+    gain0: ch_gain
     gain1: '0'
     gain10: '0'
     gain11: '0'
