@@ -223,6 +223,8 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     uhd::usrp::multi_usrp::sptr dest_tx_usrp,
     double EsN0_db,
     double EsNi_db,
+    int serverSock, 
+    double intf_rss_dbm,
     int const target_errs,
     const int max_num_bits,
     bool is_fixed_length,
@@ -232,8 +234,10 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     mmio::InitBBCore(src_tx_usrp);
     mmio::InitBBCore(dest_tx_usrp);
 
-    // noise
-    // estimation-----------------------------------------------------------------------------------------------------------------------
+    estim::send_message(serverSock, false, 0, 0); //deactivate interferer
+
+
+    // noise estimation-----------------------------------------------------------------------------------------------------------------------
     std::cout << "Running noise estimation..." << std::endl;
     double var = estim::P2PEstimChipNoise(src_tx_usrp,
         dest_tx_usrp,
@@ -313,8 +317,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd)
               << " arg= " << std::arg(h_hat_fwd) << std::endl;
 
-    // Gain
-    // Control--------------------------------------------------------------------------------------------------------------------------
+    // Gain Control--------------------------------------------------------------------------------------------------------------------------
     // Set operating EsN0
     double target_EsN0 = EsN0_db; // in dB
     double target_EsNi = EsNi_db; // in dB
@@ -356,10 +359,8 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
                   << static_cast<unsigned int>(dest_num_bit_shift) << std::endl;
         h = h * std::pow(2, dest_num_bit_shift);
 
-        var = var
-              * std::pow(std::pow(2, dest_num_bit_shift),
-                  2); // update the noise level, since bit shifting multiplies by powers
-                      // of 2
+        var = var * std::pow(std::pow(2, dest_num_bit_shift), 2); 
+        // update the noise level, since bit shifting multiplies by powers of 2
         std::cout << "Adjusted chip noise var: " << var << std::endl;
 
         if (dest_num_bit_shift > 6) {
@@ -370,16 +371,11 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     }
     std::cout << "Current signal level h: " << abs(h) << std::endl;
 
-    // Interference adjustment
-    double target_intf_rss_dbm = noise_rss_dbw + target_EsN0 - target_EsNi;
-    std::cout << "Load interferer with target interference rss (dbm)= "
-              << target_intf_rss_dbm << std::endl;
-    std::cout << "Press any key when ready" << std::endl;
-    // estim::startGNUSocket(true,intf_rss_dbm,target_intf_rss_dbm);
-    while (true)
-        if (std::cin.get())
-            break;
-
+    //Interference adjustment
+    double target_intf_rss_dbm = noise_rss_dbw + target_EsN0-target_EsNi;
+    std::cout << "Load interferer with target interference rss (dbm)= " << target_intf_rss_dbm << std::endl;
+    estim::send_message(serverSock, true, intf_rss_dbm, target_intf_rss_dbm);
+    std::this_thread::sleep_for(std::chrono::milliseconds(5000)); //Need to sleep for at least 500 ms before tx is active
 
     // Test setup------------------------------------------------------------------
     std::cout << "Performing compensation..." << std::endl;
@@ -641,10 +637,10 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::string src_args  = "type=x300,addr=192.168.110.2"; // top
     std::string dest_args = "type=x300,addr=192.168.10.2"; // bottom
     ref                   = "external"; // octoclock
-    double fwd_freq       = 2.1e9; // 5.80e9;
-    double fb_freq        = .915e9; //.915e9;
+    double fwd_freq       = 2.3e9; // 5.80e9;
+    double fb_freq        = .900e9; //.915e9;
     double src_tx_gain    = 0;
-    double dest_tx_gain   = 20;
+    double dest_tx_gain   = 30;
 
     double src_rx_gain  = 0;
     double dest_rx_gain = 0;
@@ -1330,10 +1326,11 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     /**
         p2p awgn test performs ber testing for awgn channel
     */
+    int serverSock = estim::connectToServerSock();
 
     std::vector<double> EsN0_dbs = {4}; //{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
     std::vector<double> EsNi_dbs = {
-        -20, -10, 0, 10, 20}; //{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
+        -20,-15,-10,5,0,5,10,15,20,25,30,35}; //{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
     std::vector<double> bers(EsNi_dbs.size(), 0.0);
     std::vector<int> num_errs(EsNi_dbs.size(), 0);
     std::vector<int> num_bits(EsNi_dbs.size(), 0);
@@ -1349,33 +1346,20 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // Interference
     // Calibration---------------------------------------------------------------------------------------------------------------------------
     bool init_calibration = false;
+    double intf_rss_dbm = -68.3855; //87.3152;
     if (init_calibration) {
-        std::cout << "Running interference calibration." << std::endl;
-        // estim::startGNUSocket(true,0,0);
-        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
-
-
-        // write a loop that waits for the user to enter a key to exit loop
-        std::cout << "Waiting for sinusoid setup. Press any key when ready..."
-                  << std::endl;
-        while (true) {
-            if (std::cin.get())
-                break;
-        }
         std::cout << "Estimating Interferer strength..." << std::endl;
 
-        double intf_rss_dbm = estim::IntfChEstim(
-            dest_tx_usrp, std::pow(2, 15), "../../data/interf_cal_samps.dat");
+        intf_rss_dbm = estim::IntfChEstim(dest_tx_usrp, std::pow(2,15), "../../data/interf_cal_samps.dat");
 
         std::cout << "Interference rss (dbm)= " << intf_rss_dbm << std::endl;
-        std::cout << "Waiting to end sinusoid. Press any key when ready to move on..."
-                  << std::endl;
+        std::cout << "Waiting to end sinusoid. Press any key when ready to move on..." << std::endl;
         while (true) {
-            if (std::cin.get())
+            if (std::cin.get()) 
                 break;
         }
     }
-
+    
     for (int i = 0; i < EsNi_dbs.size(); i++) {
         std::cout << "Running BER test for EsNi_db = " << EsNi_dbs[i]
                   << ", EsN0_db = " << EsN0_dbs[0] << std::endl;
@@ -1383,6 +1367,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             dest_tx_usrp,
             EsN0_dbs[0],
             EsNi_dbs[i],
+            serverSock, 
+            intf_rss_dbm,
             kTargetErrs,
             kMaxBits,
             is_fixed_length,

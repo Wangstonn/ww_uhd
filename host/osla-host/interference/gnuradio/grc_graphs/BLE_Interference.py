@@ -271,7 +271,7 @@ def main(top_block_cls=BLE_Interference, options=None):
                 if data:
                     msg = MSG_t.from_buffer_copy(data)
                     print(f"Received data: {msg}")
-                    tb.epy_block_0.update_params(msg.event, msg.intf_rss_dbm, msg.target_intf_rss_dbm)
+                    tb.epy_block_0.update_params(msg.event, msg.target_intf_rss_dbm, msg.intf_rss_dbm)
                 else:
                     print(f"Closing connection to {client_socket.getpeername()}")
                     sel.unregister(client_socket)

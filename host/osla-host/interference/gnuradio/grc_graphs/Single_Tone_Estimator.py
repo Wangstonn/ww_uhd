@@ -28,7 +28,7 @@ import time
 
 class Single_Tone_Estimator(gr.top_block):
 
-    def __init__(self, ch_gain=30, tx_freq=2.4e9):
+    def __init__(self, ch_gain=30, tx_freq=2.3e9):
         gr.top_block.__init__(self, "Single_Tone_Estimator", catch_exceptions=True)
 
         ##################################################

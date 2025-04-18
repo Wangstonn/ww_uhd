@@ -291,7 +291,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     double fwd_freq = 2.2e9; //5.80e9;
     double fb_freq = .915e9; //.915e9;
     double src_tx_gain = 0;
-    double dest_tx_gain = 20;
+    double dest_tx_gain = 31;
 
     double src_rx_gain = 0;
     double dest_rx_gain = 0;
