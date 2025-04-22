@@ -29,8 +29,8 @@ import socket
 import ctypes
 import selectors
 
+# For socket communication
 SERVER_PORT = 12345
-
 class MSG_t(ctypes.Structure):
   _fields_ = [("event", ctypes.c_bool),
               ("intf_rss_dbm", ctypes.c_double),

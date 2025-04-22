@@ -53,11 +53,14 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         self.BW = 2/Ts
         
         #calculate desired interference power to be used in log normal distribution
-        self.scale = 10
+        self.lognormVar = 10
         #Es = -171
         #N_I = Es-Es_Ni
-        #self.mu = N_I - 10*np.log10(noise_rate*noise_length*np.exp((self.scale*(np.log(10))**2)/200)) + 10*np.log10(self.BW)
+        #self.mu = N_I - 10*np.log10(noise_rate*noise_length*np.exp((self.lognormVar*(np.log(10))**2)/200)) + 10*np.log10(self.BW)
+        # set by socket code
+        # self.mu = Pi - 10*np.log10(noise_rate*noise_length*np.exp((self.lognormVar*(np.log(10))**2)/200))
 
+        # self.Pr = Pr
         ########################
         #Normalize In-Band Gain#
         ########################
@@ -85,15 +88,15 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         self.theta = np.random.uniform(size=len(self.n_counters))*2j*np.pi
 
         self.sampling_rate = sampling_rate
-        self.rate = noise_intensity
-        self.noise_length = noise_length
+        self.pkt_intensity = noise_intensity
+        self.pkt_len = noise_length
 
-        self.noise_frame = np.round((sampling_rate*self.noise_length),0)
+        self.noise_frame = np.round((sampling_rate*self.pkt_len),0)
 
         self.update_params(False, target_Pi, estimated_Pr)
 
         self.arrival_clk = 0
-        self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))
+        self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))
         
         self.idx = 0
         self.full = False
@@ -101,13 +104,16 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
 
         self.DebugPortName = 'Debug'
         self.message_port_register_out(pmt.intern(self.DebugPortName))
-        
+    
+    #Update packet generation parameters using the input parameters    
     def update_params(self, enabled, target_Pi, estimated_Pr):
         self.enabled = enabled
-        self.mu = target_Pi - 10*np.log10(self.rate*self.noise_length*np.exp((self.scale*(np.log(10))**2)/200))
+        mu_linear = 1/(self.pkt_intensity*self.pkt_len)*np.exp((self.lognormVar*(np.log(10))**2)/200)
+        self.mu = target_Pi + 10*np.log10(mu_linear)
         self.Pr = estimated_Pr
 
     def work(self, input_items, output_items):
+        #gate activity of block using enabled flag
         if not self.enabled:
             # TODO: check what needs to be returned here
             return 0
@@ -125,11 +131,11 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         #run arrival clk and signal when packet should start transmitting
         if ((self.arrival_clk >= self.wait_frame) and not self.full):
             self.arrival_clk = self.arrival_clk - self.wait_frame
-            self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))
+            self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))
             #Mark Interferer to start
             self.n_counters[self.idx][0] = True
             #generate gain value from parameters
-            P = np.random.normal(loc=self.mu, scale=self.scale)
+            P = np.random.normal(loc=self.mu, scale=self.lognormVar)
             self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
             #generate new phase offset
             self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -140,11 +146,11 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
             self.idx = next((i for i,j in enumerate(self.n_counters) if not j[0]),None)
             if ((self.arrival_clk >= self.wait_frame) and (self.idx != None)):
                 self.arrival_clk = self.arrival_clk - self.wait_frame
-                self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))
+                self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))
                 #Mark Interferer to start
                 self.n_counters[self.idx][0] = True
                 #generate gain value from parameters
-                P = np.random.normal(loc=self.mu, scale=self.scale)
+                P = np.random.normal(loc=self.mu, scale=self.lognormVar)
                 self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
                 #generate new phase offset
                 self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -154,11 +160,11 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
                 self.idx = next((i for i,j in enumerate(self.n_counters) if not j[0]),None)
                 if ((self.arrival_clk >= self.wait_frame) and (self.idx != None)):
                     self.arrival_clk = self.arrival_clk - self.wait_frame
-                    self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))
+                    self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))
                     #Mark Interferer to start
                     self.n_counters[self.idx][0] = True
                     #generate gain value from parameters
-                    P = np.random.normal(loc=self.mu, scale=self.scale)
+                    P = np.random.normal(loc=self.mu, scale=self.lognormVar)
                     self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
                     #generate new phase offset
                     self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -170,11 +176,11 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         #If we are full we want to start noise immediately and also reset the arrival clock to prevent error buildup
         if ((self.idx != None) and self.full):
             self.arrival_clk = len(output_items[0])
-            self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))
+            self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))
             #Mark Interferer to start
             self.n_counters[self.idx][0] = True
             #generate gain value from parameters
-            P = np.random.normal(loc=self.mu, scale=self.scale)
+            P = np.random.normal(loc=self.mu, scale=self.lognormVar)
             self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
             #generate new phase offset
             self.theta[self.idx] = np.random.uniform()*2j*np.pi

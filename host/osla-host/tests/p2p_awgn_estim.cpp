@@ -289,9 +289,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::string dest_args = "type=x300,addr=192.168.10.2"; //bottom
     ref = "external"; //octoclock
     double fwd_freq = 2.2e9; //5.80e9;
-    double fb_freq = .915e9; //.915e9;
+    double fb_freq = .960e9; //.915e9;
     double src_tx_gain = 0;
-    double dest_tx_gain = 31;
+    double dest_tx_gain = 20;
 
     double src_rx_gain = 0;
     double dest_rx_gain = 0;
@@ -1091,11 +1091,11 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     estim::SetSrcThreshold(src_tx_usrp, h_hat_fb);
 
     // Settings
-    bool fixed_length = 0;
+    bool fixed_length = false;
     std::uint32_t dest_interf_mode_bit{0b0};
     std::uint32_t mode_bits{0b11};
 
-    bool is_intf_mode = true;
+    bool is_intf_mode = false;
     if (is_intf_mode) {
         estim::ConfigDestIntfMitigation(dest_tx_usrp, h, var);
         dest_interf_mode_bit = 0b1;

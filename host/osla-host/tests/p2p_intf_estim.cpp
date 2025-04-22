@@ -28,12 +28,12 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include <thread>
 #include <random>
 #include <string>
+#include <thread>
 
-#include "../src/mmio/mmio.h"
 #include "../src/estim/estim.h"
+#include "../src/mmio/mmio.h"
 
 namespace po = boost::program_options;
 
@@ -191,7 +191,6 @@ void recv_to_file(uhd::usrp::multi_usrp::sptr usrp,
                     (const char*)buff_ptrs[i], num_rx_samps * sizeof(samp_type));
             }
         }
-
     }
 
     // Shut down receiver
@@ -214,7 +213,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // transmit variables to be set by po
     std::string tx_args, wave_type, tx_ant, tx_subdev, ref, otw, tx_channels;
     double tx_rate, fwd_freq, src_tx_gain, wave_freq, tx_bw;
-
     float ampl;
 
     // receive variables to be set by po
@@ -223,7 +221,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     double rx_rate, fb_freq, dest_tx_gain, rx_bw;
     double settling;
 
-    //WW - optional user defined arguments
+    // WW - optional user defined arguments
     uint32_t input_reg, output_reg;
 
     // setup the program options
@@ -1026,7 +1024,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     //Gain Control--------------------------------------------------------------------------------------------------------------------------
     //Set operating EsN0
-    double target_EsN0 = 30; //in dB
+    double target_EsN0 = 5; //in dB
     double target_EsNi = 30; //in dB
     std::cout << "Target Es_N0 = " << target_EsN0 << std::endl;
     if(EsN0 < target_EsN0) {
@@ -1106,11 +1104,11 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // mmio::RdMmio(dest_tx_usrp, mmio::kDestDelayAddr, true);
 
     // Settings
-    bool fixed_length = 0;
+    bool fixed_length = false;
     std::uint32_t dest_interf_mode_bit{0b0};
     std::uint32_t mode_bits{0b11};
 
-    bool is_intf_mode = true;
+    bool is_intf_mode = false;
     if (is_intf_mode) {
         estim::ConfigDestIntfMitigation(dest_tx_usrp, h, var);
         dest_interf_mode_bit = 0b1;
@@ -1160,7 +1158,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::vector<int> sym_lens(kMaxSymLen, 0);
     // uint32_t sym_len_record[kMaxSymLen] = {0};
     
-    int num_pkts = 10;
+    int num_pkts = 5;
     for(int j = 0; j < num_pkts; j++) {
         // Generate a random uint32_t
         for(int i = 0; i < Num16BitSlices; i++)
