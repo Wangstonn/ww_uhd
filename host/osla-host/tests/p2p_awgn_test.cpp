@@ -314,11 +314,11 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd)
               << " arg= " << std::arg(h_hat_fwd) << std::endl;
 
-    // Gain
-    // Control--------------------------------------------------------------------------------------------------------------------------
+    // Gain Control--------------------------------------------------------------------------------------------------------------------------
     // Set operating EsN0
     double target_EsN0 = EsN0_db; // in dB
     std::cout << "Target Es_N0 = " << target_EsN0 << std::endl;
+
     if (EsN0 < target_EsN0) {
         std::cout << "Error: Starting EsN0 is too low! Increase tx-gain" << std::endl;
     }
@@ -387,8 +387,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
 
     if (is_intf_mode) {
         estim::ConfigDestIntfMitigation(dest_tx_usrp, h, var);
-        dest_interf_mode_bit = 0b1; // 0 FOR TEMP TEST
-        // std::cout << "TEMP TEST CHANGE THIS BACK" << std::endl;
+        dest_interf_mode_bit = 0b1;
     }
 
     uint8_t fix_len_mode_bits = fixed_length ? 0b11 : 0b00;
@@ -405,7 +404,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     // std::cout << "Source read:" << std::endl;
     // mmio::ReadBBCore(src_tx_usrp);
     // std::cout << "Dest read:" << std::endl;
-    mmio::ReadBBCore(dest_tx_usrp);
+    // mmio::ReadBBCore(dest_tx_usrp);
 
     // Run
     // test------------------------------------------------------------------------------------
@@ -465,7 +464,6 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
         }
 
         current_ctr = current_ctr_reading;
-
         // std::cout << "Waiting for pkt to complete..." << std::endl;
         bool packet_good = true;
         while (true) {
@@ -523,7 +521,10 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
 
         if (iter % 100 == 0) {
             std::cout << std::dec << "Num bits: " << iter * mmio::kPktLen
-                      << ", num errors: " << n_errors << std::endl;
+                      << ", num errors: " << n_errors
+                      << ", ber: " << n_errors/(iter * mmio::kPktLen)
+                      << ", avg sym len: " << avg_sym_len/(mmio::kPktLen*iter) 
+                      << std::endl;
         }
         n_iters = iter;
         if (n_errors > kTargetErr) {
@@ -654,8 +655,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::string src_args  = "type=x300,addr=192.168.110.2"; // top
     std::string dest_args = "type=x300,addr=192.168.10.2"; // bottom
     ref                   = "external"; // octoclock
-    double fwd_freq       = 2.1e9; // 5.80e9;
-    double fb_freq        = .915e9; //.915e9;
+    double fwd_freq       = 2.2e9; // 5.80e9;
+    double fb_freq        = .96e9; //.915e9;
     double src_tx_gain    = 0;
     double dest_tx_gain   = 20;
 
@@ -1344,19 +1345,25 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         p2p awgn test performs ber testing for awgn channel
     */
 
-    std::vector<double> EsN0_dbs = {
-        0, 1, 2, 3, 4, 5, 6}; //{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
+    std::vector<double> EsN0_dbs = {1,2,3,4,5};//{0, 1, 2, 3, 4, 5, 6}; //{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
     std::vector<double> bers(EsN0_dbs.size(), 0.0);
     std::vector<int> num_errs(EsN0_dbs.size(), 0);
     std::vector<int> num_bits(EsN0_dbs.size(), 0);
     std::vector<double> rss_dbms(EsN0_dbs.size(), 0.0);
     std::vector<double> avg_sym_len(EsN0_dbs.size(), 0.0);
 
-    const int kTargetErrs = 100; // 500;
-    const int kMaxBits    = 1e7; // 1e7;
+    const int kTargetErrs = 1000; // 500;
+    const int kMaxBits    = 1e6; // 1e7;
 
     bool is_fixed_length = false;
-    bool is_intf_mode    = true;
+    bool is_intf_mode    = false;
+
+    // Include for file operations
+    std::ofstream results_file("ber_results.txt");
+    if (!results_file.is_open()) {
+        std::cout << "Error: Unable to open results file for writing." << std::endl;
+        return EXIT_FAILURE;
+    }
 
     for (int i = 0; i < EsN0_dbs.size(); i++) {
         std::cout << "Running BER test for EsN0_db = " << EsN0_dbs[i] << std::endl;
@@ -1372,13 +1379,29 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         num_errs[i]          = ber_result.num_errs;
         rss_dbms[i]          = ber_result.rss_dbm;
         avg_sym_len[i]       = ber_result.avg_sym_len;
-    }
 
-    // Include for file operations
-    std::ofstream results_file("ber_results.txt");
-    if (!results_file.is_open()) {
-        std::cerr << "Error: Unable to open results file for writing." << std::endl;
-        return EXIT_FAILURE;
+        std::string esn0_dbs_str    = estim::generateMatlabArray(EsN0_dbs, "EsN0_dbs");
+        std::string bers_str        = estim::generateMatlabArray(bers, "bers");
+        std::string num_bits_str    = estim::generateMatlabArray(num_bits, "num_bits");
+        std::string num_errs_str    = estim::generateMatlabArray(num_errs, "num_errs");
+        std::string rss_dbms_str    = estim::generateMatlabArray(rss_dbms, "rss_dbms");
+        std::string avg_sym_len_str = estim::generateMatlabArray(avg_sym_len, "avg_sym_len");
+    
+        // Print to stdout
+        std::cout << esn0_dbs_str;
+        std::cout << bers_str;
+        std::cout << num_bits_str;
+        std::cout << num_errs_str;
+        std::cout << rss_dbms_str;
+        std::cout << avg_sym_len_str;
+    
+        // Write to file
+        results_file << esn0_dbs_str;
+        results_file << bers_str;
+        results_file << num_bits_str;
+        results_file << num_errs_str;
+        results_file << rss_dbms_str;
+        results_file << avg_sym_len_str;
     }
 
     // Write results to both the file and stdout

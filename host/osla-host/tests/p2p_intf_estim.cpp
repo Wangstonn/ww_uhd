@@ -28,12 +28,12 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include <thread>
 #include <random>
 #include <string>
+#include <thread>
 
-#include "../src/mmio/mmio.h"
 #include "../src/estim/estim.h"
+#include "../src/mmio/mmio.h"
 
 namespace po = boost::program_options;
 
@@ -191,7 +191,6 @@ void recv_to_file(uhd::usrp::multi_usrp::sptr usrp,
                     (const char*)buff_ptrs[i], num_rx_samps * sizeof(samp_type));
             }
         }
-
     }
 
     // Shut down receiver
@@ -213,16 +212,16 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 {
     // transmit variables to be set by po
     std::string tx_args, wave_type, tx_ant, tx_subdev, ref, otw, tx_channels;
-    double tx_rate, tx_freq, tx_gain, wave_freq, tx_bw;
+    double tx_rate, fwd_freq, src_tx_gain, wave_freq, tx_bw;
     float ampl;
 
     // receive variables to be set by po
     std::string rx_args, file, type, rx_ant, rx_subdev, rx_channels;
     size_t total_num_samps, spb, save_file;
-    double rx_rate, rx_freq, rx_gain, rx_bw;
+    double rx_rate, fb_freq, dest_tx_gain, rx_bw;
     double settling;
 
-    //WW - optional user defined arguments
+    // WW - optional user defined arguments
     uint32_t input_reg, output_reg;
 
     // setup the program options
@@ -251,10 +250,10 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("output reg", po::value<uint32_t>(&output_reg)->default_value(0), "output reg")
 
         //afe params
-        ("tx-freq", po::value<double>(&tx_freq)->default_value(2.2e9), "transmit RF center frequency in Hz")
-        ("rx-freq", po::value<double>(&rx_freq)->default_value(2.2e9), "receive RF center frequency in Hz")
-        ("tx-gain", po::value<double>(&tx_gain)->default_value(0), "gain for the transmit RF chain")
-        ("rx-gain", po::value<double>(&rx_gain)->default_value(0), "gain for the receive RF chain")
+        ("fwd-freq", po::value<double>(&fwd_freq)->default_value(2.2e9), "fwd channel frequency in Hz") //2.35e9; //5.80e9;
+        ("fb-freq", po::value<double>(&fb_freq)->default_value(.800e9), "Feedback channel frequency in Hz")
+        ("src-tx-gain", po::value<double>(&src_tx_gain)->default_value(0), "Soource tx gain for the transmit RF chain")
+        ("dest-tx-gain", po::value<double>(&dest_tx_gain)->default_value(31.5), "gain for the Feedback tx RF chain")
         ("tx-bw", po::value<double>(&tx_bw)->default_value(160e6), "analog transmit filter bandwidth in Hz")
         ("rx-bw", po::value<double>(&rx_bw)->default_value(160e6), "analog receive filter bandwidth in Hz")
         
@@ -288,10 +287,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::string src_args = "type=x300,addr=192.168.110.2"; //top
     std::string dest_args = "type=x300,addr=192.168.10.2"; //bottom
     ref = "external"; //octoclock
-    double fwd_freq = 2.4e9; //5.80e9;
-    double fb_freq = .900e9; //.915e9;
-    double src_tx_gain = 0;
-    double dest_tx_gain = 31.5;
+    // double fwd_freq = 2.35e9; //5.80e9;
+    // double fb_freq = .800e9; //.915e9;
+    // double src_tx_gain = 0;
+    // double dest_tx_gain = 31.5;
+    std::cout << "fwd freq: " << fwd_freq << std::endl;
+    std::cout << "fb freq: " << fb_freq << std::endl;
 
     double src_rx_gain = 0;
     double dest_rx_gain = 0;
@@ -377,12 +378,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
               << std::endl
               << std::endl;
 
-    // set the transmit center frequency
-    if (not vm.count("tx-freq")) {
-        std::cerr << "Please specify the transmit center frequency with --tx-freq"
-                  << std::endl;
-        return ~0;
-    }
+    // // set the transmit center frequency
+    // if (not vm.count("tx-freq")) {
+    //     std::cerr << "Please specify the transmit center frequency with --tx-freq"
+    //               << std::endl;
+    //     return ~0;
+    // }
 
     for (size_t ch = 0; ch < src_tx_channel_nums.size(); ch++) {
         size_t src_channel = src_tx_channel_nums[ch];
@@ -400,17 +401,15 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                   << std::endl
                   << std::endl;
 
-        //std::cout << tx_usrp->get_rx_gain_range(channel).step() << std::endl;
-        // set the rf gain, ubx range: 0-31.5dB
-        if (vm.count("tx-gain")) {
-            std::cout << boost::format("Setting TX Gain: %f dB...") % src_tx_gain
-                      << std::endl;
-            src_tx_usrp->set_tx_gain(src_tx_gain, src_channel);
-            std::cout << boost::format("Actual TX Gain: %f dB...")
-                             % src_tx_usrp->get_tx_gain(src_channel)
-                      << std::endl
-                      << std::endl;
-        }
+    //std::cout << tx_usrp->get_rx_gain_range(channel).step() << std::endl;
+    // set the rf gain, ubx range: 0-31.5dB
+        std::cout << boost::format("Setting TX Gain: %f dB...") % src_tx_gain
+                    << std::endl;
+        src_tx_usrp->set_tx_gain(src_tx_gain, src_channel);
+        std::cout << boost::format("Actual TX Gain: %f dB...")
+                            % src_tx_usrp->get_tx_gain(src_channel)
+                    << std::endl
+                    << std::endl;
 
 
         // set the analog frontend filter bandwidth
@@ -435,12 +434,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             std::cout << "Configuring RX Channel " << src_channel << std::endl;
         }
 
-        // set the receive center frequency
-        if (not vm.count("rx-freq")) {
-            std::cerr << "Please specify the center frequency with --rx-freq"
-                      << std::endl;
-            return ~0;
-        }
+        // // set the receive center frequency
+        // if (not vm.count("rx-freq")) {
+        //     std::cerr << "Please specify the center frequency with --rx-freq"
+        //               << std::endl;
+        //     return ~0;
+        // }
         std::cout << boost::format("Setting RX Freq: %f MHz...") % (src_rx_freq / 1e6)
                   << std::endl;
         uhd::tune_request_t rx_tune_request(src_rx_freq);
@@ -453,7 +452,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                   << std::endl;
 
         // set the receive rf gain ubx range: 0-31.5dB
-        if (vm.count("rx-gain")) {
+        // if (vm.count("rx-gain")) {
             std::cout << boost::format("Setting RX Gain: %f dB...") % src_rx_gain
                       << std::endl;
             src_rx_usrp->set_rx_gain(src_rx_gain, src_channel);
@@ -461,7 +460,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                              % src_rx_usrp->get_rx_gain(src_channel)
                       << std::endl
                       << std::endl;
-        }
+        // }
 
         // set the receive analog frontend filter bandwidth
         if (vm.count("rx-bw")) {
@@ -682,12 +681,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
               << std::endl
               << std::endl;
 
-    // set the transmit center frequency
-    if (not vm.count("tx-freq")) {
-        std::cerr << "Please specify the transmit center frequency with --tx-freq"
-                  << std::endl;
-        return ~0;
-    }
+    // // set the transmit center frequency
+    // if (not vm.count("tx-freq")) {
+    //     std::cerr << "Please specify the transmit center frequency with --tx-freq"
+    //               << std::endl;
+    //     return ~0;
+    // }
 
     for (size_t ch = 0; ch < dest_tx_channel_nums.size(); ch++) {
         size_t channel = dest_tx_channel_nums[ch];
@@ -707,7 +706,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
         //std::cout << tx_usrp->get_rx_gain_range(channel).step() << std::endl;
         // set the rf gain, ubx range: 0-31.5dB
-        if (vm.count("tx-gain")) {
+        // if (vm.count("tx-gain")) {
             std::cout << boost::format("Setting TX Gain: %f dB...") % dest_tx_gain
                       << std::endl;
             dest_tx_usrp->set_tx_gain(dest_tx_gain, channel);
@@ -715,7 +714,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                              % dest_tx_usrp->get_tx_gain(channel)
                       << std::endl
                       << std::endl;
-        }
+        // }
 
 
         // set the analog frontend filter bandwidth
@@ -740,12 +739,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             std::cout << "Configuring RX Channel " << channel << std::endl;
         }
 
-        // set the receive center frequency
-        if (not vm.count("rx-freq")) {
-            std::cerr << "Please specify the center frequency with --rx-freq"
-                      << std::endl;
-            return ~0;
-        }
+        // // set the receive center frequency
+        // if (not vm.count("rx-freq")) {
+        //     std::cerr << "Please specify the center frequency with --rx-freq"
+        //               << std::endl;
+        //     return ~0;
+        // }
         std::cout << boost::format("Setting RX Freq: %f MHz...") % (dest_rx_freq / 1e6)
                   << std::endl;
         uhd::tune_request_t rx_tune_request(dest_rx_freq);
@@ -921,18 +920,17 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     */
 
     int serverSock = estim::connectToServerSock();
+    estim::send_message(serverSock, false, 0, 0); //deactivate interferer
 
     //Preload some default threshold and angle settings
     mmio::InitBBCore(src_tx_usrp);
     mmio::InitBBCore(dest_tx_usrp);
 
     // Interference Calibration---------------------------------------------------------------------------------------------------------------------------
-    bool init_calibration = true;
-    double intf_rss_dbm = 87.3152;
+    bool init_calibration = false;
+    double intf_rss_dbm = -68.3855; //87.3152;
     if (init_calibration) {
-        std::cout << "Running interference calibration." << std::endl;
-        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
-        
+        std::cout << "Running interference calibration." << std::endl;        
         // write a loop that waits for the user to enter a key to exit loop
         std::cout << "Waiting for sinusoid setup. Press any key when ready..." << std::endl;
         while (true) {
@@ -1026,8 +1024,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 
     //Gain Control--------------------------------------------------------------------------------------------------------------------------
     //Set operating EsN0
-    double target_EsN0 = 4; //in dB
-    double target_EsNi = -20; //in dB
+    double target_EsN0 = 5; //in dB
+    double target_EsNi = 30; //in dB
     std::cout << "Target Es_N0 = " << target_EsN0 << std::endl;
     if(EsN0 < target_EsN0) {
         std::cout << "Starting EsN0 is too low! Increase tx-gain" << std::endl;      
@@ -1085,15 +1083,13 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     estim::send_message(serverSock, true, intf_rss_dbm, target_intf_rss_dbm);
     std::this_thread::sleep_for(std::chrono::milliseconds(5000)); //Need to sleep for at least 500 ms before tx is active
 
-    
-
     // std::cout << "Load interferer with target interference rss (dbm)= " << target_intf_rss_dbm << std::endl;
     // std::cout << "Press any key when ready" << std::endl;
     // // estim::startGNUSocket(true,intf_rss_dbm,target_intf_rss_dbm);
     // while (true) 
     //     if (std::cin.get()) 
     //         break;
-                
+    
 
     //Test setup------------------------------------------------------------------
     std::cout << "Performing compensation..." << std::endl;
@@ -1108,11 +1104,11 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // mmio::RdMmio(dest_tx_usrp, mmio::kDestDelayAddr, true);
 
     // Settings
-    bool fixed_length = 0;
+    bool fixed_length = false;
     std::uint32_t dest_interf_mode_bit{0b0};
     std::uint32_t mode_bits{0b11};
 
-    bool is_intf_mode = true;
+    bool is_intf_mode = false;
     if (is_intf_mode) {
         estim::ConfigDestIntfMitigation(dest_tx_usrp, h, var);
         dest_interf_mode_bit = 0b1;
@@ -1162,7 +1158,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::vector<int> sym_lens(kMaxSymLen, 0);
     // uint32_t sym_len_record[kMaxSymLen] = {0};
     
-    int num_pkts = 10;
+    int num_pkts = 5;
     for(int j = 0; j < num_pkts; j++) {
         // Generate a random uint32_t
         for(int i = 0; i < Num16BitSlices; i++)

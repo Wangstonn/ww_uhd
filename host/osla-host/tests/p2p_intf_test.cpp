@@ -223,6 +223,8 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     uhd::usrp::multi_usrp::sptr dest_tx_usrp,
     double EsN0_db,
     double EsNi_db,
+    int serverSock, 
+    double intf_rss_dbm,
     int const target_errs,
     const int max_num_bits,
     bool is_fixed_length,
@@ -232,8 +234,10 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     mmio::InitBBCore(src_tx_usrp);
     mmio::InitBBCore(dest_tx_usrp);
 
-    // noise
-    // estimation-----------------------------------------------------------------------------------------------------------------------
+    estim::send_message(serverSock, false, 0, 0); //deactivate interferer
+
+
+    // noise estimation-----------------------------------------------------------------------------------------------------------------------
     std::cout << "Running noise estimation..." << std::endl;
     double var = estim::P2PEstimChipNoise(src_tx_usrp,
         dest_tx_usrp,
@@ -313,12 +317,13 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd)
               << " arg= " << std::arg(h_hat_fwd) << std::endl;
 
-    // Gain
-    // Control--------------------------------------------------------------------------------------------------------------------------
+    // Gain Control--------------------------------------------------------------------------------------------------------------------------
     // Set operating EsN0
     double target_EsN0 = EsN0_db; // in dB
     double target_EsNi = EsNi_db; // in dB
     std::cout << "Target Es_N0 = " << target_EsN0 << std::endl;
+    std::cout << "Target Es_Ni = " << target_EsNi << std::endl;
+
     if (EsN0 < target_EsN0) {
         std::cout << "Error: Starting EsN0 is too low! Increase tx-gain" << std::endl;
     }
@@ -356,10 +361,8 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
                   << static_cast<unsigned int>(dest_num_bit_shift) << std::endl;
         h = h * std::pow(2, dest_num_bit_shift);
 
-        var = var
-              * std::pow(std::pow(2, dest_num_bit_shift),
-                  2); // update the noise level, since bit shifting multiplies by powers
-                      // of 2
+        var = var * std::pow(std::pow(2, dest_num_bit_shift), 2); 
+        // update the noise level, since bit shifting multiplies by powers of 2
         std::cout << "Adjusted chip noise var: " << var << std::endl;
 
         if (dest_num_bit_shift > 6) {
@@ -370,16 +373,11 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     }
     std::cout << "Current signal level h: " << abs(h) << std::endl;
 
-    // Interference adjustment
-    double target_intf_rss_dbm = noise_rss_dbw + target_EsN0 - target_EsNi;
-    std::cout << "Load interferer with target interference rss (dbm)= "
-              << target_intf_rss_dbm << std::endl;
-    std::cout << "Press any key when ready" << std::endl;
-    // estim::startGNUSocket(true,intf_rss_dbm,target_intf_rss_dbm);
-    while (true)
-        if (std::cin.get())
-            break;
-
+    //Interference adjustment
+    double target_intf_rss_dbm = noise_rss_dbw + target_EsN0-target_EsNi;
+    std::cout << "Load interferer with target interference rss (dbm)= " << target_intf_rss_dbm << std::endl;
+    estim::send_message(serverSock, true, intf_rss_dbm, target_intf_rss_dbm);
+    std::this_thread::sleep_for(std::chrono::milliseconds(5000)); //Need to sleep for at least 500 ms before tx is active
 
     // Test setup------------------------------------------------------------------
     std::cout << "Performing compensation..." << std::endl;
@@ -414,10 +412,9 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     // std::cout << "Source read:" << std::endl;
     // mmio::ReadBBCore(src_tx_usrp);
     // std::cout << "Dest read:" << std::endl;
-    mmio::ReadBBCore(dest_tx_usrp);
+    // mmio::ReadBBCore(dest_tx_usrp);
 
-    // Run
-    // test------------------------------------------------------------------------------------
+    // Run test------------------------------------------------------------------------------------
     std::cout << "Running BER test..." << std::endl;
     const int kMaxIter   = std::ceil(static_cast<double>(max_num_bits) / mmio::kPktLen);
     const int kTargetErr = target_errs;
@@ -531,7 +528,10 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
 
         if (iter % 100 == 0) {
             std::cout << std::dec << "Num bits: " << iter * mmio::kPktLen
-                      << ", num errors: " << n_errors << std::endl;
+                      << ", num errors: " << n_errors
+                      << ", ber: " << n_errors/(iter * mmio::kPktLen)
+                      << ", avg sym len: " << avg_sym_len/(mmio::kPktLen*iter) 
+                      << std::endl;
         }
         n_iters = iter;
         if (n_errors > kTargetErr) {
@@ -565,13 +565,13 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 {
     // transmit variables to be set by po
     std::string tx_args, wave_type, tx_ant, tx_subdev, ref, otw, tx_channels;
-    double tx_rate, tx_freq, tx_gain, wave_freq, tx_bw;
+    double tx_rate, fwd_freq, src_tx_gain, wave_freq, tx_bw;
     float ampl;
 
     // receive variables to be set by po
     std::string rx_args, file, type, rx_ant, rx_subdev, rx_channels;
     size_t total_num_samps, spb, save_file;
-    double rx_rate, rx_freq, rx_gain, rx_bw;
+    double rx_rate, fb_freq, dest_tx_gain, rx_bw;
     double settling;
 
     // WW - optional user defined arguments
@@ -603,10 +603,10 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
          ("output reg", po::value<uint32_t>(&output_reg)->default_value(0), "output reg")
  
          //afe params
-         ("tx-freq", po::value<double>(&tx_freq)->default_value(.915e9), "transmit RF center frequency in Hz")
-         ("rx-freq", po::value<double>(&rx_freq)->default_value(.915e9), "receive RF center frequency in Hz")
-         ("tx-gain", po::value<double>(&tx_gain)->default_value(0), "gain for the transmit RF chain")
-         ("rx-gain", po::value<double>(&rx_gain)->default_value(0), "gain for the receive RF chain")
+        ("fwd-freq", po::value<double>(&fwd_freq)->default_value(2.2e9), "fwd channel frequency in Hz") //2.35e9; //5.80e9;
+        ("fb-freq", po::value<double>(&fb_freq)->default_value(.800e9), "Feedback channel frequency in Hz")
+        ("src-tx-gain", po::value<double>(&src_tx_gain)->default_value(0), "Soource tx gain for the transmit RF chain")
+        ("dest-tx-gain", po::value<double>(&dest_tx_gain)->default_value(31.5), "gain for the Feedback tx RF chain")
          ("tx-bw", po::value<double>(&tx_bw)->default_value(160e6), "analog transmit filter bandwidth in Hz")
          ("rx-bw", po::value<double>(&rx_bw)->default_value(160e6), "analog receive filter bandwidth in Hz")
          
@@ -636,28 +636,28 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         return ~0;
     }
 
-    // USRP
-    // initialization------------------------------------------------------------------------------------------------------------------------
-    std::string src_args  = "type=x300,addr=192.168.110.2"; // top
-    std::string dest_args = "type=x300,addr=192.168.10.2"; // bottom
-    ref                   = "external"; // octoclock
-    double fwd_freq       = 2.1e9; // 5.80e9;
-    double fb_freq        = .915e9; //.915e9;
-    double src_tx_gain    = 0;
-    double dest_tx_gain   = 20;
+    //USRP initialization------------------------------------------------------------------------------------------------------------------------
+    std::string src_args = "type=x300,addr=192.168.110.2"; //top
+    std::string dest_args = "type=x300,addr=192.168.10.2"; //bottom
+    ref = "external"; //octoclock
+    // double fwd_freq = 2.35e9; //5.80e9;
+    // double fb_freq = .800e9; //.915e9;
+    // double src_tx_gain = 0;
+    // double dest_tx_gain = 31.5;
+    std::cout << "fwd freq: " << fwd_freq << std::endl;
+    std::cout << "fb freq: " << fb_freq << std::endl;
 
-    double src_rx_gain  = 0;
+    double src_rx_gain = 0;
     double dest_rx_gain = 0;
 
-    double src_tx_freq  = fwd_freq;
+    double src_tx_freq = fwd_freq;
     double dest_rx_freq = fwd_freq;
     double src_rx_freq  = fb_freq;
     double dest_tx_freq = fb_freq;
 
 
-    // Src
-    // Config-----------------------------------------------------------------------------------------------------------------
-    //  create a usrp device
+    //Src Config-----------------------------------------------------------------------------------------------------------------
+    // create a usrp device
     std::cout << std::endl;
     std::cout << boost::format("Creating the src transmit usrp device with: %s...")
                      % src_args
@@ -733,12 +733,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
               << std::endl
               << std::endl;
 
-    // set the transmit center frequency
-    if (not vm.count("tx-freq")) {
-        std::cerr << "Please specify the transmit center frequency with --tx-freq"
-                  << std::endl;
-        return ~0;
-    }
+    // // set the transmit center frequency
+    // if (not vm.count("tx-freq")) {
+    //     std::cerr << "Please specify the transmit center frequency with --tx-freq"
+    //               << std::endl;
+    //     return ~0;
+    // }
 
     for (size_t ch = 0; ch < src_tx_channel_nums.size(); ch++) {
         size_t src_channel = src_tx_channel_nums[ch];
@@ -756,9 +756,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                   << std::endl
                   << std::endl;
 
-        // std::cout << tx_usrp->get_rx_gain_range(channel).step() << std::endl;
-        //  set the rf gain, ubx range: 0-31.5dB
-        if (vm.count("tx-gain")) {
+    //std::cout << tx_usrp->get_rx_gain_range(channel).step() << std::endl;
+    // set the rf gain, ubx range: 0-31.5dB
             std::cout << boost::format("Setting TX Gain: %f dB...") % src_tx_gain
                       << std::endl;
             src_tx_usrp->set_tx_gain(src_tx_gain, src_channel);
@@ -766,7 +765,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                              % src_tx_usrp->get_tx_gain(src_channel)
                       << std::endl
                       << std::endl;
-        }
 
 
         // set the analog frontend filter bandwidth
@@ -791,12 +789,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             std::cout << "Configuring RX Channel " << src_channel << std::endl;
         }
 
-        // set the receive center frequency
-        if (not vm.count("rx-freq")) {
-            std::cerr << "Please specify the center frequency with --rx-freq"
-                      << std::endl;
-            return ~0;
-        }
+        // // set the receive center frequency
+        // if (not vm.count("rx-freq")) {
+        //     std::cerr << "Please specify the center frequency with --rx-freq"
+        //               << std::endl;
+        //     return ~0;
+        // }
         std::cout << boost::format("Setting RX Freq: %f MHz...") % (src_rx_freq / 1e6)
                   << std::endl;
         uhd::tune_request_t rx_tune_request(src_rx_freq);
@@ -809,7 +807,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                   << std::endl;
 
         // set the receive rf gain ubx range: 0-31.5dB
-        if (vm.count("rx-gain")) {
+        // if (vm.count("rx-gain")) {
             std::cout << boost::format("Setting RX Gain: %f dB...") % src_rx_gain
                       << std::endl;
             src_rx_usrp->set_rx_gain(src_rx_gain, src_channel);
@@ -817,7 +815,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                              % src_rx_usrp->get_rx_gain(src_channel)
                       << std::endl
                       << std::endl;
-        }
+        // }
 
         // set the receive analog frontend filter bandwidth
         if (vm.count("rx-bw")) {
@@ -959,16 +957,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // Start tx and streaming
     //  start transmit worker thread
     std::thread src_transmit_thread([&]() {
-        transmit_worker(src_buff,
-            wave_table,
-            src_tx_stream,
-            src_md,
-            src_step,
-            src_index,
-            src_num_channels); // this sets tx_streamer which gates tx
+        transmit_worker(src_buff, wave_table, src_tx_stream, src_md, src_step, src_index, src_num_channels); //this sets tx_streamer which gates tx
     });
-    std::this_thread::sleep_for(std::chrono::milliseconds(
-        500)); // Need to sleep for at least 500 ms before tx is active
+    std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 500 ms before tx is active
 
     // recv to file - supposedly sets registers on adc but I cant find anything about
     // that. However, given how transmit_worker sets the tx settings (tx_running), its
@@ -1068,12 +1059,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
               << std::endl
               << std::endl;
 
-    // set the transmit center frequency
-    if (not vm.count("tx-freq")) {
-        std::cerr << "Please specify the transmit center frequency with --tx-freq"
-                  << std::endl;
-        return ~0;
-    }
+    // // set the transmit center frequency
+    // if (not vm.count("tx-freq")) {
+    //     std::cerr << "Please specify the transmit center frequency with --tx-freq"
+    //               << std::endl;
+    //     return ~0;
+    // }
 
     for (size_t ch = 0; ch < dest_tx_channel_nums.size(); ch++) {
         size_t channel = dest_tx_channel_nums[ch];
@@ -1091,9 +1082,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                   << std::endl
                   << std::endl;
 
-        // std::cout << tx_usrp->get_rx_gain_range(channel).step() << std::endl;
-        //  set the rf gain, ubx range: 0-31.5dB
-        if (vm.count("tx-gain")) {
+        //std::cout << tx_usrp->get_rx_gain_range(channel).step() << std::endl;
+        // set the rf gain, ubx range: 0-31.5dB
+        // if (vm.count("tx-gain")) {
             std::cout << boost::format("Setting TX Gain: %f dB...") % dest_tx_gain
                       << std::endl;
             dest_tx_usrp->set_tx_gain(dest_tx_gain, channel);
@@ -1101,7 +1092,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                              % dest_tx_usrp->get_tx_gain(channel)
                       << std::endl
                       << std::endl;
-        }
+        // }
 
 
         // set the analog frontend filter bandwidth
@@ -1126,12 +1117,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             std::cout << "Configuring RX Channel " << channel << std::endl;
         }
 
-        // set the receive center frequency
-        if (not vm.count("rx-freq")) {
-            std::cerr << "Please specify the center frequency with --rx-freq"
-                      << std::endl;
-            return ~0;
-        }
+        // // set the receive center frequency
+        // if (not vm.count("rx-freq")) {
+        //     std::cerr << "Please specify the center frequency with --rx-freq"
+        //               << std::endl;
+        //     return ~0;
+        // }
         std::cout << boost::format("Setting RX Freq: %f MHz...") % (dest_rx_freq / 1e6)
                   << std::endl;
         uhd::tune_request_t rx_tune_request(dest_rx_freq);
@@ -1332,50 +1323,43 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     */
 
     std::vector<double> EsN0_dbs = {4}; //{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
-    std::vector<double> EsNi_dbs = {
-        -20, -10, 0, 10, 20}; //{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
+    std::vector<double> EsNi_dbs = {-30,-25,-20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35,-20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35,-20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35}; //{10,15,20,25,30,35};//{0,1,2,3,4,5,6,7}; {3,5,6};//
     std::vector<double> bers(EsNi_dbs.size(), 0.0);
     std::vector<int> num_errs(EsNi_dbs.size(), 0);
     std::vector<int> num_bits(EsNi_dbs.size(), 0);
     std::vector<double> rss_dbms(EsNi_dbs.size(), 0.0);
     std::vector<double> avg_sym_len(EsNi_dbs.size(), 0.0);
 
-    const int kTargetErrs = 100; // 500;
-    const int kMaxBits    = 1e7; // 1e7;
+    const int kTargetErrs = 200; // 500;
+    const int kMaxBits    = 1e4; // 1e7;
 
     bool is_fixed_length = false;
     bool is_intf_mode    = true;
 
-    // Interference
-    // Calibration---------------------------------------------------------------------------------------------------------------------------
-    bool init_calibration = false;
+    // Interference Calibration---------------------------------------------------------------------------------------------------------------------------
+    bool init_calibration = true;
+    double intf_rss_dbm = -55.629; //87.3152;
     if (init_calibration) {
-        std::cout << "Running interference calibration." << std::endl;
-        // estim::startGNUSocket(true,0,0);
-        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
-
-
-        // write a loop that waits for the user to enter a key to exit loop
-        std::cout << "Waiting for sinusoid setup. Press any key when ready..."
-                  << std::endl;
-        while (true) {
-            if (std::cin.get())
-                break;
-        }
         std::cout << "Estimating Interferer strength..." << std::endl;
 
-        double intf_rss_dbm = estim::IntfChEstim(
-            dest_tx_usrp, std::pow(2, 15), "../../data/interf_cal_samps.dat");
+        intf_rss_dbm = estim::IntfChEstim(dest_tx_usrp, std::pow(2,15), "../../data/interf_cal_samps.dat");
 
         std::cout << "Interference rss (dbm)= " << intf_rss_dbm << std::endl;
-        std::cout << "Waiting to end sinusoid. Press any key when ready to move on..."
-                  << std::endl;
+        std::cout << "Waiting to end sinusoid. Press any key when ready to move on..." << std::endl;
         while (true) {
-            if (std::cin.get())
+            if (std::cin.get()) 
                 break;
         }
     }
+    int serverSock = estim::connectToServerSock();
+    // Include for file operations
+    std::ofstream results_file("ber_results.txt");
+    if (!results_file.is_open()) {
+        std::cerr << "Error: Unable to open results file for writing." << std::endl;
+        return EXIT_FAILURE;
+    }
 
+    
     for (int i = 0; i < EsNi_dbs.size(); i++) {
         std::cout << "Running BER test for EsNi_db = " << EsNi_dbs[i]
                   << ", EsN0_db = " << EsN0_dbs[0] << std::endl;
@@ -1383,6 +1367,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             dest_tx_usrp,
             EsN0_dbs[0],
             EsNi_dbs[i],
+            serverSock, 
+            intf_rss_dbm,
             kTargetErrs,
             kMaxBits,
             is_fixed_length,
@@ -1392,14 +1378,37 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         num_errs[i]          = ber_result.num_errs;
         rss_dbms[i]          = ber_result.rss_dbm;
         avg_sym_len[i]       = ber_result.avg_sym_len;
+
+        // Write results to both the file and stdout
+        std::string esn0_dbs_str    = estim::generateMatlabArray(EsN0_dbs, "EsN0_dbs");
+        std::string esni_dbs_str    = estim::generateMatlabArray(EsNi_dbs, "EsNi_dbs");
+        std::string bers_str        = estim::generateMatlabArray(bers, "bers");
+        std::string num_bits_str    = estim::generateMatlabArray(num_bits, "num_bits");
+        std::string num_errs_str    = estim::generateMatlabArray(num_errs, "num_errs");
+        std::string rss_dbms_str    = estim::generateMatlabArray(rss_dbms, "rss_dbms");
+        std::string avg_sym_len_str = estim::generateMatlabArray(avg_sym_len, "avg_sym_len");
+
+        // Print to stdout
+        std::cout << esn0_dbs_str;
+        std::cout << esni_dbs_str;
+        std::cout << bers_str;
+        std::cout << num_bits_str;
+        std::cout << num_errs_str;
+        std::cout << rss_dbms_str;
+        std::cout << avg_sym_len_str;
+
+        // Write to file
+        results_file << esn0_dbs_str;
+        results_file << esni_dbs_str;
+        results_file << bers_str;
+        results_file << num_bits_str;
+        results_file << num_errs_str;
+        results_file << rss_dbms_str;
+        results_file << avg_sym_len_str;
+
     }
 
-    // Include for file operations
-    std::ofstream results_file("ber_results.txt");
-    if (!results_file.is_open()) {
-        std::cerr << "Error: Unable to open results file for writing." << std::endl;
-        return EXIT_FAILURE;
-    }
+
 
     // Write results to both the file and stdout
     std::string esn0_dbs_str    = estim::generateMatlabArray(EsN0_dbs, "EsN0_dbs");

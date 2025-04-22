@@ -14,11 +14,11 @@ import pmt
 class blk(gr.sync_block):  # other base classes are basic_block, decim_block, interp_block
     """Embedded Python Block Noise Controller"""
 
-    def __init__(self, sampling_rate = 32000, noise_rate = 1.0, noise_length = 1.0, Pi = 0, Pr = 0, F_of = 0, PSD_path = ''):  # only default arguments here
+    def __init__(self, sampling_rate = 32000, PSD_path = "", noise_intensity = 1.0, noise_length = 1.0, target_Pi = 0, estimated_Pr = 0, F_of = 0):  # only default arguments here
         """
         Parameters:
         sampling rate (Hz): Needed to calculate length of noise frame and wait frame
-        noise_rate (arrivals/second): noise packet rate /s (can overlap up to 3 packets)
+        noise_intensity (arrivals/second): noise packet rate /s (can overlap up to 3 packets)
         noise length (seconds): length of interference packet (if too large may just overlap constantly)
         Es_Ni(dBm): Desired Es/Ni (Es is hard coded internally)
         Pr(dB): estimate of received power from sending a digital normalized signal 
@@ -57,9 +57,9 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         #Es = -171
         #N_I = Es-Es_Ni
         #self.mu = N_I - 10*np.log10(noise_rate*noise_length*np.exp((self.scale*(np.log(10))**2)/200)) + 10*np.log10(self.BW)
-        self.mu = Pi - 10*np.log10(noise_rate*noise_length*np.exp((self.scale*(np.log(10))**2)/200))
+        # self.mu = Pi - 10*np.log10(noise_rate*noise_length*np.exp((self.scale*(np.log(10))**2)/200))
 
-        self.Pr = Pr
+        # self.Pr = Pr
         
         ########################
         #Normalize In-Band Gain#
@@ -88,10 +88,12 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         self.theta = np.random.uniform(size=len(self.n_counters))*2j*np.pi
 
         self.sampling_rate = sampling_rate
-        self.rate = noise_rate
+        self.rate = noise_intensity
         self.noise_length = noise_length
 
         self.noise_frame = np.round((sampling_rate*self.noise_length),0)
+
+        self.update_params(False, target_Pi, estimated_Pr)
 
         self.arrival_clk = 0
         self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))
@@ -102,9 +104,19 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
 
         self.DebugPortName = 'Debug'
         self.message_port_register_out(pmt.intern(self.DebugPortName))
-
+    
+    #Update packet generation parameters using the input parameters    
+    def update_params(self, enabled, target_Pi, estimated_Pr):
+        self.enabled = enabled
+        self.mu = target_Pi - 10*np.log10(self.rate*self.noise_length*np.exp((self.scale*(np.log(10))**2)/200))
+        self.Pr = estimated_Pr
 
     def work(self, input_items, output_items):
+        #gate activity of block using enabled flag
+        if not self.enabled:
+            # Work output the number of output items produced. Return 0 to pause downstream blocks.
+            return 0
+
         self.arrival_clk = self.arrival_clk + len(output_items[0])
         self.idx = next((i for i,j in enumerate(self.n_counters) if not j[0]),None)
         if (self.idx == None) and (self.arrival_clk >= self.wait_frame):
@@ -200,5 +212,4 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
             self.message_port_pub(pmt.intern(self.DebugPortName), PMT_msg)
             #return -1
         return len(output_items[0][:])
-
 
