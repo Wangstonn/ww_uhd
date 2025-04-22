@@ -3,34 +3,51 @@
 % email: wangston@umich.edu
 % 12/13/23
 
-clearvars; close all; clc; fclose('all');
+clearvars; close all; fclose('all');
+AdcFrac = 2;
+
+fwd_file = "../data/interf_cal_samps.dat";
+
+% fwd_file = "../data/dest_interf_samps.dat";
+fwd_file = "../data/fb_p2p_prmbl_samps.dat";
 
 %% Plot the samples
-
 % Read data
 % format depends on CPU Data Format Specification
 % https://files.ettus.com/manual/page_configuration.html 
-fid = fopen("src_dlb_samps.dat");
+fid = fopen(fwd_file);
 data = fread(fid, [2, inf], 'int16');
 fclose(fid);
 %data is 2x#samples captured. I corresponds to the first row, Q second
 %The binary file format is simply a single line with I and Q alternating
 %e.g I1 Q1 I2 Q2 I3 Q3...
-AdcFrac = 6;
-d = (data(1,:)+j*data(2,:))*2^-AdcFrac; %dest fixed point is 16,8
+
+d = (data(1,:)+j*data(2,:))*2^-AdcFrac; %dest fixed point is 14,6
 N_w = length(d); %length of window
+
+OSR = 336;
+t = 1:length(d);
+if_tone = exp(1i*(2*pi/OSR*(t-1)));
 
 figure(); grid on;
 plot(real(d));
 title("I Samples");
+hold on;
+plot(real(if_tone));
+plot(-real(if_tone));
 
 figure(); grid on;
 plot(imag(d));
 title("Q Samples");
+hold on;
+plot(imag(if_tone));
+plot(imag(-if_tone));
+
 
 figure();
 Fs = 200e6;
 L = length(d);
+figure();
 plot(Fs/L*(-L/2:L/2-1),abs(fftshift(fft(d))))
 title("fft Spectrum of captured samples")
 xlabel("f (Hz)")
@@ -40,13 +57,30 @@ ylabel("|fft(X)|")
 % figure();
 % qqplot(real(d)); %see if its just noise
 %% Processing 
+% Downconvert samples
+d_if = d.*conj(if_tone); 
+
+figure(); grid on;
+plot(real(d_if));
+title("Downconverted I Samples");
+
+figure(); grid on;
+plot(imag(d_if));
+title("Downconverted Q Samples");
+
+% figure();
+% plot(Fs/L*(-L/2:L/2-1),abs(fftshift(fft(d_if))))
+% title("fft Spectrum of captured samples")
+% xlabel("f (Hz)")
+% ylabel("|fft(X)|")
+
+
 % read preamble
 fid = fopen("preamble.mem");
 preamble_bits = fscanf(fid, '%1d')';
 fclose(fid);
 
-prmbl_amp = 1-2^-15;
-prmbl_samps = repelem(2*(preamble_bits-.5)*prmbl_amp,32);
+prmbl_samps = repelem(2*(preamble_bits-.5),32);
 N_prmbl = length(prmbl_samps);
 
 % EsN0 = 10^(4/10);
@@ -56,16 +90,14 @@ N_prmbl = length(prmbl_samps);
 % d = prmbl_samps + sigma_n*randn(1,N_prmbl)+j*sigma_n*randn(1,N_prmbl);
 % d = prmbl_samps;
 
-N_samps_cap = length(d);
-
 % cross correllation
-[r,lags] = xcorr(d,prmbl_samps); %Turns out matlab implements xcorr in the with the order of arguments reversed
-%second arhument of xcorr is conjugated and dragged
+[r,lags] = xcorr(d_if,prmbl_samps); %Turns out matlab implements xcorr with the order of arguments reversed
+%second argument of xcorr is conjugated and dragged
 % xcorr([1],[1,1,1]) %to understand xcorr
 
 figure(); grid on; hold on;
 r_mag = abs(r);
-plot(lags,r_mag);
+stem(lags,r_mag);
 title("xcorr mag");
 
 [~,max_idx] = max(abs(r));
@@ -73,6 +105,26 @@ scatter(lags(max_idx),r_mag(max_idx));
 %t_hat is how much longer it takes pramble after start. For correct
 %operation, should be -4 (src datapath takes 4 cycles)
 D_hat = lags(max_idx);
+
+N_w = length(d_if);
+
+if N_w > N_prmbl
+    if D_hat < 0
+        N_samps_cap = max(0, N_prmbl + D_hat);
+    elseif D_hat < (N_w - N_prmbl)
+        N_samps_cap = N_prmbl;
+    else
+        N_samps_cap = max(0, N_prmbl - (D_hat - (N_w - N_prmbl)));
+    end
+else
+    if D_hat < 0
+        N_samps_cap = max(0, N_w + D_hat);
+    elseif D_hat < (N_prmbl - N_w)
+        N_samps_cap = N_w;
+    else
+        N_samps_cap = max(0, N_w - (D_hat - (N_prmbl - N_w)));
+    end
+end
 
 % %The size of the peak depends on the number of preamble samples captured in
 % %the window.
@@ -85,7 +137,11 @@ D_hat = lags(max_idx);
 % end
 
 % Find the fading coefficient from the matched filter
-h_hat = r(max_idx)/(N_samps_cap * prmbl_amp^2);
+% The if_tone we generated is not synchronized to the tx if tone. After we
+% find the delay, this allows us to synchronize the two tones. The
+% remaining phase difference is caused by the channel.
+h_hat = exp(1i*(2*pi/OSR*(D_hat)))*r(max_idx)/(N_samps_cap);
+D_hat
 h_hat_mag = abs(h_hat)
 phi_hat = angle(h_hat)
 
@@ -104,28 +160,128 @@ phi_hat = angle(h_hat)
 % dest_ch_eq_re_bit=dec2bin_str(dest_ch_eq_re,14,11,1)
 % dest_ch_eq_im_bit=dec2bin_str(dest_ch_eq_im,14,11,1)
 
-x_hat = d * 1/h_hat; %should match preamble
+x_hat = d_if * exp(1i*(2*pi/OSR*(D_hat))) * 1/h_hat; %should match preamble
+
+% Align prmbl_samps with x_hat based on D_hat
+if D_hat >= 0
+    % Positive delay: shift prmbl_samps to the right by adding zeros at the beginning
+    aligned_prmbl_samps = [zeros(1, D_hat), prmbl_samps];
+else
+    % Negative delay: shift prmbl_samps to the left by adding zeros at the end
+    aligned_prmbl_samps = [prmbl_samps, zeros(1, abs(D_hat))];
+    x_hat = [zeros(1,abs(D_hat)),x_hat];
+end
+
+
 
 figure()
 plot(real(x_hat),'DisplayName',"real(r/h)")
 hold on;
-plot(prmbl_samps,'DisplayName',"preamble samples")
+plot(aligned_prmbl_samps,'DisplayName',"aligned preamble samples")
+title("Flatfading compensated signal vs preamble")
+legend
+
+figure()
+plot(imag(x_hat),'DisplayName',"imag(r/h)")
+hold on;
+plot(aligned_prmbl_samps,'DisplayName',"aligned preamble samples")
 title("Flatfading compensated signal vs preamble")
 legend
 
 %% Noise estimation
-fid = fopen("usrp_samples.noise.dat");
+ACCUM_WIDTH = 48;
+ACCUM_FRAC = 19;
+CAP_WIDTH = 32;
+kChipFrac = ACCUM_FRAC-(ACCUM_WIDTH-32);
+
+fid = fopen("./../data/fwd_alb_noise_chips.dat");
+data = fread(fid, [2, inf], 'int16');
+fclose(fid);
+
+%32 bit data is split between two vectors. 
+d_noise = ((data(1,:))*2^16 + double(typecast(int16(data(2,:)),"uint16")))*2^-kChipFrac; 
+N_w = length(d_noise); %length of window
+
+figure();
+grid on;
+plot(d_noise);
+title(['Chip Noise capture (Mean: ', num2str(mean(d_noise), '%.2f'), ', Variance: ', num2str(var(d_noise), '%.2f'), ')']);
+
+figure()
+d_noise = d_noise(1:end);
+Fs = 200e6/336;
+L = length(d_noise);
+stem(Fs/L*(-L/2:L/2-1),20*log10(abs(fftshift(fft(d_noise)))))
+title("fft of noise")
+xlabel("f (Hz)")
+ylabel("|fft(X)| (db)")
+
+chip_var_from_chip = var(d_noise)/336
+% EsN0 = 10*log10((h_hat_mag * 336 * 32)^2/(2*var))
+
+%% Plot noise samples
+% Read data
+% format depends on CPU Data Format Specification
+% https://files.ettus.com/manual/page_configuration.html 
+fid = fopen("./../data/fwd_alb_noise_samps.dat");
 data = fread(fid, [2, inf], 'int16');
 fclose(fid);
 %data is 2x#samples captured. I corresponds to the first row, Q second
 %The binary file format is simply a single line with I and Q alternating
 %e.g I1 Q1 I2 Q2 I3 Q3...
 
-d_noise = (data(1,:)+j*data(2,:))*2^-8; %dest fixed point is 16,8
-n_var = var(d_noise)
+d = (data(1,:)+j*data(2,:))*2^-AdcFrac; %dest fixed point is 14,6
+N_w = length(d); %length of window
 
-prmbl_esn0 = 10*log10((h_hat_mag*norm(prmbl_samps))^2/(n_var*2))
-sample_esn0 = 10*log10((h_hat_mag)^2/(n_var*2))
+OSR = 336;
+t = 1:length(d);
+if_tone = exp(1i*(2*pi/OSR*(t-1)));
+
+figure(); grid on;
+plot(real(d));
+title("I Samples");
+hold on;
+plot(real(if_tone));
+plot(-real(if_tone));
+
+figure(); grid on;
+plot(imag(d));
+title("Q Samples");
+hold on;
+plot(imag(if_tone));
+plot(imag(-if_tone));
+
+Fs = 200e6;
+L = length(d);
+figure();
+plot(Fs/L*(-L/2:L/2-1),20*log10(abs(fftshift(fft(d)))))
+title("fft Spectrum of captured samples")
+xlabel("f (Hz)")
+ylabel("|fft(X)|")
+% xlim([.5e5, .6e5])
+
+
+figure();
+qqplot(real(d)); %see if its just noise
+
+d_var = var([real(d),imag(d)])
+% estimate chip noise
+d_if = d.*conj(if_tone); 
+d_filt = conv(d_if,ones(1,336),'valid');
+
+figure
+plot(real(d_filt))
+var_chip_real = var(real(d_filt))/(336)^2
+
+% Trim d_if so it can be reshaped with OSR rows
+trim_len = floor(length(d_if)/OSR) * OSR;
+d_if_trimmed = d_if(1:trim_len);
+
+% Now reshape safely
+d_matrix = reshape(d_if_trimmed, OSR, []);
+d_chip = sum(d_matrix,1);
+chip_var_from_samp = var([real(d_chip),imag(d_chip)])/(336)^2
+
 
 %% Plot the samples
 % addpath('..\..\..\..\fp_emulator\')
