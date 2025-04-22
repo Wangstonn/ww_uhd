@@ -1,4 +1,4 @@
-// -*- verilog -*-
+=// -*- verilog -*-
 //
 //  USRP - Universal Software Radio Peripheral
 //
@@ -23,4 +23,4 @@ module clip
 			   in[bits_out-1:0];
    
 endmodule // clip
-
+
