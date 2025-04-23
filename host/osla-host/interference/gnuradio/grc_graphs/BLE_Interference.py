@@ -118,7 +118,7 @@ class BLE_Interference(gr.top_block):
             verbose=False,
             log=False,
             do_unpack=False)
-        self.blocks_message_debug_0 = blocks.message_debug(True, gr.log_levels.info)
+        self.blocks_message_debug_0 = blocks.message_debug()
         self.blocks_freqshift_cc_0 = blocks.rotator_cc(2.0*math.pi*F_IF/samp_rate)
         self.analog_random_source_x_0_1 = blocks.vector_source_b(list(map(int, numpy.random.randint(0, 2, 100000))), True)
         self.analog_random_source_x_0_0 = blocks.vector_source_b(list(map(int, numpy.random.randint(0, 2, 100000))), True)
