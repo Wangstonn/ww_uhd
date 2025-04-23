@@ -11,7 +11,7 @@ options:
     gen_linking: dynamic
     generate_options: no_gui
     hier_block_src_path: '.:'
-    id: BLE_Interference
+    id: AGN_Interference
     max_nouts: '0'
     output_language: python
     placement: (0,0)
@@ -22,7 +22,7 @@ options:
     run_options: run
     sizing_mode: fixed
     thread_safe_setters: ''
-    title: BLE_Interference
+    title: AGN_Interference
     window_size: (1000,1000)
   states:
     bus_sink: false
@@ -42,7 +42,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [200, 140.0]
+    coordinate: [280, 8.0]
     rotation: 0
     state: true
 - name: BLE_sym_length
@@ -54,7 +54,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [288, 140.0]
+    coordinate: [360, 8.0]
     rotation: 0
     state: enabled
 - name: F_IF
@@ -66,7 +66,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [768, 244.0]
+    coordinate: [624, 8.0]
     rotation: 0
     state: true
 - name: F_Of
@@ -78,7 +78,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [792, 172.0]
+    coordinate: [560, 8.0]
     rotation: 0
     state: true
 - name: TX_ID
@@ -90,21 +90,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1024, 172.0]
+    coordinate: [1024, 24.0]
     rotation: 0
     state: true
-- name: psd_file_path
-  id: variable
-  parameters:
-    comment: ''
-    value: '"/n/deer/z/samnolan/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/BLE_PSD.csv"'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [504, 172.0]
-    rotation: 0
-    state: enabled
 - name: samp_rate
   id: variable
   parameters:
@@ -114,81 +102,66 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [768, 36.0]
+    coordinate: [472, 8.0]
     rotation: 0
     state: enabled
-- name: sensitivity
-  id: variable
-  parameters:
-    comment: ''
-    value: 2*math.pi*BLE_fd/samp_rate
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [232, 76.0]
-    rotation: 0
-    state: true
-- name: analog_random_source_x_0
-  id: analog_random_source_x
+- name: analog_noise_source_x_0
+  id: analog_noise_source_x
   parameters:
     affinity: ''
     alias: ''
+    amp: '1'
     comment: ''
-    max: '2'
     maxoutbuf: '0'
-    min: '0'
     minoutbuf: '0'
-    num_samps: '100000'
-    repeat: 'True'
-    type: byte
+    noise_type: analog.GR_GAUSSIAN
+    seed: '0'
+    type: complex
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [40, 212.0]
+    coordinate: [72, 256.0]
     rotation: 0
-    state: true
-- name: analog_random_source_x_0_0
-  id: analog_random_source_x
+    state: enabled
+- name: analog_noise_source_x_0_0
+  id: analog_noise_source_x
   parameters:
     affinity: ''
     alias: ''
+    amp: '1'
     comment: ''
-    max: '2'
     maxoutbuf: '0'
-    min: '0'
     minoutbuf: '0'
-    num_samps: '100000'
-    repeat: 'True'
-    type: byte
+    noise_type: analog.GR_GAUSSIAN
+    seed: '1'
+    type: complex
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [40, 316.0]
+    coordinate: [72, 344.0]
     rotation: 0
-    state: true
-- name: analog_random_source_x_0_1
-  id: analog_random_source_x
+    state: enabled
+- name: analog_noise_source_x_0_1
+  id: analog_noise_source_x
   parameters:
     affinity: ''
     alias: ''
+    amp: '1'
     comment: ''
-    max: '2'
     maxoutbuf: '0'
-    min: '0'
     minoutbuf: '0'
-    num_samps: '100000'
-    repeat: 'True'
-    type: byte
+    noise_type: analog.GR_GAUSSIAN
+    seed: '2'
+    type: complex
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [40, 412.0]
+    coordinate: [72, 432.0]
     rotation: 0
-    state: true
+    state: enabled
 - name: blocks_freqshift_cc_0
   id: blocks_freqshift_cc
   parameters:
@@ -203,7 +176,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [792, 356.0]
+    coordinate: [560, 336.0]
     rotation: 0
     state: true
 - name: blocks_message_debug_0
@@ -213,11 +186,12 @@ blocks:
     alias: ''
     comment: ''
     en_uvec: 'True'
+    log_level: info
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [184, 616.0]
+    coordinate: [640, 480.0]
     rotation: 0
     state: true
 - name: ch_gain
@@ -234,94 +208,30 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1008, 68.0]
-    rotation: 0
-    state: true
-- name: digital_gfsk_mod_0_0_0
-  id: digital_gfsk_mod
-  parameters:
-    affinity: ''
-    alias: ''
-    bt: '0.5'
-    comment: ''
-    do_unpack: 'False'
-    log: 'False'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    samples_per_symbol: round(BLE_sym_length*samp_rate)
-    sensitivity: sensitivity
-    verbose: 'False'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [232, 212.0]
-    rotation: 0
-    state: true
-- name: digital_gfsk_mod_0_0_0_0
-  id: digital_gfsk_mod
-  parameters:
-    affinity: ''
-    alias: ''
-    bt: '0.5'
-    comment: ''
-    do_unpack: 'False'
-    log: 'False'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    samples_per_symbol: round(BLE_sym_length*samp_rate)
-    sensitivity: sensitivity
-    verbose: 'False'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [232, 316.0]
-    rotation: 0
-    state: true
-- name: digital_gfsk_mod_0_0_0_1
-  id: digital_gfsk_mod
-  parameters:
-    affinity: ''
-    alias: ''
-    bt: '0.5'
-    comment: ''
-    do_unpack: 'False'
-    log: 'False'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    samples_per_symbol: round(BLE_sym_length*samp_rate)
-    sensitivity: sensitivity
-    verbose: 'False'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [232, 412.0]
+    coordinate: [1024, 528.0]
     rotation: 0
     state: true
 - name: epy_block_0
   id: epy_block
   parameters:
     F_of: F_Of
-    PSD_path: psd_file_path
     _source_code: "\"\"\"\nAuthor: Samuel Nolan\nDescription:\nTakes in three noise\
       \ sources on the input and randomly adds them together\naccording to a poisson\
       \ distribution. Internally normalizes inband noise power\nfrom settings and\
       \ then multiplies the amplitude according to a log normal distribution.\n\"\"\
-      \"\n\nimport numpy as np\nfrom gnuradio import gr\nimport pmt\n\n\nclass blk(gr.sync_block):\
-      \  # other base classes are basic_block, decim_block, interp_block\n    \"\"\
-      \"Embedded Python Block Noise Controller\"\"\"\n\n    def __init__(self, sampling_rate\
-      \ = 32000, PSD_path = \"/n/deer/z/samnolan/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/BLE_PSD.csv\"\
-      , noise_intensity = 1.0, noise_length = 1.0, target_Pi = 0, estimated_Pr = 0,\
-      \ F_of = 0):  # only default arguments here\n        \"\"\"\n        Parameters:\n\
-      \        sampling rate (Hz): Needed to calculate length of noise frame and wait\
-      \ frame\n        noise_intensity (arrivals/second): noise packet rate /s (can\
-      \ overlap up to 3 packets)\n        noise length (seconds): length of interference\
-      \ packet (if too large may just overlap constantly)\n        Es_Ni(dBm): Desired\
-      \ Es/Ni (Es is hard coded internally)\n        Pr(dB): estimate of received\
-      \ power from sending a digital normalized signal \n        F_of (Hz): offset\
-      \ of OSLA from center of BLE noise (-+). Used in in-band normalization calculation.\n\
+      \"\n\nimport numpy as np\nfrom gnuradio import gr\nimport pmt\n\nimport os\n\
+      from pathlib import Path\n\nclass blk(gr.sync_block):  # other base classes\
+      \ are basic_block, decim_block, interp_block\n    \"\"\"Embedded Python Block\
+      \ Noise Controller\"\"\"\n\n    def __init__(self, sampling_rate = 32000, noise_intensity\
+      \ = 1.0, noise_length = 1.0, target_Pi = 0, estimated_Pr = 0, F_of = 0):  #\
+      \ only default arguments here\n        \"\"\"\n        Parameters:\n       \
+      \ sampling rate (Hz): Needed to calculate length of noise frame and wait frame\n\
+      \        noise_intensity (arrivals/second): noise packet rate /s (can overlap\
+      \ up to 3 packets)\n        noise length (seconds): length of interference packet\
+      \ (if too large may just overlap constantly)\n        Es_Ni(dBm): Desired Es/Ni\
+      \ (Es is hard coded internally)\n        Pr(dB): estimate of received power\
+      \ from sending a digital normalized signal \n        F_of (Hz): offset of OSLA\
+      \ from center of BLE noise (-+). Used in in-band normalization calculation.\n\
       \        analog_gain (dB): To prevent saturation, set analog gain accordingly\n\
       \        \"\"\"\n\n        gr.sync_block.__init__(\n            self,\n    \
       \        name='Noise Controller',   # will show up in GRC\n            in_sig=[np.complex64,np.complex64,np.complex64],\n\
@@ -335,29 +245,45 @@ blocks:
       \        #336 samples/chip\n        #32 chips/symbol\n        #200000000 samples/second\n\
       \        #W = 1/R\n        Ts = 336*32/200000000\n        self.BW = 2/Ts\n \
       \       \n        #calculate desired interference power to be used in log normal\
-      \ distribution\n        self.scale = 10\n        #Es = -171\n        #N_I =\
-      \ Es-Es_Ni\n        #self.mu = N_I - 10*np.log10(noise_rate*noise_length*np.exp((self.scale*(np.log(10))**2)/200))\
-      \ + 10*np.log10(self.BW)\n        self.mu = target_Pi - 10*np.log10(noise_intensity*noise_length*np.exp((self.scale*(np.log(10))**2)/200))\n\
-      \n        self.Pr = estimated_Pr\n        \n        ########################\n\
-      \        #Normalize In-Band Gain#\n        ########################\n\n    \
-      \    #generate normalizer gain from LUT\n        #run locally from grc_graphs\
-      \ folder\n        try:\n            PSD = np.genfromtxt(PSD_path,delimiter=',',\
-      \ dtype=np.double)\n        except FileNotFoundError:\n            print(f\"\
-      Error: File not found at {file_path}\")\n\n\n        fbin_width = 100\n    \
-      \    #define gain to have normalized in band power\n        #With this gain,\
-      \ we will have normalized digital power and receive ~Pr that we measured\n \
-      \       PSD_i_low  = int(np.round((len(PSD)/2) + (F_of/fbin_width) - (self.BW/fbin_width)/2)\
-      \ - 1)\n        PSD_i_high = int(np.round((len(PSD)/2) + (F_of/fbin_width) +\
-      \ (self.BW/fbin_width)/2))    \n\n        self.G = np.sqrt(1/(fbin_width*np.sum(PSD[PSD_i_low:PSD_i_high,0])))\n\
+      \ distribution\n        self.lognormVar = 10\n        #Es = -171\n        #N_I\
+      \ = Es-Es_Ni\n        #self.mu = N_I - 10*np.log10(noise_rate*noise_length*np.exp((self.lognormVar*(np.log(10))**2)/200))\
+      \ + 10*np.log10(self.BW)\n        # set by socket code\n        # self.mu =\
+      \ Pi - 10*np.log10(noise_rate*noise_length*np.exp((self.lognormVar*(np.log(10))**2)/200))\n\
+      \n        # self.Pr = Pr\n        ########################\n        #Normalize\
+      \ In-Band Gain#\n        ########################\n\n        #generate normalizer\
+      \ gain from LUT\n        #run locally from grc_graphs folder\n        # Hardcoded\
+      \ full path to PSD file (use forward slashes for safety)\n        PSD_path =\
+      \ 'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/gaussian_PSD.csv'\n\
+      \        print(f\"[NoiseController] Loading hardcoded PSD file: {PSD_path}\"\
+      )\n\n        PSD = None  # prevent undefined var\n\n        try:\n         \
+      \   PSD_file = Path(PSD_path)\n            if not PSD_file.is_file():\n    \
+      \            raise FileNotFoundError(f\"File does not exist: {PSD_file}\")\n\
+      \            \n            PSD = np.genfromtxt(PSD_file, delimiter=',', dtype=np.double)\n\
+      \            if PSD.ndim < 2 or PSD.shape[1] < 1:\n                raise ValueError(\"\
+      PSD file must be at least 2D with one column.\")\n\n            print(f\"[NoiseController]\
+      \ PSD loaded with shape {PSD.shape}\")\n\n        except Exception as e:\n \
+      \           raise RuntimeError(f\"[NoiseController ERROR] Failed to load PSD:\
+      \ {e}\")\n\n\n        fbin_width = 100\n        #define gain to have normalized\
+      \ in band power\n        #With this gain, we will have normalized digital power\
+      \ and receive ~Pr that we measured\n        PSD_i_low  = int(np.round((len(PSD)/2)\
+      \ + (F_of/fbin_width) - (self.BW/fbin_width)/2) - 1)\n        PSD_i_high = int(np.round((len(PSD)/2)\
+      \ + (F_of/fbin_width) + (self.BW/fbin_width)/2))    \n\n        self.G = np.sqrt(1/(fbin_width*np.sum(PSD[PSD_i_low:PSD_i_high,0])))\n\
       \        \n        ##############################\n        #set up interferer\
       \ parameters#\n        ##############################\n        #phase shift\n\
       \        self.theta = np.random.uniform(size=len(self.n_counters))*2j*np.pi\n\
-      \n        self.sampling_rate = sampling_rate\n        self.rate = noise_intensity\n\
-      \        self.noise_length = noise_length\n\n        self.noise_frame = np.round((sampling_rate*self.noise_length),0)\n\
-      \n        self.arrival_clk = 0\n        self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))\n\
+      \n        self.sampling_rate = sampling_rate\n        self.pkt_intensity = noise_intensity\n\
+      \        self.pkt_len = noise_length\n\n        self.noise_frame = np.round((sampling_rate*self.pkt_len),0)\n\
+      \n        self.update_params(False, target_Pi, estimated_Pr)\n\n        self.arrival_clk\
+      \ = 0\n        self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))\n\
       \        \n        self.idx = 0\n        self.full = False\n        ########################\n\
       \n        self.DebugPortName = 'Debug'\n        self.message_port_register_out(pmt.intern(self.DebugPortName))\n\
-      \n\n    def work(self, input_items, output_items):\n        self.arrival_clk\
+      \    \n    #Update packet generation parameters using the input parameters \
+      \   \n    def update_params(self, enabled, target_Pi, estimated_Pr):\n     \
+      \   self.enabled = enabled\n        mu_linear = 1/(self.pkt_intensity*self.pkt_len)*np.exp((self.lognormVar*(np.log(10))**2)/200)\n\
+      \        self.mu = target_Pi + 10*np.log10(mu_linear)\n        self.Pr = estimated_Pr\n\
+      \n    def work(self, input_items, output_items):\n        #gate activity of\
+      \ block using enabled flag\n        if not self.enabled:\n            # TODO:\
+      \ check what needs to be returned here\n            return 0\n\n        self.arrival_clk\
       \ = self.arrival_clk + len(output_items[0])\n        self.idx = next((i for\
       \ i,j in enumerate(self.n_counters) if not j[0]),None)\n        if (self.idx\
       \ == None) and (self.arrival_clk >= self.wait_frame):\n            self.full\
@@ -366,10 +292,10 @@ blocks:
       \ PMT_msg)\n        '''\n\n        #run arrival clk and signal when packet should\
       \ start transmitting\n        if ((self.arrival_clk >= self.wait_frame) and\
       \ not self.full):\n            self.arrival_clk = self.arrival_clk - self.wait_frame\n\
-      \            self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))\n\
+      \            self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))\n\
       \            #Mark Interferer to start\n            self.n_counters[self.idx][0]\
       \ = True\n            #generate gain value from parameters\n            P =\
-      \ np.random.normal(loc=self.mu, scale=self.scale)\n            self.n_counters[self.idx][2]\
+      \ np.random.normal(loc=self.mu, scale=self.lognormVar)\n            self.n_counters[self.idx][2]\
       \ = self.G*np.sqrt(10**((P-self.Pr)/10))\n            #generate new phase offset\n\
       \            self.theta[self.idx] = np.random.uniform()*2j*np.pi\n         \
       \   self.n_counters[self.idx][3] = self.arrival_clk\n            \n        \
@@ -377,22 +303,22 @@ blocks:
       \ = next((i for i,j in enumerate(self.n_counters) if not j[0]),None)\n     \
       \       if ((self.arrival_clk >= self.wait_frame) and (self.idx != None)):\n\
       \                self.arrival_clk = self.arrival_clk - self.wait_frame\n   \
-      \             self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))\n\
+      \             self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))\n\
       \                #Mark Interferer to start\n                self.n_counters[self.idx][0]\
       \ = True\n                #generate gain value from parameters\n           \
-      \     P = np.random.normal(loc=self.mu, scale=self.scale)\n                self.n_counters[self.idx][2]\
-      \ = self.G*np.sqrt(10**((P-self.Pr)/10))\n                #generate new phase\
-      \ offset\n                self.theta[self.idx] = np.random.uniform()*2j*np.pi\n\
-      \                self.n_counters[self.idx][3] = self.arrival_clk\n\n       \
-      \         #if all three interferers occur in the same window\n             \
-      \   self.idx = next((i for i,j in enumerate(self.n_counters) if not j[0]),None)\n\
-      \                if ((self.arrival_clk >= self.wait_frame) and (self.idx !=\
-      \ None)):\n                    self.arrival_clk = self.arrival_clk - self.wait_frame\n\
-      \                    self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))\n\
+      \     P = np.random.normal(loc=self.mu, scale=self.lognormVar)\n           \
+      \     self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))\n\
+      \                #generate new phase offset\n                self.theta[self.idx]\
+      \ = np.random.uniform()*2j*np.pi\n                self.n_counters[self.idx][3]\
+      \ = self.arrival_clk\n\n                #if all three interferers occur in the\
+      \ same window\n                self.idx = next((i for i,j in enumerate(self.n_counters)\
+      \ if not j[0]),None)\n                if ((self.arrival_clk >= self.wait_frame)\
+      \ and (self.idx != None)):\n                    self.arrival_clk = self.arrival_clk\
+      \ - self.wait_frame\n                    self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))\n\
       \                    #Mark Interferer to start\n                    self.n_counters[self.idx][0]\
       \ = True\n                    #generate gain value from parameters\n       \
-      \             P = np.random.normal(loc=self.mu, scale=self.scale)\n        \
-      \            self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))\n\
+      \             P = np.random.normal(loc=self.mu, scale=self.lognormVar)\n   \
+      \                 self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))\n\
       \                    #generate new phase offset\n                    self.theta[self.idx]\
       \ = np.random.uniform()*2j*np.pi\n                    self.n_counters[self.idx][3]\
       \ = self.arrival_clk\n            \n            #PMT_msg = pmt.to_pmt(self.wait_frame)\n\
@@ -400,10 +326,10 @@ blocks:
       \n        #If we are full we want to start noise immediately and also reset\
       \ the arrival clock to prevent error buildup\n        if ((self.idx != None)\
       \ and self.full):\n            self.arrival_clk = len(output_items[0])\n   \
-      \         self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))\n\
+      \         self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))\n\
       \            #Mark Interferer to start\n            self.n_counters[self.idx][0]\
       \ = True\n            #generate gain value from parameters\n            P =\
-      \ np.random.normal(loc=self.mu, scale=self.scale)\n            self.n_counters[self.idx][2]\
+      \ np.random.normal(loc=self.mu, scale=self.lognormVar)\n            self.n_counters[self.idx][2]\
       \ = self.G*np.sqrt(10**((P-self.Pr)/10))\n            #generate new phase offset\n\
       \            self.theta[self.idx] = np.random.uniform()*2j*np.pi\n         \
       \   self.full = False\n\n            \n        output_items[0][:] = 0\n    \
@@ -436,16 +362,15 @@ blocks:
     sampling_rate: samp_rate
     target_Pi: targPi
   states:
-    _io_cache: ('Noise Controller', 'blk', [('sampling_rate', '32000'), ('PSD_path',
-      "'/n/deer/z/samnolan/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/BLE_PSD.csv'"),
-      ('noise_intensity', '1.0'), ('noise_length', '1.0'), ('target_Pi', '0'), ('estimated_Pr',
-      '0'), ('F_of', '0')], [('0', 'complex', 1), ('1', 'complex', 1), ('2', 'complex',
+    _io_cache: ('Noise Controller', 'blk', [('sampling_rate', '32000'), ('noise_intensity',
+      '1.0'), ('noise_length', '1.0'), ('target_Pi', '0'), ('estimated_Pr', '0'),
+      ('F_of', '0')], [('0', 'complex', 1), ('1', 'complex', 1), ('2', 'complex',
       1)], [('0', 'complex', 1), ('Debug', 'message', 1)], 'Embedded Python Block
-      Noise Controller', ['noise_length', 'sampling_rate'])
+      Noise Controller', ['sampling_rate'])
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [504, 292.0]
+    coordinate: [304, 320.0]
     rotation: 0
     state: true
 - name: estPr
@@ -462,7 +387,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [448, 36.0]
+    coordinate: [816, 8.0]
     rotation: 0
     state: true
 - name: import_0
@@ -475,7 +400,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [40, 108.0]
+    coordinate: [192, 8.0]
     rotation: 0
     state: true
 - name: targPi
@@ -492,24 +417,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [608, 44.0]
-    rotation: 0
-    state: true
-- name: tx_freq
-  id: parameter
-  parameters:
-    alias: ''
-    comment: ''
-    hide: none
-    label: Analog Antenna TX Frequency
-    short_id: ''
-    type: eng_float
-    value: 2.4e9
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [1016, 404.0]
+    coordinate: [720, 8.0]
     rotation: 0
     state: true
 - name: tx_freq
@@ -526,7 +434,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1032, 420.0]
+    coordinate: [1024, 416.0]
     rotation: 0
     state: true
 - name: uhd_usrp_sink_0
@@ -803,20 +711,18 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1016, 244.0]
+    coordinate: [840, 272.0]
     rotation: 0
     state: true
 
 connections:
-- [analog_random_source_x_0, '0', digital_gfsk_mod_0_0_0, '0']
-- [analog_random_source_x_0_0, '0', digital_gfsk_mod_0_0_0_0, '0']
-- [analog_random_source_x_0_1, '0', digital_gfsk_mod_0_0_0_1, '0']
+- [analog_noise_source_x_0, '0', epy_block_0, '0']
+- [analog_noise_source_x_0_0, '0', epy_block_0, '1']
+- [analog_noise_source_x_0_1, '0', epy_block_0, '2']
 - [blocks_freqshift_cc_0, '0', uhd_usrp_sink_0, '0']
-- [digital_gfsk_mod_0_0_0, '0', epy_block_0, '0']
-- [digital_gfsk_mod_0_0_0_0, '0', epy_block_0, '1']
-- [digital_gfsk_mod_0_0_0_1, '0', epy_block_0, '2']
 - [epy_block_0, '0', blocks_freqshift_cc_0, '0']
 - [epy_block_0, Debug, blocks_message_debug_0, print]
 
 metadata:
   file_format: 1
+  grc_version: 3.10.12.0

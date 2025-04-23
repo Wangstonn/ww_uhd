@@ -1,0 +1,737 @@
+%% plots
+clear all; close all;
+%% ber
+% plots experimental ber measurements
+figure();
+
+% EsN0_dbs = [1,4,8,12,16,20,24]-15;
+% bers = [0.433594, 0.419922, 0.310547, 0.106445, 0.00686961, 1.89964e-05, 0];
+% num_bits = [256, 512, 512, 1024, 14848, 1000192, 1000192];
+% num_errs = [111, 215, 159, 109, 102, 19, 0];
+% EsN0_dbs = [0, 1, 2, 3, 4, 5, 6, 7];
+% bers = [0.0166016, 0.0063244, 0.0014399, 0.000285272, 2.34896e-05, 6.09992e-06, 1.99997e-07, 0];
+% num_bits = [6144, 16128, 70144, 354048, 4299776, 10000128, 10000128, 10000128];
+% num_errs = [102, 102, 101, 101, 101, 61, 2, 0];
+% semilogy(EsN0_dbs,bers,'-o','DisplayName',"Wired Experiment");
+% EsN0_dbs = [0, 1, 2, 3, 4, 5, 6];
+% bers = [0.014591, 0.00579003, 0.00138111, 0.000332936, 4.09921e-05, 3.99923e-06, 9.99808e-07];
+% num_bits = [34816, 86528, 362752, 1000192, 1000192, 1000192, 1000192];
+% num_errs = [508, 501, 501, 333, 41, 4, 1];
+% rss_dbms = [-111.792, -110.846, -109.784, -108.794, -107.851, -106.83, -105.88] - 10*log10(50) - 1.31;
+EsN0_dbs = [0, 1, 2, 3, 4, 5, 6];
+bers = [0.0139648, 0.00500379, 0.00104271, 0.00021191, 3.56995e-05, 1.79998e-06, 9.99987e-08];
+num_bits = [71680, 200448, 960000, 4723712, 10000128, 10000128, 10000128];
+num_errs = [1001, 1003, 1001, 1001, 357, 18, 1];
+rss_dbms = [-130.583, -129.524, -128.443, -127.443, -126.522, -125.454, -124.41];
+
+EsN0_dbs = [0, 1, 2, 3, 4, 5, 6];
+bers = [0.0436632, 0.0436632, 0.00291396, 0.0112054, 0.00257925, 0.00196687, 0.480469];
+num_bits = [23040, 23040, 349696, 89600, 428032, 509440, 2304];
+num_errs = [1006, 1006, 1019, 1004, 1104, 1002, 1107];
+rss_dbms = [-129.951, -128.707, -127.904, -126.974, -125.888, -124.799, -123.87];
+
+bers = [0.0186435, 0.00935683, 0.0025956, 0.000620332, 8.67292e-05, 1.11905e-05, 6.99991e-07];
+num_bits = [5632, 11008, 38912, 162816, 1164544, 9025536, 10000128];
+num_errs = [105, 103, 101, 101, 101, 101, 7];
+rss_dbms = [-130.107, -129.14, -128.191, -127.171, -126.126, -125.116, -124.081];
+
+%new osla 4/13
+EsN0_dbs = [0, 1, 2, 3, 4, 5, 6];
+bers = [0.0217882, 0.00651474, 0.00225724, 0.00049184, 6.09287e-05, 5.79993e-06, 9.99987e-08];
+num_bits = [23040, 77056, 221952, 1018624, 8222720, 10000128, 10000128];
+num_errs = [502, 502, 501, 501, 501, 58, 1];
+rss_dbms = [-56.3198, -56.5046, -56.2482, -56.2985, -56.4558, -56.3364, -56.4028];
+avg_sym_len = [32.9779, 33.0963, 34.0782, 33.8132, 33.0535, 33.3982, 33.2166];
+
+semilogy(EsN0_dbs,bers,'-o','DisplayName',"Wireless OSLA");
+% semilogy(EsN0_dbs,bers,'-o','DisplayName',"OSLA Wireless 2.2GHz, 2m, 15db fb");
+
+% EsN0_dbs = [0, 1, 2, 3, 4, 5, 6];
+% bers = [0.0300071, 0.0137261, 0.00501803, 0.00128246, 0.000275947, 2.89944e-05, 5.99885e-06];
+% num_bits = [16896, 36864, 99840, 390656, 1000192, 1000192, 1000192];
+% num_errs = [507, 506, 501, 501, 276, 29, 6];
+% rss_dbms = [-111.68, -110.776, -109.693, -108.723, -107.708, -106.651, -105.59] - 10*log10(50) -1.31;
+% EsN0_dbs = [0, 1, 2, 3, 4, 5, 6];
+% bers = [0.0171669, 0.00195118, 0.00103383, 0.000215959, 2.99942e-06, 4.99904e-06, 0];
+% num_bits = [29184, 257280, 484608, 1000192, 1000192, 1000192, 1000192];
+% num_errs = [501, 502, 501, 216, 3, 5, 0];
+% rss_dbms = [-111, -110, -109, -108, -107, -106, -105] - 10*log10(50)-1.31;
+% EsN0_dbs = [0, 1, 2, 3, 4, 5, 6, 7];
+% bers = [0.0125732, 0.00876736, 0.00311894, 0.00182653, 1.49971e-05, 2.99942e-05, 0, 0.000630139];
+% num_bits = [8192, 11520, 33024, 55296, 1000192, 1000192, 1000192, 326912];
+% num_errs = [103, 101, 103, 101, 15, 30, 0, 206];
+% rss_dbms = [-111, -110, -109, -108, -107, -106, -105, -104] - 10*log10(50)-1.31;
+% semilogy(EsN0_dbs,bers,'-o','DisplayName',"Wireless 2.3, 2m, 10db fb");
+
+hold on
+grid on
+legend('Location', 'southwest')
+
+% EsN0_dbs = [0, 1, 2, 3, 4, 5, 6, 7];
+% bers = [0.078776, 0.0546875, 0.0402344, 0.0205078, 0.0126953, 0.00773738, 0.00144517, 0.000745806];
+% num_bits = [1536, 2048, 2560, 5120, 8192, 13312, 69888, 135424];
+% num_errs = [121, 112, 103, 105, 104, 103, 101, 101];
+% % EsN0_dbs = [1,4,8,12,16,20,24]-15;
+% % bers = [0.433594, 0.333984, 0.259766, 0.143229, 0.0556641, 0.00680226, 1.89964e-05];
+% % num_bits = [256, 512, 512, 768, 2048, 14848, 1000192];
+% % num_errs = [111, 171, 133, 110, 114, 101, 19];
+% semilogy(EsN0_dbs,bers,'-o','DisplayName',"Wired BPSK");
+
+% % EsN0_dbs = [0, 1, 2, 3, 4, 5, 6, 7];
+% % bers = [0.0151743, 0.00751769, 0.0015874, 0.000241895, 3.49933e-05, 4.99904e-06, 0, 0];
+% % num_bits = [6656, 13568, 64256, 417536, 1000192, 1000192, 1000192, 1000192];
+% % num_errs = [101, 102, 102, 101, 35, 5, 0, 0];
+% EsN0_dbs = [0, 1, 2, 3, 4, 5, 6, 7];
+% bers = [0.0181108, 0.00555678, 0.0017613, 0.000448331, 3.79927e-05, 4.99904e-06, 0, 9.99808e-07];
+% num_bits = [5632, 18176, 57344, 225280, 1000192, 1000192, 1000192, 1000192];
+% num_errs = [102, 101, 101, 101, 38, 5, 0, 0];
+% estim_EsN0s = [-113, -111, -110, -110, -108, -107, -106, -105];
+% semilogy(EsN0_dbs,bers,'-o','DisplayName',"Wired 2.4, wireless feedback");
+% 
+% EsN0_dbs = [0, 1, 2, 3, 4, 5, 6, 7];
+% bers = [0.0265625, 0.00390625, 0.0397135, 0.00396088, 0.00350722, 0.00322002, 0.0716146, 0.00643382];
+% num_bits = [3840, 25856, 3072, 36608, 47616, 37888, 1536, 26112];
+% num_errs = [102, 101, 122, 145, 167, 122, 110, 168];
+% 
+EsN0_dbs = [0, 1, 2, 3, 4, 5, 6, 7];
+bers = [0.0226924, 0.0188397, 0.00874013, 0.00734992, 0.00648682, 0.0062624, 0.00445348, 0.0041489];
+num_bits = [44288, 53504, 117504, 136192, 155392, 161280, 224768, 513280];
+num_errs = [1005, 1008, 1027, 1001, 1008, 1010, 1001, 2083];
+rss_dbms = [-128.827, -127.606, -126.5, -125.296, -123.586, -123.51, -121.161];
+avg_sym_len = [32.2523, 32.6581, 32.5779, 32.5246, 32.4662, 32.4632, 32.1992];
+semilogy(EsN0_dbs,bers,'-o','DisplayName',"OSLA, 2.4 GHz");
+% semilogy(EsN0_dbs,bers,'-o','DisplayName',"OSLA Wireless 2.4");
+
+% EsN0_dbs = [0, 1, 2, 3, 4, 5, 6, 7];
+% bers = [0.0495793, 0.00873162, 0.00754958, 0.00347952, 0.00296279, 0.00324471, 0.00187174, 0.00174565];
+% num_bits = [3328, 21760, 26624, 30464, 60416, 31744, 61440, 69888];
+% num_errs = [165, 190, 201, 106, 179, 103, 115, 122];
+% rss_dbms = [-111, -109, -109, -108, -107, -105, -105, -104] - 10*log10(50)-1.31;
+% % EsN0_dbs = [0, 1, 2, 3, 4, 5, 6, 7];
+% % bers = [0.40625, 0.0281808, 0.0170718, 0.0394737, 0.016226, 0.0053125, 0.00699627, 0.0109771];
+% % num_bits = [256, 3584, 6912, 4864, 6656, 19200, 17152, 20224];
+% % num_errs = [104, 101, 118, 192, 108, 102, 120, 222];
+% semilogy(EsN0_dbs,bers,'-o','DisplayName',"Wireless 2.5");
+% 
+% EsN0_dbs = [4, 5, 6, 7];
+% bers = [1.39973e-05, 0.0102163, 0.000646625, 0.0123438];
+% num_bits = [1000192, 9984, 188672, 12800];
+% num_errs = [14, 102, 122, 158];
+% rss_dbms = [-97, -103, -102, -103] - 10*log10(50)-1.31;
+% semilogy(EsN0_dbs,bers,'-o','DisplayName',"Wireless 2.4");
+% 
+% EsN0_dbs = [0, 1, 2, 3, 4, 5, 6, 7];
+% bers = [0.0215872, 0.00657552, 0.00145048, 0.000304,2.89944e-05, 3.99923e-06, 0, 0];
+% num_bits = [4864, 15360, 69632, 332032,1000192, 1000192, 1000192, 1000192];
+% num_errs = [105, 101, 101, 1,29, 4, 0, 0];
+% rss_dbms = [-111, -110, -109, -108,-107, -106, -105, -104] - 10*log10(50)-1.31;
+% semilogy(EsN0_dbs,bers,'-o','DisplayName',"Wireless 2.3");
+% 
+% EsN0_dbs = [0, 1, 2, 3, 4, 5, 6, 7];
+% bers = [0.00866168, 0.00762349, 0.00433551, 0.000643624, 0.00712316, 0.00142045, 0.00750248, 0.00037969];
+% num_bits = [11776, 15872, 23296, 292096, 17408, 78848, 16128, 329216];
+% num_errs = [102, 121, 101, 188, 124, 112, 121, 125];
+% rss_dbms = [-111, -110, -109, -108, -107, -106, -105, -104] - 10*log10(50)-1.31;
+% semilogy(EsN0_dbs,bers,'-o','DisplayName',"Wireless 2.3, 2m");
+
+
+EsN0_dbs = [0, 1, 2, 3, 4, 5, 6];
+bers = [0.0752704, 0.054579, 0.0330078, 0.0213995, 0.00997383, 0.00555506, 0.00196687];
+num_bits = [6656, 9216, 15360, 23552, 50432, 90368, 254720];
+num_errs = [501, 503, 507, 504, 503, 502, 501];
+rss_dbms = [-111.794, -110.803, -109.928, -108.915, -107.811, -106.86, -105.806] - 10*log10(50)-1.31;
+% EsN0_dbs = [0, 1, 2, 3, 4, 5, 6];
+% bers = [0.148996, 0.106291, 0.085612, 0.0572545, 0.0335011, 0.0251402, 0.009884];
+% num_bits = [3584, 4864, 6144, 8960, 15104, 19968, 50688];
+% num_errs = [534, 517, 526, 513, 506, 502, 501];
+% rss_dbms = [-111.613, -110.651, -109.649, -108.71, -107.604, -106.657, -105.635] - 10*log10(50)-1.31;
+% semilogy(EsN0_dbs,bers,'-o','DisplayName',"BPSK, 2.2GHz");
+semilogy(EsN0_dbs,bers,'-o','DisplayName',"Wireless BPSK");
+
+
+% %Forward/Backward model: uncoded_awgn_fwd_fp / noiseless_feedback
+% ber = [0.01992   0.0074294   0.0023261  0.00042307     6.9e-05       7e-06];
+% EsN0_fwd_db = [0  1  2  3  4  5];
+% % sim details: n_bit_err = [100  100  100  100   69    7];
+% % max_iters: max_n_iters = 100000;
+% %     semilogy(EsN0_fwd_db,ber,'-o','DisplayName',"Floating Point Sim");
+% semilogy(EsN0_fwd_db,ber,'-o','DisplayName',"Nc = 32");
+% 
+% hold on
+% grid on
+% legend('Location', 'southwest')
+
+% %Forward/Backward model: bpsk_fwd_fi / noncoh_fb_fi
+% ber = [0.015781   0.0067349   0.0021346  0.00041075  7.0446e-05           49/33212/256];
+% EsN0_fwd_db = [0  1  2  3  4  5];
+% % sim details: n_bit_err = [101  100  100  100  100   49];
+% % max_iters: max_n_iters = 100000;
+% semilogy(EsN0_fwd_db,ber,'-o','DisplayName',"Fixed Point Sim");
+
+% Quantiziation of RX test------------------------------------------
+% 32 chips/symbol
+% %Forward/Backward model: bpsk_fwd_fi / noiseless_feedback
+% ber = [0.044271    0.031851    0.017323   0.0093568           0           0];
+% EsN0_fwd_db = [0  1  2  3  4  5];
+% % sim details: n_bit_err = [102  106  102  103   16    0];
+% % max_iters: max_n_iters = 100000;
+% semilogy(EsN0_fwd_db,ber,'-o','DisplayName',"8 bit");
+
+% %Forward/Backward model: bpsk_fwd_fi / noiseless_feedback
+% ber = [0.018601   0.0069754   0.0021823  0.00058829  9.9573e-05           0];
+% EsN0_fwd_db = [0  1  2  3  4  5];
+% % sim details: n_bit_err = [100  100  100  100  100    0];
+% % max_iters: max_n_iters = 100000;
+% semilogy(EsN0_fwd_db,ber,'-o','DisplayName',"10 bit");
+
+% %Forward/Backward model: bpsk_fwd_fi / noiseless_feedback
+% ber = [0.017663   0.0080517   0.0021701  0.00062701  6.7711e-05           10/7429/256]; %1/2521/256
+% EsN0_fwd_db = [0  1  2  3  4  5];
+% % sim details: n_bit_err = [104  101  100  100  100    1];
+% % max_iters: max_n_iters = 100000;
+% semilogy(EsN0_fwd_db,ber,'-o','DisplayName',"11 bit");
+
+% % Chips/Sym test------------------------------------------------------
+% %Forward/Backward model: uncoded_awgn_fwd_fp / noiseless_feedback
+% ber = [0.026385    0.011173   0.0051099   0.0015047  0.00021446     2.1e-05];
+% EsN0_fwd_db = [0  1  2  3  4  5];
+% % sim details: n_bit_err = [100  100  100  100  100   21];
+% % max_iters: max_n_iters = 100000;
+% semilogy(EsN0_fwd_db,ber,'-o','DisplayName',"Nc = 8");
+% 
+% %Forward/Backward model: uncoded_awgn_fwd_fp / noiseless_feedback
+% ber = [0.025062   0.0083542   0.0030912  0.00065595     7.5e-05       9e-06];
+% EsN0_fwd_db = [0  1  2  3  4  5];
+% % sim details: n_bit_err = [101  100  100  100   75    9];
+% % max_iters: max_n_iters = 100000;
+% semilogy(EsN0_fwd_db,ber,'-o','DisplayName',"Nc = 16");
+% 
+% %Forward/Backward model: uncoded_awgn_fwd_fp / noiseless_feedback
+% ber = [0.018868   0.0065488   0.0023912  0.00045939     6.7e-05       8e-06];
+% EsN0_fwd_db = [0  1  2  3  4  5];
+% % sim details: n_bit_err = [100  100  100  100   67    8];
+% % max_iters: max_n_iters = 100000;
+% semilogy(EsN0_fwd_db,ber,'-o','DisplayName',"Nc = 64");
+
+EsN0_dbs = [0, 1, 2, 3, 4, 5, 6];
+bers = [0.0266113, 0.00739976, 0.00268086, 0.000640809, 0.000110811, 1.074975e-5, 0];
+num_bits = [4096, 67840, 589056, 781824, 4521216, 6707200, 10000128];
+num_errs = [109, 502, 501, 501, 501, 71, 0];
+rss_dbms = [-130.741, -129.738, -128.773, -127.769, -126.695, -125.751, -124.692];
+avg_sym_len = [32.2134, 31.5472, 28.5514, 32.7042, 32.0732, 31.6162, 27.946];
+semilogy(EsN0_dbs,bers,'-o','DisplayName',"Wireless OSLA-Intf");
+%TODO: EsN0 = 6 test
+
+
+%Forward/Backward model: intf_mitigation_fi / noiseless_feedback
+SIR = [Inf];
+bers = [0.022352   0.0083112   0.0030281   0.0006075  9.5982e-05  7.9985e-06];
+EsN0_dbs = [0  1  2  3  4  5];
+Tavg = [31.7648       31.949      31.9086      32.0325      31.7808      31.8442];
+% sim details: n_bit_err = [103  100  100  100   96    8];
+% max_iters: max_n_iters = 3906.25;
+semilogy(EsN0_dbs,bers,'-o','DisplayName',"Theoretical OSLA-Intf");
+
+EsN0_fwd_db = [0  1  2  3  4  5];
+semilogy(EsN0_fwd_db, exp(-4*10.^(EsN0_fwd_db/10)),'--',...
+'DisplayName','Theoretical OSLA');
+% semilogy(EsN0_fwd_db, exp(-4*10.^(EsN0_fwd_db/10)),'--',...
+% 'DisplayName','OSLA without latency');
+
+EsN0_fwd_db = [0  1  2  3  4  5];
+semilogy(EsN0_fwd_db,qfunc(sqrt(2*10.^(EsN0_fwd_db/10))),'-',...
+    'DisplayName','Theoretical BPSK');
+
+xlabel("Es/N0 (dB)");
+ylabel("BER")
+% title("OSLA-BPSK")
+
+%% Interference
+% plots experimental ber measurements
+
+% plot_data, 4db esn0
+% Rate unconstrained, findL
+figure();
+% EsN0_dbs = [4];
+% EsNi_dbs = [-20, -10, 0, 10, 20];
+% bers = [0.000161627, 3.87251e-05, 0.000240421, 0.000151918, 5.30355e-05];
+% num_bits = [624896, 2608128, 420096, 664832, 1904384];
+% num_errs = [101, 101, 101, 101, 101];
+% rss_dbms = [-126.774, -126.77, -126.759, -126.734, -126.703];
+% avg_sym_len = [53.87, 48.1113, 56.6339, 53.0818, 49.6894];
+
+
+% EsN0_dbs = [4];
+% EsNi_dbs = [10, 5, 0, -5, -10, -15, -20];
+% bers = [0.000114393, 0.000156839, 0.0001048, 0.000151134, 0.000178415, 0.000130949, 0.000161365];
+% num_bits = [4379648, 3194368, 4780544, 3314944, 2808064, 3825920, 3104768];
+% num_errs = [501, 501, 501, 501, 501, 501, 501];
+% rss_dbms = [-126.91, -126.871, -126.863, -126.872, -126.876, -126.935, -126.915];
+% avg_sym_len = [35.0988, 37.7714, 39.4948, 43.7581, 46.7743, 48.2961, 51.0136];
+
+% sN0_dbs = [4];
+% EsNi_dbs = [-20, -15, -10, 5, 0, 5];
+% bers = [0.0002736, 0.00023911, 0.000233312, 0.000245814, 0.000271716, 0.000217373];
+% num_bits = [369152, 422400, 432896, 410880, 371712, 464640];
+% num_errs = [101, 101, 101, 101, 101, 101];
+% rss_dbms = [-124.785, -124.759, -124.76, -124.734, -124.804, -124.768];
+% avg_sym_len = [149.897, 145.058, 142.702, 109.126, 124.617, 114.067];
+
+EsN0_dbs = [4];
+EsNi_dbs = [35, 30, 25, 20, 15, 10, 5, 0, -5, -10, -15, -20];
+bers = [0.000110044, 0.000107972, 0.000115834, 9.28442e-05, 0.000112884, 0.000114393, 0.00014305,  0.000159607, 0.000151134, 0.000127928, 0.000130949,  0.000100386];
+num_bits = [4552704, 935424, 871936, 1766400, 894720, 4379648, 706048, 1572608, 3314944, 789504, 3825920, 2500352];
+num_errs = [501, 101, 101, 164, 101, 501, 101, 251, 501, 101, 501, 251];
+rss_dbms = [-127.07, -126.962, -126.913, -126.946, -126.896, -126.91, -126.947, -126.884, -126.872, -126.897, -126.935, -126.854];
+avg_sym_len = [33.4885, 32.6134, 32.9967, 31.6972, 33.3889, 35.0988, 37.6808, 41.8073, 43.7581, 45.5521, 48.2961, 51.0136];
+semilogy(EsNi_dbs,bers,'-o','DisplayName',"Wireless FIM-OSLA");
+% semilogy(EsN0_dbs,bers,'-o','DisplayName',"OSLA Wireless 2.1GHz, 2m,30db fb");
+
+hold on
+grid on
+legend('Location', 'southwest')
+
+% EsN0_dbs = [4];
+% EsNi_dbs = [10, 5, 0, -5, -10, -15, -20];
+% bers = [0.000114393, 0.000156839, 0.0001048, 0.000151134, 0.000178415, 0.000130949, 0.000161365];
+% num_bits = [4379648, 3194368, 4780544, 3314944, 2808064, 3825920, 3104768];
+% num_errs = [501, 501, 501, 501, 501, 501, 501];
+% rss_dbms = [-126.91, -126.871, -126.863, -126.872, -126.876, -126.935, -126.915];
+% avg_sym_len = [35.0988, 37.7714, 39.4948, 43.7581, 46.7743, 48.2961, 51.0136];
+% semilogy(EsNi_dbs,bers,'-o','DisplayName',"Wireless FIM-OSLA2");
+
+
+%Forward/Backward model: bpsk_fwd_fp_interf / noiseless_feedback
+EsN0_fwd_db = 4;
+ber = [0.14375     0.13516      0.1204    0.088778    0.060961     0.03156    0.019301    0.013686    0.012784     0.01388     0.01244];
+EsNidb = [-15 -10  -5   0   5  10  15  20  25  30  35];
+Tavg = [32  32  32  32  32  32  32  32  32  32  32];
+% sim details: n_bit_err = [552  519  524  500  515  509  504  501  504  501  500];
+% max_iters: max_n_iters = 3906.25;
+semilogy(EsNidb,ber,'-o','DisplayName',"BPSK");
+
+
+%Forward/Backward model: clairvoyant_fwd / noiseless_feedback
+EsN0_fwd_db = 4;
+ber = [5.7989e-05  7.2986e-05  6.4988e-05  6.5987e-05  7.2986e-05  7.5985e-05  6.7987e-05  5.6989e-05  5.9988e-05  7.1986e-05  6.0988e-05];
+EsNidb = [-15 -10  -5   0   5  10  15  20  25  30  35];
+Tavg = [48.7973      48.4394      47.8798       46.167      43.2562      38.5557      35.1981      33.5293      32.3169      32.1794      32.0787];
+% sim details: n_bit_err = [58  73  65  66  73  76  68  57  60  72  61];
+% max_iters: max_n_iters = 3906.25;
+semilogy(EsNidb,ber,'-o','DisplayName',"FIM-OSLA (perfect CSI)"); 
+
+
+
+%Forward/Backward model: fwd_fp_chip_hyp_test_comp_ignore_interf_nb / noiseless_feedback
+EsN0_fwd_db = 4;
+ber = [9.8981e-05  0.00011598  0.00012798  0.00013897  0.00013897  0.00013197  0.00011998  9.5982e-05  0.00010298  9.6981e-05  0.00011798];
+EsNidb = [-15 -10  -5   0   5  10  15  20  25  30  35];
+Tavg = [50.4385      50.4602      49.8357       50.637      50.1137      47.4612      40.4767       34.434      32.6834        32.16      32.1475];
+% sim details: n_bit_err = [99  116  128  139  139  132  120   96  103   97  118];
+% max_iters: max_n_iters = 3906.25;
+% semilogy(EsNidb,ber,'-o','DisplayName',"Hyp Test M = 96, Estim M = 96, comp, no mean, find_L, Pf = 0.001"); 
+semilogy(EsNidb,ber,'-o','DisplayName',"FIM-OSLA (estimated CSI"); 
+
+
+  
+
+
+    % %Forward/Backward model: intf_mitigation_fi / noiseless_feedback
+    % EsN0_fwd_db = 4;
+    % ber = [9.0983e-05  0.00010359  9.8981e-05  0.00012935  0.00013391  0.00011927  9.3982e-05  8.0984e-05  9.3982e-05  8.1984e-05  8.8983e-05];
+    % EsNidb = [-15 -10  -5   0   5  10  15  20  25  30  35];
+    % Tavg = [51.4824       51.104      51.1607      51.1922      50.4849      48.5161      41.3259      34.9492      33.0402      32.5177      32.3824];
+    % % sim details: n_bit_err = [91  100   99  100  100  100   94   81   94   82   89];
+    % % max_iters: max_n_iters = 3906.25;
+    % % semilogy(EsNidb,ber,'-o','DisplayName',"Interf. Mitigation, Fixed Point"); 
+
+
+
+    xlabel("Es/Ni (dB)");
+    ylabel("BER")
+    title("OSLA with Interference, EsN0 = 4dB, rate unconstrained, mu = 5ms")
+    ylim([1e-6 1]);
+ 
+
+
+%% rss
+figure();
+EsN0_dbs = [0, 1, 2, 3, 4, 5, 6];
+bers = [0.0752704, 0.054579, 0.0330078, 0.0213995, 0.00997383, 0.00555506, 0.00196687];
+num_bits = [6656, 9216, 15360, 23552, 50432, 90368, 254720];
+num_errs = [501, 503, 507, 504, 503, 502, 501];
+rss_dbms = [-111.794, -110.803, -109.928, -108.915, -107.811, -106.86, -105.806] - 10*log10(50)-1.31;
+semilogy(rss_dbms,bers,'-o','DisplayName',"BPSK");
+hold on
+grid on
+legend('Location', 'southwest')
+
+% EsN0_dbs = [0, 1, 2, 3, 4, 5, 6];
+% bers = [0.0139648, 0.00500379, 0.00104271, 0.00021191, 3.56995e-05, 1.79998e-06, 9.99987e-08];
+% num_bits = [71680, 200448, 960000, 4723712, 10000128, 10000128, 10000128];
+% num_errs = [1001, 1003, 1001, 1001, 357, 18, 1];
+% rss_dbms = [-130.583, -129.524, -128.443, -127.443, -126.522, -125.454, -124.41];
+bers = [0.0186435, 0.00935683, 0.0025956, 0.000620332, 8.67292e-05, 1.11905e-05, 6.99991e-07];
+num_bits = [5632, 11008, 38912, 162816, 1164544, 9025536, 10000128];
+num_errs = [105, 103, 101, 101, 101, 101, 7];
+rss_dbms = [-130.107, -129.14, -128.191, -127.171, -126.126, -125.116, -124.081];
+semilogy(rss_dbms,bers,'-o','DisplayName',"OSLA");
+
+%4/13 rss is different because we tried to increase the noise figure of the
+%tx
+EsN0_dbs = [0, 1, 2, 3, 4, 5, 6];
+bers = [0.0217882, 0.00651474, 0.00225724, 0.00049184, 6.09287e-05, 5.79993e-06, 9.99987e-08];
+num_bits = [23040, 77056, 221952, 1018624, 8222720, 10000128, 10000128];
+num_errs = [502, 502, 501, 501, 501, 58, 1];
+rss_dbms = [-56.3198, -56.5046, -56.2482, -56.2985, -56.4558, -56.3364, -56.4028]+(-119.653+56.3198)+EsN0_dbs;
+avg_sym_len = [32.9779, 33.0963, 34.0782, 33.8132, 33.0535, 33.3982, 33.2166];
+semilogy(rss_dbms,bers,'-o','DisplayName',"OSLA");
+
+xlabel("Received Signal Power (dBm)");
+ylabel("BER")
+% title("OSLA-BPSK")
+
+% %% threshold sweep - wired
+% figure();
+% EsN0_dbs = [0, 1, 2, 3, 4, 5, 6];
+% bers = [0.0752704, 0.054579, 0.0330078, 0.0213995, 0.00997383, 0.00555506, 0.00196687];
+% num_bits = [6656, 9216, 15360, 23552, 50432, 90368, 254720];
+% num_errs = [501, 503, 507, 504, 503, 502, 501];
+% rss_dbms = [-111.794, -110.803, -109.928, -108.915, -107.811, -106.86, -105.806] - 10*log10(50)-1.31;
+% % bers = [0.0476751, 0.0303113, 0.0207987, 0.0101299, 0.00531271, 0.00164361, 0.000578854];
+% % num_bits = [21248, 33024, 48128, 98816, 188416, 609024, 1729280];
+% % num_errs = [1013, 1001, 1001, 1001, 1001, 1001, 1001];
+% % rss_dbms = [-129.748, -128.768, -127.783, -126.791, -125.85, -124.762, -123.852];
+% semilogy(rss_dbms,bers,'-o','DisplayName',"BPSK");
+% hold on
+% grid on
+% legend('Location', 'southwest')
+% 
+% 
+% 
+% % EsN0_dbs = [3, 5, 6];
+% % bers = [0.00014226, 4.79994e-06, 1.44998e-05];
+% % num_bits = [7036416, 10000128, 10000128];
+% % num_errs = [1001, 48, 145];
+% % rss_dbms = [-126.812, -124.88, -123.748];
+% 
+% %10000
+% 
+% bers = [0.00171078, 0.00204127, 0.0019159, 0.00211443, 0.00340232, 0.00267774, 0.00329236];
+% num_bits = [592128, 499200, 550656, 486656, 319488, 376064, 309504];
+% num_errs = [1013, 1019, 1055, 1029, 1087, 1007, 1019];
+% rss_dbms = [-129.852, -128.852, -127.867, -126.87, -125.825, -124.84, -123.908];
+% bers = [0.00909948, 0.00404981, 0.00753501, 0.00332801, 0.00254786, 0.00482971, 0.00622];
+% num_bits = [110336, 264704, 140544, 318208, 420352, 216576, 173312];
+% num_errs = [1004, 1072, 1059, 1059, 1071, 1046, 1078];
+% rss_dbms = [-132.741, -131.795, -130.859, -129.797, -128.816, -127.99, -126.863];
+% bers = [0.019668, 0.00730236, 0.00638125, 0.00459936, 0.00294997, 0.00422924, 0.00287102];
+% num_bits = [51200, 137216, 160000, 233728, 345088, 263168, 362240];
+% num_errs = [1007, 1002, 1021, 1075, 1018, 1113, 1040];
+% rss_dbms = [-132.502, -131.431, -130.499, -129.403, -128.485, -127.496, -126.536];
+% 
+% 
+% bers = [0.0127841, 0.00443651, 0.00112215, 0.000693826, 0.00102711, 0.00046891, 0.000592304];
+% num_bits = [39424, 113152, 446464, 825856, 553984, 1000192, 879616];
+% num_errs = [504, 502, 501, 573, 569, 469, 521];
+% rss_dbms = [-127.304, -126.319, -125.324, -124.298, -123.281, -122.3, -121.386];
+% % bers = [0.0878472, 0.0442855, 0.0218881, 0.00858347, 0.00261724, 0.000661351, 0.0003693];
+% % num_bits = [11520, 22784, 45824, 116736, 382464, 1519616, 3024640];
+% % num_errs = [1012, 1009, 1003, 1002, 1001, 1005, 1117];
+% % rss_dbms = [-129.959, -128.853, -127.851, -126.883, -125.843, -124.807, -123.822];
+% %wired
+% % bers = [0.0142299, 0.00505809, 0.00124458, 0.000198357, 4.85816e-05, 3.99995e-06, 9.99987e-08];
+% % num_bits = [7168, 19968, 81152, 509184, 2078976, 10000128, 10000128];
+% % num_errs = [102, 101, 101, 101, 101, 40, 1];
+% % rss_dbms = [-127.653, -126.682, -125.706, -124.636, -123.685, -122.689, -121.632];
+% % semilogy(rss_dbms,bers,'-o','DisplayName',"OSLA, Threshold = 5000");
+% 
+% bers = [0.0140904, 0.00473346, 0.00163706, 0.000288611, 4.38758e-05, 2.19997e-06, 2.99996e-07];
+% num_bits = [7168, 21760, 61696, 349952, 2301952, 10000128, 10000128];
+% num_errs = [101, 103, 101, 101, 101, 22, 3];
+% rss_dbms = [-129.47, -128.482, -127.501, -126.493, -125.467, -124.411, -123.594];
+% semilogy(rss_dbms,bers,'-o','DisplayName',"OSLA, Threshold = 7500");
+% 
+% EsN0_dbs = [0, 1, 2, 3, 4, 5, 6];
+% bers = [0.0139648, 0.00500379, 0.00104271, 0.00021191, 3.56995e-05, 1.79998e-06, 9.99987e-08];
+% num_bits = [71680, 200448, 960000, 4723712, 10000128, 10000128, 10000128];
+% num_errs = [1001, 1003, 1001, 1001, 357, 18, 1];
+% rss_dbms = [-130.583, -129.524, -128.443, -127.443, -126.522, -125.454, -124.41];
+% semilogy(rss_dbms,bers,'-o','DisplayName',"OSLA, Threshold = 10000");
+% 
+% bers = [0.0141927, 0.00773738, 0.00161693, 0.00031041, 3.12996e-05, 3.89995e-06, 0];
+% num_bits = [7680, 13312, 62464, 325376, 3226880, 10000128, 10000128];
+% num_errs = [109, 103, 101, 101, 101, 39, 0];
+% rss_dbms = [-131.583, -130.733, -129.649, -128.694, -127.585, -126.602, -125.609];
+% semilogy(rss_dbms,bers,'-o','DisplayName',"OSLA, Threshold = 12500");
+% 
+% bers = [0.0171535, 0.00606971, 0.00168117, 0.000337784, 4.42796e-05, 4.09995e-06, 0];
+% num_bits = [5888, 16640, 60672, 299008, 2280960, 10000128, 10000128];
+% num_errs = [101, 101, 102, 101, 101, 41, 0];
+% rss_dbms = [-132.51, -131.493, -130.461, -129.432, -128.429, -127.424, -126.354];
+% semilogy(rss_dbms,bers,'-o','DisplayName',"OSLA, Threshold = 15000");
+% 
+% 
+% %2.8g
+% bers = [0.015563, 0.0102195, 0.00559216, 0.00271957, 0.00488062, 0.00366277, 0.00456932];
+% num_bits = [64512, 98048, 181504, 378368, 227840, 283392, 221696];
+% num_errs = [1004, 1002, 1015, 1029, 1112, 1038, 1013];
+% rss_dbms = [-132.754, -131.884, -130.798, -129.722, -128.774, -127.724, -126.882];
+% bers = [0.00962201, 0.00328913, 0.000760307, 0.000432746, 0.000140257, 0.00014434, 2.16997e-05];
+% num_bits = [104448, 304640, 1317888, 2340864, 7635968, 7156736, 10000128];
+% num_errs = [1005, 1002, 1002, 1013, 1071, 1033, 217];
+% rss_dbms = [-132.873, -131.827, -130.796, -129.901, -128.91, -127.752, -126.81];
+% %2.2
+% % bers = [0.0037594, 0.00251267, 0.00680634, 0.0225497, 0.00383711];
+% % num_bits = [34048, 47360, 16896, 5632, 28928];
+% % num_errs = [128, 119, 115, 127, 111];
+% % rss_dbms = [-129.841, -128.873, -127.835, -126.787, -125.772];
+% % bers = [0.0147372, 0.00306341, 0.00188079, 9.99041e-06, 0];
+% % num_bits = [11264, 61696, 69120, 100096, 100096];
+% % num_errs = [166, 189, 130, 1, 0];
+% % rss_dbms = [-128.285, -127.017, -125.115, -124.255, -123.774];
+% 
+% bers = [0.0154748, 0.0208333, 0.00326059, 0.000999041, 0.0258152, 0.034375, 0.00151101];
+% num_bits = [6656, 7680, 30976, 100096, 5888, 6400, 89344];
+% num_errs = [103, 160, 101, 100, 152, 220, 135];
+% rss_dbms = [-130.32, -129.539, -128.603, -127.47, -126.204, -125.55, -124.423];
+% 
+% bers = [0.0164388, 0.00680226, 0.001763, 0.000469549, 4.9952e-05, 0, 0];
+% num_bits = [6144, 14848, 57856, 100096, 100096, 100096, 100096];
+% num_errs = [101, 101, 102, 47, 5, 0, 0];
+% rss_dbms = [-133.878, -132.855, -131.772, -130.8, -129.801, -128.695, -127.677];
+% bers = [0.018821, 0.00555678, 0.00202324, 0.000375744, 4.18379e-05, 3.89995e-06, 1.99997e-07];
+% num_bits = [5632, 18176, 49920, 268800, 2414080, 10000128, 10000128];
+% num_errs = [106, 101, 101, 101, 101, 39, 2];
+% rss_dbms = [-133.639, -132.702, -131.791, -130.742, -129.719, -128.677, -127.643];
+% semilogy(rss_dbms,bers,'-o','DisplayName',"OSLA, Threshold = 20000");
+% 
+% 
+% 
+% 
+% xlabel("Received Signal Power (dBm)");
+% ylabel("BER")
+% % title("OSLA-BPSK")
+
+%% Rate
+
+N = 32; %number of chips per symbol
+
+%4dB-5ms mu----------------------------------------
+EsNidb = [-15 -10  -5   0   5  10  15  20  25  30  35];
+TavgClairvoyant = [48.7973      48.4394      47.8798       46.167      43.2562      38.5557      35.1981      33.5293      32.3169      32.1794      32.0787];
+figure;
+plot(EsNidb, N./TavgClairvoyant, '-o', 'LineWidth', 2, 'MarkerSize', 8, 'Color', 'b', 'DisplayName', 'Perfect CSI OSLA');
+hold on;
+
+EsNidb = [-15 -10  -5   0   5  10  15  20  25  30  35];
+TavgInterMitigation = [50.7537      50.2384      50.1158      50.1054      49.7091      46.4529      39.3266      34.1723      32.5293      31.9311      32.1081];
+plot(EsNidb, N./TavgInterMitigation, '-s', 'LineWidth', 2, 'MarkerSize', 8, 'Color', 'r', 'DisplayName', 'Simulated Interference Mitigation');
+
+
+% EsNidb = [35, 30, 25, 20, 15, 10, 5, 0, -5, -10, -15, -20];
+% TavgInterMitigation = [33.4885, 32.6134, 32.9967, 31.6972, 33.3889, 35.0988, 37.6808, 41.8073, 43.7581, 45.5521, 48.2961, 51.0136];
+EsNidb = [-20,-15 -10  -5   0   5  10  15  20  25  30  35];
+TavgInterMitigation = [50.7948, 48.3029, 46.775, 43.4337, 40.0814, 36.2358, 34.577, 32.6754, 31.8422, 31.6806, 31.7013, 31.3149];
+plot(EsNidb, N./TavgInterMitigation, '-s', 'LineWidth', 2, 'MarkerSize', 8, 'Color', 'g', 'DisplayName', 'Measured Interference Mitigation');
+
+EsNidb = [-25, -20, -10, -5, 0, 5, 10, 15];
+TavgInterMitigation = [50.7377, 50.0309, 47.1275, 44.2168, 41.0346, 37.9434, 35.2603, 33.015];
+plot(EsNidb, N./TavgInterMitigation, '-s', 'LineWidth', 2, 'MarkerSize', 8, 'Color', 'm', 'DisplayName', 'Measured Interference Mitigation fixed python');
+
+
+
+
+% Tavg = [1504.1969       1190.328      860.34286      485.53239      253.92744      145.69132       96.00819       77.98925      71.699002      70.142821      69.479396];
+% plot(EsNidb, N./Tavg, '-o', 'LineWidth', 2, 'MarkerSize', 8, 'Color', 'g', 'DisplayName', 'ARQ, CRC-9, HD = 3');
+
+% Add labels and title
+xlabel("EsNi (dB)");
+ylabel('Normalized Data Rate');
+title('EsN0 = 4dB, mu = 5ms')
+legend('Location', 'best');
+grid on;
+
+
+
+%% threshold sweep-wireless
+figure();
+EsN0_dbs = [0, 1, 2, 3, 4, 5, 6];
+bers = [0.0752704, 0.054579, 0.0330078, 0.0213995, 0.00997383, 0.00555506, 0.00196687];
+num_bits = [6656, 9216, 15360, 23552, 50432, 90368, 254720];
+num_errs = [501, 503, 507, 504, 503, 502, 501];
+rss_dbms = [-111.794, -110.803, -109.928, -108.915, -107.811, -106.86, -105.806] - 10*log10(50)-1.31;
+% bers = [0.0476751, 0.0303113, 0.0207987, 0.0101299, 0.00531271, 0.00164361, 0.000578854];
+% num_bits = [21248, 33024, 48128, 98816, 188416, 609024, 1729280];
+% num_errs = [1013, 1001, 1001, 1001, 1001, 1001, 1001];
+% rss_dbms = [-129.748, -128.768, -127.783, -126.791, -125.85, -124.762, -123.852];
+semilogy(rss_dbms,bers,'-o','DisplayName',"BPSK, 18.6kbps");
+hold on
+grid on
+legend('Location', 'southwest')
+
+bers = [0.0209704, 0.0090554, 0.00272091, 0.000800266, 7.63855e-05, 9.39988e-06, 2.99996e-07];
+num_bits = [4864, 11264, 37120, 126208, 1322240, 10000128, 10000128];
+num_errs = [102, 102, 101, 101, 101, 94, 3];
+rss_dbms = [-128.821, -127.91, -126.865, -125.978, -124.765, -123.807, -122.833];
+% semilogy(rss_dbms,bers,'-o','DisplayName',"OSLA, Threshold = 7500");
+semilogy(rss_dbms,bers,'-o','DisplayName',"OSLA, 24.8kbps");
+
+bers = [0.0186435, 0.00935683, 0.0025956, 0.000620332, 8.67292e-05, 1.11905e-05, 6.99991e-07];
+num_bits = [5632, 11008, 38912, 162816, 1164544, 9025536, 10000128];
+num_errs = [105, 103, 101, 101, 101, 101, 7];
+rss_dbms = [-130.107, -129.14, -128.191, -127.171, -126.126, -125.116, -124.081];
+% semilogy(rss_dbms,bers,'-o','DisplayName',"OSLA, Threshold = 10000");
+semilogy(rss_dbms,bers,'-o','DisplayName',"OSLA, 18.6kbps");
+
+bers = [0.0232077, 0.00885417, 0.0028059, 0.000651042, 9.54126e-05, 1.65846e-05, 4.99994e-07];
+num_bits = [4352, 11520, 36352, 155136, 1058560, 6089984, 10000128];
+num_errs = [101, 102, 102, 101, 101, 101, 5];
+rss_dbms = [-131.244, -130.158, -129.206, -128.152, -127.082, -126.127, -125.143];
+% semilogy(rss_dbms,bers,'-o','DisplayName',"OSLA, Threshold = 12500");
+semilogy(rss_dbms,bers,'-o','DisplayName',"OSLA, 14.9kbps");
+
+bers = [0.0232077, 0.00805166, 0.00260417, 0.00059507, 9.5022e-05, 1.02652e-05, 1.99997e-07];
+num_bits = [4352, 12544, 39168, 169728, 1062912, 9839104, 10000128];
+num_errs = [101, 101, 102, 101, 101, 101, 2];
+rss_dbms = [-131.876, -130.891, -129.89, -128.892, -127.864, -126.836, -125.838];
+% semilogy(rss_dbms,bers,'-o','DisplayName',"OSLA, Threshold = 15000");
+semilogy(rss_dbms,bers,'-o','DisplayName',"OSLA, 12.4kbps");
+
+bers = [0.0213816, 0.00917515, 0.00295139, 0.000683763, 0.000122335, 9.09988e-06, 6.99991e-07];
+num_bits = [4864, 11008, 34560, 147712, 825600, 10000128, 10000128];
+num_errs = [104, 101, 102, 101, 101, 91, 7];
+rss_dbms = [-133.189, -132.077, -131.103, -130.153, -129.202, -128.082, -127.068];
+% semilogy(rss_dbms,bers,'-o','DisplayName',"OSLA, Threshold = 20000");
+semilogy(rss_dbms,bers,'-o','DisplayName',"OSLA, 9.3kbps");
+
+
+
+
+xlabel("Received Signal Power (dBm)");
+ylabel("BER")
+
+%% Symbol length histogram
+
+bin_size = 2;
+figure()
+EsN0s = [];
+mean_lengths = [];
+
+sym_lens = [0, 0, 0, 0, 0, 9, 40, 71, 129, 176, 236, 275, 332, 383, 419, 395, 399, 418, 384, 390, 387, 382, 376, 373, 345, 328, 319, 291, 297, 291, 282, 241, 239, 259, 254, 249, 196, 177, 171, 180, 156, 158, 155, 143, 150, 122, 109, 94, 129, 111, 94, 81, 77, 79, 88, 69, 55, 65, 59, 62, 44, 48, 53, 49, 48, 69, 48, 40, 41, 38, 38, 36, 30, 28, 23, 18, 21, 18, 22, 14, 14, 25, 17, 12, 18, 8, 13, 5, 21, 8, 8, 3, 6, 6, 9, 152];
+EsN0s = [EsN0s, 0];
+mean_lengths = [mean_lengths, sum(sym_lens/(sum(sym_lens)).*(1:length(sym_lens)))];
+[n, sym_lens] = downsample_and_prepare_plot(sym_lens, bin_size);
+sym_lens = sym_lens/sum(sym_lens);
+plot(n,sym_lens, '--o', DisplayName="0dB")
+% plot(n,sym_lens, '--o', DisplayName="0dB, threshold = 10000")
+hold on
+
+sym_lens = [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 10, 25, 53, 68, 132, 172, 213, 276, 354, 355, 405, 435, 481, 515, 515, 486, 527, 510, 492, 548, 496, 464, 440, 402, 371, 354, 302, 281, 291, 274, 259, 213, 183, 173, 159, 148, 164, 128, 114, 114, 113, 80, 71, 59, 60, 51, 45, 30, 38, 38, 33, 33, 32, 20, 19, 16, 15, 13, 17, 10, 8, 8, 6, 12, 9, 5, 8, 7, 3, 4, 4, 6, 4, 3, 1, 4, 1, 3, 1, 2, 1, 0, 0, 1, 1, 2];
+EsN0s = [EsN0s, 5];
+mean_lengths = [mean_lengths, sum(sym_lens/(sum(sym_lens)).*(1:length(sym_lens)))];
+[n, sym_lens] = downsample_and_prepare_plot(sym_lens, bin_size);
+sym_lens = sym_lens/sum(sym_lens);
+plot(n,sym_lens, '--o', DisplayName="5dB")
+% plot(n,sym_lens, '--o', DisplayName="5dB, threshold = 10000")
+
+sym_lens = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 6, 17, 33, 57, 129, 220, 308, 384, 488, 585, 702, 772, 860, 865, 865, 871, 801, 691, 615, 607, 457, 418, 351, 319, 237, 216, 199, 183, 111, 97, 76, 60, 41, 29, 34, 20, 22, 11, 9, 8, 5, 5, 3, 2, 1, 4, 1, 0, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+EsN0s = [EsN0s, 10];
+mean_lengths = [mean_lengths, sum(sym_lens/(sum(sym_lens)).*(1:length(sym_lens)))];
+[n, sym_lens] = downsample_and_prepare_plot(sym_lens, bin_size);
+sym_lens = sym_lens/sum(sym_lens);
+plot(n,sym_lens, '--o', DisplayName="10dB")
+% plot(n,sym_lens, '--o', DisplayName="10dB, threshold = 10000")
+
+xlabel("Number of chips/symbol")
+ylabel("Frequency")
+legend();
+
+display(EsN0s)
+display(mean_lengths)
+
+%% Run combining
+
+% Original data
+EsN0_dbs = [6, 7, 6, 7, 6, 7, 6, 7, 6, 7, 6, 7, 6, 7];
+bers = [0.00567109, 0.00360936, 0.00445348, 0.501953, 0.00390253, 0.0115426, 0.504883, 0.00853588, 0.509766, 0.00576483, 0.0108271, 0.00468844, 0.491699, 0.49707];
+num_bits = [177920, 299776, 224768, 2048, 268544, 96512, 2048, 117504, 2048, 185088, 94208, 213504, 2048, 2048];
+num_errs = [1009, 1082, 1001, 1028, 1048, 1114, 1034, 1003, 1044, 1067, 1020, 1001, 1007, 1018];
+rss_dbms = [-122.886, -120.569, -120.253, -121.632, -121.491, -120.724, -121.685, -121.8, -122.787, -120.514, -122.805, -121.752, -121.6, -120.75];
+avg_sym_len = [32.349, 32.2878, 31.91, 44045.5, 32.0219, 733.947, 44511.6, 692.474, 44281.2, 187.656, 31.9172, 32.1106, 44445.6, 44684.8];
+
+% Filter mask
+valid_mask = avg_sym_len <= 40;
+
+% Filtered data
+EsN0_valid = EsN0_dbs(valid_mask);
+bers_valid = bers(valid_mask);
+num_bits_valid = num_bits(valid_mask);
+num_errs_valid = num_errs(valid_mask);
+rss_dbms_valid = rss_dbms(valid_mask);
+avg_sym_len_valid = avg_sym_len(valid_mask);
+
+% Group by EsN0 = 6 and 7
+group_6_mask = EsN0_valid == 6;
+group_7_mask = EsN0_valid == 7;
+
+% Combine values for EsN0 = 6
+data_6.bers = bers_valid(group_6_mask);
+data_6.num_bits = num_bits_valid(group_6_mask);
+data_6.num_errs = num_errs_valid(group_6_mask);
+data_6.rss_dbms = rss_dbms_valid(group_6_mask);
+data_6.avg_sym_len = avg_sym_len_valid(group_6_mask);
+
+% Combine values for EsN0 = 7
+data_7.bers = bers_valid(group_7_mask);
+data_7.num_bits = num_bits_valid(group_7_mask);
+data_7.num_errs = num_errs_valid(group_7_mask);
+data_7.rss_dbms = rss_dbms_valid(group_7_mask);
+data_7.avg_sym_len = avg_sym_len_valid(group_7_mask);
+
+% Average and sum for EsN0 = 6
+stats_6.avg_ber = mean(data_6.bers);
+stats_6.total_bits = sum(data_6.num_bits);
+stats_6.total_errs = sum(data_6.num_errs);
+stats_6.avg_rss_dbm = mean(data_6.rss_dbms);
+stats_6.avg_sym_len = mean(data_6.avg_sym_len);
+
+% Average and sum for EsN0 = 7
+stats_7.avg_ber = mean(data_7.bers);
+stats_7.total_bits = sum(data_7.num_bits);
+stats_7.total_errs = sum(data_7.num_errs);
+stats_7.avg_rss_dbm = mean(data_7.rss_dbms);
+stats_7.avg_sym_len = mean(data_7.avg_sym_len);
+
+%% functions
+
+
+function [x_downsampled, y_downsampled] = downsample_and_prepare_plot(sym_len, factor)
+    % This function downsamples the sym_len vector by averaging neighboring points together
+    % and prepares the x and y vectors for plotting.
+    % Inputs:
+    %   sym_len - vector indicating the counts of each number
+    %   factor - the downsampling factor (how many points to average together)
+    % Outputs:
+    %   x_downsampled - x coordinates of the downsampled data
+    %   y_downsampled - y coordinates of the downsampled data
+
+    % Calculate the number of groups
+    num_groups = ceil(length(sym_len) / factor);
+
+    % Initialize the downsampled vector
+    y_downsampled = zeros(1, num_groups);
+
+    % Loop through each group to calculate the averaged value
+    for i = 1:num_groups
+        % Calculate the start and end indices for the current group
+        start_idx = (i-1) * factor + 1;
+        end_idx = min(i * factor, length(sym_len));
+        
+        % Compute the average of the current group
+        y_downsampled(i) = mean(sym_len(start_idx:end_idx));
+    end
+
+    % Generate x vector for the downsampled data
+    x_downsampled = linspace(1, length(sym_len), num_groups);
+end

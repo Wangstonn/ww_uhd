@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: GPL-3.0
 #
 # GNU Radio Python Flow Graph
-# Title: BLE_Interference
+# Title: AGN_Interference
 # GNU Radio version: 3.10.12.0
 
 from gnuradio import blocks
@@ -23,7 +23,7 @@ from gnuradio.eng_arg import eng_float, intx
 from gnuradio import eng_notation
 from gnuradio import uhd
 import time
-import BLE_Interference_epy_block_0 as epy_block_0  # embedded python block
+import AGN_Interference_epy_block_0 as epy_block_0  # embedded python block
 import threading
 
 import os
@@ -50,10 +50,10 @@ target_intf_rss_dbm: {self.target_intf_rss_dbm}
 """
 
 
-class BLE_Interference(gr.top_block):
+class AGN_Interference(gr.top_block):
 
-    def __init__(self, ch_gain=20, estPr=(-86.98), targPi=(-125), tx_freq=2.4e9):
-        gr.top_block.__init__(self, "BLE_Interference", catch_exceptions=True)
+    def __init__(self, ch_gain=20, estPr=(-86.98), targPi=(-125), tx_freq=2.2e9):
+        gr.top_block.__init__(self, "AGN_Interference", catch_exceptions=True)
         self.flowgraph_started = threading.Event()
 
         ##################################################
@@ -232,7 +232,7 @@ def argument_parser():
     return parser
 
 
-def main(top_block_cls=BLE_Interference, options=None):
+def main(top_block_cls=AGN_Interference, options=None):
     if options is None:
         options = argument_parser().parse_args()
     tb = top_block_cls(ch_gain=options.ch_gain, estPr=options.estPr, targPi=options.targPi, tx_freq=options.tx_freq)

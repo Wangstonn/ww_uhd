@@ -73,6 +73,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         PSD_path =  os.path.join(os.path.dirname(__file__), "../../matlab/BLEwaveform/BLE_PSD.csv") #'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/gaussian_PSD.csv'
         print(f"[NoiseController] Loading hardcoded PSD file: {PSD_path}")
 
+
         PSD = None  # prevent undefined var
 
         try:
