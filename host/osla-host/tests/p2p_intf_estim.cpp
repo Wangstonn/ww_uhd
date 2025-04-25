@@ -1082,6 +1082,29 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << "Load interferer with target interference rss (dbm)= " << target_intf_rss_dbm << std::endl;
     estim::send_message(serverSock, true, intf_rss_dbm, target_intf_rss_dbm);
     std::this_thread::sleep_for(std::chrono::milliseconds(5000)); //Need to sleep for at least 500 ms before tx is active
+    // while(true) {
+    //     estim::send_message(serverSock, false, 0, 0); //deactivate interferer
+
+    //     std::cout << "Deactivate Interf" << std::endl;
+    //     while (true) {
+    //         if (std::cin.get()) 
+    //             break;
+    //     }
+
+    //     estim::send_message(serverSock, true, 200, 0); //deactivate interferer
+    //     std::cout << "Activate Interf" << std::endl;
+    //     while (true) {
+    //         if (std::cin.get()) 
+    //             break;
+    //     }
+
+    //     // estim::send_message(serverSock, false, 0, 0); //deactivate interferer
+    //     // std::cout << "Deactivate Interf" << std::endl;
+    //     // while (true) {
+    //     //     if (std::cin.get()) 
+    //     //         break;
+    //     // }
+    // }
 
     // std::cout << "Load interferer with target interference rss (dbm)= " << target_intf_rss_dbm << std::endl;
     // std::cout << "Press any key when ready" << std::endl;

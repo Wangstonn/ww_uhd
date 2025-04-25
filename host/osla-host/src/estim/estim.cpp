@@ -563,6 +563,7 @@ void ConfigDestIntfMitigation(const uhd::usrp::multi_usrp::sptr dest_tx_usrp,
             * chip_var); //*std::sqrt(std::norm(h_hat)); //*std::norm(h_hat);
     uint32_t llr_threshold_uint32 = static_cast<uint32_t>(
         std::round(llr_threshold * (std::pow(2, mmio::kDestLlrThresholdFrac))));
+        std::cout << std::hex << "llr_threshold: " << llr_threshold_uint32 << std::dec << std::endl;
     mmio::WrMmio(dest_tx_usrp, mmio::kDestThresholdAddr, llr_threshold_uint32); // 0x1
 
     double dest_if_chip_sig_energy_neg =

@@ -10,17 +10,15 @@ import numpy as np
 from gnuradio import gr
 import pmt
 
-import os
-from pathlib import Path
 
 class blk(gr.sync_block):  # other base classes are basic_block, decim_block, interp_block
     """Embedded Python Block Noise Controller"""
 
-    def __init__(self, sampling_rate = 32000, noise_intensity = 1.0, noise_length = 1.0, target_Pi = 0, estimated_Pr = 0, F_of = 0):  # only default arguments here
+    def __init__(self, sampling_rate = 32000, PSD_path = "/n/houghton/z/wangston/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/BLE_PSD.csv", noise_rate = 1.0, noise_length = 1.0, target_Pi = 0, estimated_Pr = 0, F_of = 0):  # only default arguments here
         """
         Parameters:
         sampling rate (Hz): Needed to calculate length of noise frame and wait frame
-        noise_intensity (arrivals/second): noise packet rate /s (can overlap up to 3 packets)
+        noise_rate (arrivals/second): noise packet rate /s (can overlap up to 3 packets)
         noise length (seconds): length of interference packet (if too large may just overlap constantly)
         Es_Ni(dBm): Desired Es/Ni (Es is hard coded internally)
         Pr(dB): estimate of received power from sending a digital normalized signal 
@@ -55,39 +53,24 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         self.BW = 2/Ts
         
         #calculate desired interference power to be used in log normal distribution
-        self.lognormVar = 10
+        self.scale = 10
         #Es = -171
         #N_I = Es-Es_Ni
-        #self.mu = N_I - 10*np.log10(noise_rate*noise_length*np.exp((self.lognormVar*(np.log(10))**2)/200)) + 10*np.log10(self.BW)
-        # set by socket code
-        # self.mu = Pi - 10*np.log10(noise_rate*noise_length*np.exp((self.lognormVar*(np.log(10))**2)/200))
+        #self.mu = N_I - 10*np.log10(noise_rate*noise_length*np.exp((self.scale*(np.log(10))**2)/200)) + 10*np.log10(self.BW)
+        self.mu = target_Pi - 10*np.log10(noise_rate*noise_length*np.exp((self.scale*(np.log(10))**2)/200))
 
-        # self.Pr = Pr
+        self.Pr = estimated_Pr
+        
         ########################
         #Normalize In-Band Gain#
         ########################
 
         #generate normalizer gain from LUT
         #run locally from grc_graphs folder
-        # Hardcoded full path to PSD file (use forward slashes for safety)
-        PSD_path =  os.path.join(os.path.dirname(__file__), "../../matlab/BLEwaveform/BLE_PSD.csv") #'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/gaussian_PSD.csv'
-        print(f"[NoiseController] Loading hardcoded PSD file: {PSD_path}")
-
-        PSD = None  # prevent undefined var
-
         try:
-            PSD_file = Path(PSD_path)
-            if not PSD_file.is_file():
-                raise FileNotFoundError(f"File does not exist: {PSD_file}")
-            
-            PSD = np.genfromtxt(PSD_file, delimiter=',', dtype=np.double)
-            if PSD.ndim < 2 or PSD.shape[1] < 1:
-                raise ValueError("PSD file must be at least 2D with one column.")
-
-            print(f"[NoiseController] PSD loaded with shape {PSD.shape}")
-
-        except Exception as e:
-            raise RuntimeError(f"[NoiseController ERROR] Failed to load PSD: {e}")
+            PSD = np.genfromtxt(PSD_path,delimiter=',', dtype=np.double)
+        except FileNotFoundError:
+            print(f"Error: File not found at {file_path}")
 
 
         fbin_width = 100
@@ -105,15 +88,13 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         self.theta = np.random.uniform(size=len(self.n_counters))*2j*np.pi
 
         self.sampling_rate = sampling_rate
-        self.pkt_intensity = noise_intensity
-        self.pkt_len = noise_length
+        self.rate = noise_rate
+        self.noise_length = noise_length
 
-        self.noise_frame = np.round((sampling_rate*self.pkt_len),0)
-
-        self.update_params(False, target_Pi, estimated_Pr)
+        self.noise_frame = np.round((sampling_rate*self.noise_length),0)
 
         self.arrival_clk = 0
-        self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))
+        self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))
         
         self.idx = 0
         self.full = False
@@ -121,21 +102,9 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
 
         self.DebugPortName = 'Debug'
         self.message_port_register_out(pmt.intern(self.DebugPortName))
-    
-    #Update packet generation parameters using the input parameters    
-    def update_params(self, enabled, target_Pi, estimated_Pr):
-        self.enabled = enabled
-        mu_linear = 1/(self.pkt_intensity*self.pkt_len)*np.exp((self.lognormVar*(np.log(10))**2)/200)
-        mu = target_Pi + 10*np.log10(mu_linear)
-        self.mu = mu
-        self.Pr = estimated_Pr
+
 
     def work(self, input_items, output_items):
-        #gate activity of block using enabled flag
-        if not self.enabled:
-            # Work output the number of output items produced. Return 0 to pause downstream blocks.
-            return 0
-
         self.arrival_clk = self.arrival_clk + len(output_items[0])
         self.idx = next((i for i,j in enumerate(self.n_counters) if not j[0]),None)
         if (self.idx == None) and (self.arrival_clk >= self.wait_frame):
@@ -149,11 +118,11 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         #run arrival clk and signal when packet should start transmitting
         if ((self.arrival_clk >= self.wait_frame) and not self.full):
             self.arrival_clk = self.arrival_clk - self.wait_frame
-            self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))
+            self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))
             #Mark Interferer to start
             self.n_counters[self.idx][0] = True
             #generate gain value from parameters
-            P = np.random.normal(loc=self.mu, scale=np.sqrt(self.lognormVar)) #scale is the std deviation! need to take sqrt of variance!
+            P = np.random.normal(loc=self.mu, scale=self.scale)
             self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
             #generate new phase offset
             self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -164,11 +133,11 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
             self.idx = next((i for i,j in enumerate(self.n_counters) if not j[0]),None)
             if ((self.arrival_clk >= self.wait_frame) and (self.idx != None)):
                 self.arrival_clk = self.arrival_clk - self.wait_frame
-                self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))
+                self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))
                 #Mark Interferer to start
                 self.n_counters[self.idx][0] = True
                 #generate gain value from parameters
-                P = np.random.normal(loc=self.mu, scale=np.sqrt(self.lognormVar))
+                P = np.random.normal(loc=self.mu, scale=self.scale)
                 self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
                 #generate new phase offset
                 self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -178,11 +147,11 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
                 self.idx = next((i for i,j in enumerate(self.n_counters) if not j[0]),None)
                 if ((self.arrival_clk >= self.wait_frame) and (self.idx != None)):
                     self.arrival_clk = self.arrival_clk - self.wait_frame
-                    self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))
+                    self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))
                     #Mark Interferer to start
                     self.n_counters[self.idx][0] = True
                     #generate gain value from parameters
-                    P = np.random.normal(loc=self.mu, scale=np.sqrt(self.lognormVar))
+                    P = np.random.normal(loc=self.mu, scale=self.scale)
                     self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
                     #generate new phase offset
                     self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -194,11 +163,11 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         #If we are full we want to start noise immediately and also reset the arrival clock to prevent error buildup
         if ((self.idx != None) and self.full):
             self.arrival_clk = len(output_items[0])
-            self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))
+            self.wait_frame = round(((-1/self.rate)*np.log(np.random.uniform())*self.sampling_rate))
             #Mark Interferer to start
             self.n_counters[self.idx][0] = True
             #generate gain value from parameters
-            P = np.random.normal(loc=self.mu, scale=np.sqrt(self.lognormVar))
+            P = np.random.normal(loc=self.mu, scale=self.scale)
             self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
             #generate new phase offset
             self.theta[self.idx] = np.random.uniform()*2j*np.pi

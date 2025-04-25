@@ -13,8 +13,8 @@ constexpr int kNChips       = 32; // average number of chips per symbol
 constexpr int kSrcProcDelay = 4; // samples it takes to process data at source
 
 constexpr int kDestMovingSumM = 96;
-constexpr double kDestLlrThreshold = 9700; // unscaled llr threshold value. This will be scaled based on implementation.
-
+constexpr double kDestLlrThreshold = 9600; // unscaled llr threshold value. This will be scaled based on implementation.
+//10051 leads to 32.1 sym length
 // measurements---
 constexpr double rx_gain = 41.81; // gain of the receiver. used to be 41.81??? 18.237
 

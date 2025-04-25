@@ -235,16 +235,33 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     mmio::InitBBCore(dest_tx_usrp);
 
     estim::send_message(serverSock, false, 0, 0); //deactivate interferer
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000)); //Need to sleep for at least 500 ms before tx is active
+    estim::send_message(serverSock, false, 0, 0); //deactivate interferer
 
 
     // noise estimation-----------------------------------------------------------------------------------------------------------------------
     std::cout << "Running noise estimation..." << std::endl;
-    double var = estim::P2PEstimChipNoise(src_tx_usrp,
-        dest_tx_usrp,
-        std::pow(2, 16),
-        "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
+    double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2, 16), "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
     std::cout << "Estimated var= " << var << std::endl;
     double noise_rss_dbw = estim::CalcNoiseRssDbm(var);
+
+    // double var = 0;
+    // double noise_rss_dbw = 0;
+    // while (true) { //if Noise rss is high, we are failing to deactivate the interferer
+    //     estim::send_message(serverSock, false, 0, 0); //deactivate interferer
+
+    //     var = estim::P2PEstimChipNoise(src_tx_usrp,
+    //         dest_tx_usrp,
+    //         std::pow(2, 16),
+    //         "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
+    //     std::cout << "Estimated var= " << var << std::endl;
+    //     noise_rss_dbw = estim::CalcNoiseRssDbm(var);
+    //     std::cout
+    //     if(noise_rss_dbw < -173) {
+    //         break;
+    //     }
+    // }
+
     // Feedback estimation
     // ------------------------------------------------------------------------------------------------------------------
     std::cout << "Running fb estimation..." << std::endl;
@@ -280,7 +297,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     // set sync lock estim and locked periods. The first 16 bits is the estim delay the
     // last 16 are transmission delay
 
-    uint32_t sync_start_periods = (0x3FFF << 16) + 0x00FF; // 7F
+    uint32_t sync_start_periods = (0x7FFF << 16) + 0x00FF; // 7F
     if (is_intf_mode)
         sync_start_periods = (0x7FFF << 16) + 0x00FF; // min is 0x000F
 
@@ -294,11 +311,11 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
         auto ch_params = estim::P2PChEstim(src_tx_usrp,
             dest_tx_usrp,
             D_test,
-            std::pow(2, 15),
+            std::pow(2, 16),
             true,
             0x1,
             false,
-            "../../data/fwd_p2p_prmbl_samps0.dat"); // std::string("../../data/fwd_p2p_prmbl_samps")+std::to_string(j)+".dat"
+            ""); // ../../data/fwd_p2p_prmbl_samps0.dat
         D_hat_fwd      = ch_params.D_hat;
         h_hat_fwd      = ch_params.h_hat;
 
@@ -389,7 +406,6 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     estim::SetSrcThreshold(src_tx_usrp, h_hat_fb);
 
     // Settings
-    bool fixed_length = 0;
     std::uint32_t dest_interf_mode_bit{0b0};
     std::uint32_t mode_bits{0b11};
 
@@ -398,7 +414,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
         dest_interf_mode_bit = 0b1;
     }
 
-    uint8_t fix_len_mode_bits = fixed_length ? 0b11 : 0b00;
+    uint8_t fix_len_mode_bits = is_fixed_length ? 0b11 : 0b00;
 
     bool samp_cap = false;
     if (samp_cap) {
@@ -510,8 +526,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
 
             // Symbol length statistics
             for (int i = 0; i < mmio::kPktLen; i++) {
-                uint32_t sym_len =
-                    mmio::RdMmio(src_tx_usrp, mmio::kSymLenAddr + i, false);
+                uint32_t sym_len = mmio::RdMmio(src_tx_usrp, mmio::kSymLenAddr + i, false);
                 avg_sym_len += sym_len;
             }
 
@@ -542,8 +557,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     BerResult ber_result;
     ber_result.num_bits = n_iters * mmio::kPktLen;
     ber_result.num_errs = n_errors;
-    ber_result.ber      = static_cast<double>(ber_result.num_errs)
-                     / static_cast<double>(ber_result.num_bits);
+    ber_result.ber      = static_cast<double>(ber_result.num_errs) / static_cast<double>(ber_result.num_bits);
     ber_result.rss_dbm     = rss_dbm;
     ber_result.avg_sym_len = avg_sym_len / static_cast<double>(n_iters * mmio::kPktLen);
 
@@ -1323,22 +1337,30 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     */
 
     std::vector<double> EsN0_dbs = {4}; //{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
-    std::vector<double> EsNi_dbs = {-30,-25,-20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35,-20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35,-20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35}; //{10,15,20,25,30,35};//{0,1,2,3,4,5,6,7}; {3,5,6};//
+    std::vector<double> EsNi_dbs = {35,30,25,20,15,10,5,0,-5,-10,-15}; //{-15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35}; //{10,15,20,25,30,35};//{0,1,2,3,4,5,6,7}; {3,5,6};//
     std::vector<double> bers(EsNi_dbs.size(), 0.0);
     std::vector<int> num_errs(EsNi_dbs.size(), 0);
     std::vector<int> num_bits(EsNi_dbs.size(), 0);
     std::vector<double> rss_dbms(EsNi_dbs.size(), 0.0);
     std::vector<double> avg_sym_len(EsNi_dbs.size(), 0.0);
 
-    const int kTargetErrs = 200; // 500;
-    const int kMaxBits    = 1e4; // 1e7;
-
     bool is_fixed_length = false;
-    bool is_intf_mode    = true;
+    bool is_intf_mode    = false;
+
+    int kTargetErrs = 100; // 500;
+    const int kMaxBits    = 1e6; // 1e7;
+
+    if (is_fixed_length & !is_intf_mode) {
+        kTargetErrs = 500;
+    }
+    
+
+
+    
 
     // Interference Calibration---------------------------------------------------------------------------------------------------------------------------
     bool init_calibration = true;
-    double intf_rss_dbm = -55.629; //87.3152;
+    double intf_rss_dbm = -76.2641; //87.3152;
     if (init_calibration) {
         std::cout << "Estimating Interferer strength..." << std::endl;
 
