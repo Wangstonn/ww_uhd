@@ -50,10 +50,7 @@ figure()
 pwelch(ifft(fmf.*fw),100,0,Fs/100,Fs,'centered');
 xlim([-.01,.01]);
 
-%need shifted psd and fft
 
-f1 = 1e6/4;
-f2 = 2*f1;
 f3 = 3*f1;
 f4 = 4*f1;
 
