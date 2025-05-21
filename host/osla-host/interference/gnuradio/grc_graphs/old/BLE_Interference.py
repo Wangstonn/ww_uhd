@@ -52,7 +52,7 @@ target_intf_rss_dbm: {self.target_intf_rss_dbm}
 
 class BLE_Interference(gr.top_block):
 
-    def __init__(self, ch_gain=20, estPr=(-86.98), targPi=(-125), tx_freq=2.4e9, use_Socket=1):
+    def __init__(self, ch_gain=20, estPr=(-86.98), targPi=(-125), tx_freq=2.4e9):
         gr.top_block.__init__(self, "BLE_Interference", catch_exceptions=True)
         self.flowgraph_started = threading.Event()
 
@@ -63,7 +63,6 @@ class BLE_Interference(gr.top_block):
         self.estPr = estPr
         self.targPi = targPi
         self.tx_freq = tx_freq
-        self.use_Socket = use_Socket
 
         ##################################################
         # Variables
@@ -166,12 +165,6 @@ class BLE_Interference(gr.top_block):
         self.tx_freq = tx_freq
         self.uhd_usrp_sink_0.set_center_freq(self.tx_freq, 0)
 
-    def get_use_Socket(self):
-        return self.use_Socket
-
-    def set_use_Socket(self, use_Socket):
-        self.use_Socket = use_Socket
-
     def get_samp_rate(self):
         return self.samp_rate
 
@@ -234,18 +227,15 @@ def argument_parser():
         "--targPi", dest="targPi", type=eng_float, default=eng_notation.num_to_str(float((-125))),
         help="Set target_Pi [default=%(default)r]")
     parser.add_argument(
-        "--tx-freq", dest="tx_freq", type=eng_float, default=eng_notation.num_to_str(float(2.4e9)),
-        help="Set Analog Antenna TX Frequency [default=%(default)r]")
-    parser.add_argument(
-        "--use-Socket", dest="use_Socket", type=intx, default=1,
-        help="Set 1 = use socket. 0 = use pr and pi set by input [default=%(default)r]")
+        "--tx-freq", dest="tx_freq", type=eng_float, default=eng_notation.num_to_str(float(2.2e9)),
+        help="Set Analog Frontend Tx frequency [default=%(default)r]")
     return parser
 
 
 def main(top_block_cls=BLE_Interference, options=None):
     if options is None:
         options = argument_parser().parse_args()
-    tb = top_block_cls(ch_gain=options.ch_gain, estPr=options.estPr, targPi=options.targPi, tx_freq=options.tx_freq, use_Socket=options.use_Socket)
+    tb = top_block_cls(ch_gain=options.ch_gain, estPr=options.estPr, targPi=options.targPi, tx_freq=options.tx_freq)
 
     def sig_handler(sig=None, frame=None):
         tb.stop()
@@ -259,33 +249,32 @@ def main(top_block_cls=BLE_Interference, options=None):
     tb.start()
     tb.flowgraph_started.set() 
     
-    if tb.use_Socket:
-        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.bind(('141.213.15.85', SERVER_PORT))
-        server_socket.listen(1)
-        print(f"Server is listening on port {SERVER_PORT}...")
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.bind(('141.213.15.85', SERVER_PORT))
+    server_socket.listen(1)
+    print(f"Server is listening on port {SERVER_PORT}...")
 
-        # Use selectors to listen for connections
-        sel = selectors.DefaultSelector()
-        sel.register(server_socket, selectors.EVENT_READ)
-        
-        while True:
-            for key, _ in sel.select():
-                if key.fileobj == server_socket:
-                    client_socket, addr = server_socket.accept()
-                    print(f"Connection from {addr} has been established.")
-                    sel.register(client_socket, selectors.EVENT_READ)
+    # Use selectors to listen for connections
+    sel = selectors.DefaultSelector()
+    sel.register(server_socket, selectors.EVENT_READ)
+    
+    while True:
+        for key, _ in sel.select():
+            if key.fileobj == server_socket:
+                client_socket, addr = server_socket.accept()
+                print(f"Connection from {addr} has been established.")
+                sel.register(client_socket, selectors.EVENT_READ)
+            else:
+                client_socket = key.fileobj
+                data = client_socket.recv(ctypes.sizeof(MSG_t))
+                if data:
+                    msg = MSG_t.from_buffer_copy(data)
+                    print(f"Received data: {msg}")
+                    tb.epy_block_0.update_params(msg.event, msg.target_intf_rss_dbm, msg.intf_rss_dbm)
                 else:
-                    client_socket = key.fileobj
-                    data = client_socket.recv(ctypes.sizeof(MSG_t))
-                    if data:
-                        msg = MSG_t.from_buffer_copy(data)
-                        print(f"Received data: {msg}")
-                        tb.epy_block_0.update_params(msg.event, msg.target_intf_rss_dbm, msg.intf_rss_dbm)
-                    else:
-                        print(f"Closing connection to {client_socket.getpeername()}")
-                        sel.unregister(client_socket)
-                        client_socket.close()
+                    print(f"Closing connection to {client_socket.getpeername()}")
+                    sel.unregister(client_socket)
+                    client_socket.close()
 
     tb.wait()
 
