@@ -953,7 +953,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << "Running noise estimation..." << std::endl;
     double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2,16), "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
     std::cout << "Estimated var= " << var << std::endl;
-    double noise_rss_dbw = estim::CalcNoiseRssDbm(var);
+    double noise_rss_dbw = estim::CalcNoiseRssDbw(var);
     // Feedback estimation ------------------------------------------------------------------------------------------------------------------
     std::cout << "Running fb estimation..." << std::endl;
     std::complex<double> h_hat_fb;

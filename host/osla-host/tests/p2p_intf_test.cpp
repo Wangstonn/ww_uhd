@@ -243,7 +243,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     std::cout << "Running noise estimation..." << std::endl;
     double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2, 16), "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
     std::cout << "Estimated var= " << var << std::endl;
-    double noise_rss_dbw = estim::CalcNoiseRssDbm(var);
+    double noise_rss_dbw = estim::CalcNoiseRssDbw(var);
 
     // double var = 0;
     // double noise_rss_dbw = 0;
@@ -290,8 +290,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
         }
     }
 
-    // Timing+flatfading
-    // estimation---------------------------------------------------------------------------------------------------------------------------
+    // Timing+flatfading estimation---------------------------------------------------------------------------------------------------------------------------
     // wired loopback delay with 8inch sma cable + attenuator is 119
     std::cout << "Running fwd estimation..." << std::endl;
     // set sync lock estim and locked periods. The first 16 bits is the estim delay the
@@ -391,9 +390,9 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     std::cout << "Current signal level h: " << abs(h) << std::endl;
 
     //Interference adjustment
-    double target_intf_rss_dbm = noise_rss_dbw + target_EsN0-target_EsNi;
+    double target_intf_rss_dbm = noise_rss_dbw+30 + target_EsN0-target_EsNi;
     std::cout << "Load interferer with target interference rss (dbm)= " << target_intf_rss_dbm << std::endl;
-    estim::send_message(serverSock, true, intf_rss_dbm, target_intf_rss_dbm);
+    estim::send_message(serverSock, true, intf_rss_dbm, target_intf_rss_dbm-30); //Interferer must have a calibration error.
     std::this_thread::sleep_for(std::chrono::milliseconds(5000)); //Need to sleep for at least 500 ms before tx is active
 
     // Test setup------------------------------------------------------------------
@@ -1335,9 +1334,14 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     /**
         p2p awgn test performs ber testing for awgn channel
     */
-
+   // reset device
+   mmio::InitBBCore(src_tx_usrp);
+   mmio::InitBBCore(dest_tx_usrp);
+   
+for(int test_iter = 0; test_iter<10;test_iter++) {
+    std::cout << "Running test " << test_iter << std::endl;
     std::vector<double> EsN0_dbs = {4}; //{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
-    std::vector<double> EsNi_dbs = {35,30,25,20,15,10,5,0,-5,-10,-15}; //{-15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35}; //{10,15,20,25,30,35};//{0,1,2,3,4,5,6,7}; {3,5,6};//
+    std::vector<double> EsNi_dbs = {35, 30, 25, 20, 15, 10, 5, 0, -5, -10, -15};    //{-15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35}; //{10,15,20,25,30,35};//{0,1,2,3,4,5,6,7}; {3,5,6};//
     std::vector<double> bers(EsNi_dbs.size(), 0.0);
     std::vector<int> num_errs(EsNi_dbs.size(), 0);
     std::vector<int> num_bits(EsNi_dbs.size(), 0);
@@ -1345,23 +1349,20 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::vector<double> avg_sym_len(EsNi_dbs.size(), 0.0);
 
     bool is_fixed_length = false;
-    bool is_intf_mode    = false;
+    bool is_intf_mode    = false; //test_iter % 2 == 0;
 
     int kTargetErrs = 100; // 500;
-    const int kMaxBits    = 1e6; // 1e7;
+    const int kMaxBits  = 1e6; // 1e7;
 
-    if (is_fixed_length & !is_intf_mode) {
-        kTargetErrs = 500;
+    if (is_fixed_length || !is_intf_mode) {
+        kTargetErrs = 1000;
     }
-    
-
-
     
 
     // Interference Calibration---------------------------------------------------------------------------------------------------------------------------
     bool init_calibration = true;
     double intf_rss_dbm = -76.2641; //87.3152;
-    if (init_calibration) {
+    if (test_iter == 0 && init_calibration) {
         std::cout << "Estimating Interferer strength..." << std::endl;
 
         intf_rss_dbm = estim::IntfChEstim(dest_tx_usrp, std::pow(2,15), "../../data/interf_cal_samps.dat");
@@ -1375,8 +1376,16 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     }
     int serverSock = estim::connectToServerSock();
     // Include for file operations
-    std::ofstream results_file("ber_results.txt");
+    std::ofstream results_file("ber_results.txt", std::ios::app);
     if (!results_file.is_open()) {
+        std::cerr << "Error: Unable to open results file for writing." << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    results_file << "% New Test Run-----------------------------------------" << std::endl;
+
+    std::ofstream full_results_file("full_results.txt", std::ios::app);
+    if (!full_results_file.is_open()) {
         std::cerr << "Error: Unable to open results file for writing." << std::endl;
         return EXIT_FAILURE;
     }
@@ -1402,15 +1411,16 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         avg_sym_len[i]       = ber_result.avg_sym_len;
 
         // Write results to both the file and stdout
-        std::string esn0_dbs_str    = estim::generateMatlabArray(EsN0_dbs, "EsN0_dbs");
-        std::string esni_dbs_str    = estim::generateMatlabArray(EsNi_dbs, "EsNi_dbs");
-        std::string bers_str        = estim::generateMatlabArray(bers, "bers");
+        std::string esn0_dbs_str    = estim::generateMatlabArray(EsN0_dbs, "EsN0db");
+        std::string esni_dbs_str    = estim::generateMatlabArray(EsNi_dbs, "EsNidb");
+        std::string bers_str        = estim::generateMatlabArray(bers, "ber");
         std::string num_bits_str    = estim::generateMatlabArray(num_bits, "num_bits");
         std::string num_errs_str    = estim::generateMatlabArray(num_errs, "num_errs");
         std::string rss_dbms_str    = estim::generateMatlabArray(rss_dbms, "rss_dbms");
         std::string avg_sym_len_str = estim::generateMatlabArray(avg_sym_len, "avg_sym_len");
 
         // Print to stdout
+        std::cout << "is_fixed_length = " << is_fixed_length <<  ", is_intf_mode = " << is_intf_mode << std::endl;
         std::cout << esn0_dbs_str;
         std::cout << esni_dbs_str;
         std::cout << bers_str;
@@ -1420,28 +1430,28 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         std::cout << avg_sym_len_str;
 
         // Write to file
+        results_file << "is_fixed_length = " << is_fixed_length <<  ", is_intf_mode = " << is_intf_mode << std::endl;
         results_file << esn0_dbs_str;
         results_file << esni_dbs_str;
         results_file << bers_str;
         results_file << num_bits_str;
         results_file << num_errs_str;
         results_file << rss_dbms_str;
-        results_file << avg_sym_len_str;
+        results_file << avg_sym_len_str << std::endl;
 
     }
 
-
-
     // Write results to both the file and stdout
-    std::string esn0_dbs_str    = estim::generateMatlabArray(EsN0_dbs, "EsN0_dbs");
-    std::string esni_dbs_str    = estim::generateMatlabArray(EsNi_dbs, "EsNi_dbs");
-    std::string bers_str        = estim::generateMatlabArray(bers, "bers");
+    std::string esn0_dbs_str    = estim::generateMatlabArray(EsN0_dbs, "EsN0db");
+    std::string esni_dbs_str    = estim::generateMatlabArray(EsNi_dbs, "EsNidb");
+    std::string bers_str        = estim::generateMatlabArray(bers, "ber");
     std::string num_bits_str    = estim::generateMatlabArray(num_bits, "num_bits");
     std::string num_errs_str    = estim::generateMatlabArray(num_errs, "num_errs");
     std::string rss_dbms_str    = estim::generateMatlabArray(rss_dbms, "rss_dbms");
     std::string avg_sym_len_str = estim::generateMatlabArray(avg_sym_len, "avg_sym_len");
 
     // Print to stdout
+    std::cout << "is_fixed_length = " << is_fixed_length <<  ", is_intf_mode = " << is_intf_mode << std::endl;
     std::cout << esn0_dbs_str;
     std::cout << esni_dbs_str;
     std::cout << bers_str;
@@ -1451,6 +1461,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << avg_sym_len_str;
 
     // Write to file
+    results_file << "is_fixed_length = " << is_fixed_length <<  ", is_intf_mode = " << is_intf_mode << std::endl;
     results_file << esn0_dbs_str;
     results_file << esni_dbs_str;
     results_file << bers_str;
@@ -1459,11 +1470,22 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     results_file << rss_dbms_str;
     results_file << avg_sym_len_str;
 
+    full_results_file << "is_fixed_length = " << is_fixed_length <<  ", is_intf_mode = " << is_intf_mode << std::endl;
+    full_results_file << esn0_dbs_str;
+    full_results_file << esni_dbs_str;
+    full_results_file << bers_str;
+    full_results_file << num_bits_str;
+    full_results_file << num_errs_str;
+    full_results_file << rss_dbms_str;
+    full_results_file << avg_sym_len_str;
+
+
     // Close the file
+    full_results_file.close();
+    std::cout << "Full Results written to full_results.txt" << std::endl;
     results_file.close();
-
     std::cout << "Results written to ber_results.txt" << std::endl;
-
+    }
     //////////////////////////////////////////////////////////////////////////////////////////////////
 
     // clean up transmit worker

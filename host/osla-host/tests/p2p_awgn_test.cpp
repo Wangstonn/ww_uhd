@@ -231,15 +231,16 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     mmio::InitBBCore(src_tx_usrp);
     mmio::InitBBCore(dest_tx_usrp);
 
-    // noise
-    // estimation-----------------------------------------------------------------------------------------------------------------------
+    // noise estimation-----------------------------------------------------------------------------------------------------------------------
     std::cout << "Running noise estimation..." << std::endl;
     double var = estim::P2PEstimChipNoise(src_tx_usrp,
         dest_tx_usrp,
         std::pow(2, 16),
         "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
     std::cout << "Estimated var= " << var << std::endl;
-    double noise_rss_dbw = estim::CalcNoiseRssDbm(var);
+    var = 7740;
+    std::cout << "!!!!!!!Using var= " << var << std::endl;
+    // double noise_rss_dbw = estim::CalcNoiseRssDbw(var);
 
     // Feedback estimation
     // ------------------------------------------------------------------------------------------------------------------
@@ -1328,23 +1329,35 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     /**
         p2p awgn test performs ber testing for awgn channel
     */
-
-    std::vector<double> EsN0_dbs = {4,0,1,2,3,5};//{0, 1, 2, 3, 4, 5, 6}; //{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
+   // reset device
+    mmio::InitBBCore(src_tx_usrp);
+    mmio::InitBBCore(dest_tx_usrp);
+    
+ for(int test_iter = 0; test_iter<10;test_iter++) {
+    std::cout << "Running test " << test_iter << std::endl;
+    std::vector<double> EsN0_dbs = {5,4,3,2,1,0};//{4,0,1,2,3,5};//{0, 1, 2, 3, 4, 5, 6}; //{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
     std::vector<double> bers(EsN0_dbs.size(), 0.0);
     std::vector<int> num_errs(EsN0_dbs.size(), 0);
     std::vector<int> num_bits(EsN0_dbs.size(), 0);
     std::vector<double> rss_dbms(EsN0_dbs.size(), 0.0);
     std::vector<double> avg_sym_len(EsN0_dbs.size(), 0.0);
 
-    const int kTargetErrs = 100; // 500;
+    const int kTargetErrs = 1000; // 500;
     const int kMaxBits    = 1e6; // 1e7;
 
     bool is_fixed_length = false;
-    bool is_intf_mode    = false;
+    bool is_intf_mode    = true;
 
     // Include for file operations
     std::ofstream results_file("ber_results.txt");
     if (!results_file.is_open()) {
+        std::cerr << "Error: Unable to open results file for writing." << std::endl;
+        return EXIT_FAILURE;
+    }
+    results_file << "% New Test Run-----------------------------------------" << std::endl;
+
+    std::ofstream full_results_file("full_results.txt", std::ios::app);
+    if (!full_results_file.is_open()) {
         std::cerr << "Error: Unable to open results file for writing." << std::endl;
         return EXIT_FAILURE;
     }
@@ -1373,6 +1386,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         std::string avg_sym_len_str = estim::generateMatlabArray(avg_sym_len, "avg_sym_len");
     
         // Print to stdout
+        std::cout << "is_fixed_length = " << is_fixed_length <<  ", is_intf_mode = " << is_intf_mode << std::endl;
         std::cout << esn0_dbs_str;
         std::cout << bers_str;
         std::cout << num_bits_str;
@@ -1381,12 +1395,14 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         std::cout << avg_sym_len_str;
     
         // Write to file
+        results_file << "is_fixed_length = " << is_fixed_length <<  ", is_intf_mode = " << is_intf_mode << std::endl;
         results_file << esn0_dbs_str;
         results_file << bers_str;
         results_file << num_bits_str;
         results_file << num_errs_str;
         results_file << rss_dbms_str;
-        results_file << avg_sym_len_str;
+        results_file << avg_sym_len_str << std::endl;
+
     }
 
     // Write results to both the file and stdout
@@ -1398,6 +1414,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::string avg_sym_len_str = estim::generateMatlabArray(avg_sym_len, "avg_sym_len");
 
     // Print to stdout
+    std::cout << "is_fixed_length = " << is_fixed_length <<  ", is_intf_mode = " << is_intf_mode << std::endl;
     std::cout << esn0_dbs_str;
     std::cout << bers_str;
     std::cout << num_bits_str;
@@ -1406,6 +1423,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << avg_sym_len_str;
 
     // Write to file
+    results_file << "is_fixed_length = " << is_fixed_length <<  ", is_intf_mode = " << is_intf_mode << std::endl;
     results_file << esn0_dbs_str;
     results_file << bers_str;
     results_file << num_bits_str;
@@ -1413,11 +1431,22 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     results_file << rss_dbms_str;
     results_file << avg_sym_len_str;
 
+    full_results_file << "is_fixed_length = " << is_fixed_length <<  ", is_intf_mode = " << is_intf_mode << std::endl;
+    full_results_file << esn0_dbs_str;
+    full_results_file << bers_str;
+    full_results_file << num_bits_str;
+    full_results_file << num_errs_str;
+    full_results_file << rss_dbms_str;
+    full_results_file << avg_sym_len_str;
+
+
     // Close the file
+    full_results_file.close();
+    std::cout << "Full Results written to full_results.txt" << std::endl;
     results_file.close();
 
     std::cout << "Results written to ber_results.txt" << std::endl;
-
+    }
     //////////////////////////////////////////////////////////////////////////////////////////////////
 
     // clean up transmit worker

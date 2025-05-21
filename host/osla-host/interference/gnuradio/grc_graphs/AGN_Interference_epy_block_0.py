@@ -125,7 +125,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
     #Update packet generation parameters using the input parameters    
     def update_params(self, enabled, target_Pi, estimated_Pr):
         self.enabled = enabled
-        mu_linear = 1/(self.pkt_intensity*self.pkt_len)*np.exp((self.lognormVar*(np.log(10))**2)/200)
+        mu_linear = 1/(self.pkt_intensity*self.pkt_len*np.exp((self.lognormVar*(np.log(10))**2)/200))
         mu = target_Pi + 10*np.log10(mu_linear)
         self.mu = mu
         self.Pr = estimated_Pr

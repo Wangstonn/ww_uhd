@@ -875,23 +875,22 @@ double EstimChipNoise(const uhd::usrp::multi_usrp::sptr tx_usrp,
  * @param var The measured chip power variance (should reflect the power of received noise
  * samples).
  */
-double CalcNoiseRssDbm(double chip_var)
+double CalcNoiseRssDbw(double chip_var)
 {
     // Gain from antenna to ADC is 41.81 dB, ADC swing is 2V, 14-bit resolution
-    double noise_rss_dbm =
+    double noise_rss_dbw =
         10 * std::log10(chip_var)
         + 20 * std::log10(1.0 / estim::kFwOsr) // find the power in this chip
         + 20 * std::log10(std::pow(2, -13)) - estim::rx_gain
         - 10 * std::log10(50); // 50-ohm termination
 
-    std::cout << "rx_noise (dbm)= " << noise_rss_dbm << std::endl;
+    std::cout << "rx_noise (dbW)= " << noise_rss_dbw << std::endl;
 
-    // Estimated N0 for a 5 MHz bandwidth and 336 chips
-    double estimated_N0 =
-        -10 * std::log10(1 / (2.0 * 5.0e-9 * 336.0)) + noise_rss_dbm + 30;
+    // Estimated N0 for a 5 MHz bandwidth and 336 chips. The noise equaivalent bandwidth (i.e. the power of the filter is 1 / (5.0e-9 * 336.0))
+    double estimated_N0 = -10 * std::log10(1 / (2.0* 5.0e-9 * 336.0)) + noise_rss_dbw + 30;
     std::cout << "Estimated N0 (dbm)= " << estimated_N0 << std::endl;
 
-    return noise_rss_dbm;
+    return noise_rss_dbw;
 }
 
 /**
@@ -942,10 +941,7 @@ double CalcEsN0(const std::complex<double>& h_hat, const int osr, const double v
  */
 double CalcChipEsN0(const std::complex<double>& h_hat, const double chip_var)
 {
-    double EsN0 =
-        10
-        * std::log10(estim::kNChips * std::pow(estim::kFwOsr * std::abs(h_hat), 2)
-                     / (chip_var * 2));
+    double EsN0 = 10 * std::log10(estim::kNChips * std::pow(estim::kFwOsr * std::abs(h_hat), 2) / (chip_var * 2));
     return EsN0;
 }
 
