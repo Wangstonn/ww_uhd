@@ -11,7 +11,7 @@ options:
     gen_linking: dynamic
     generate_options: no_gui
     hier_block_src_path: '.:'
-    id: AGN_Interference
+    id: AWGN_Interference
     max_nouts: '0'
     output_language: python
     placement: (0,0)
@@ -22,7 +22,7 @@ options:
     run_options: run
     sizing_mode: fixed
     thread_safe_setters: ''
-    title: AGN_Interference
+    title: AWGN_Interference
     window_size: (1000,1000)
   states:
     bus_sink: false
@@ -33,18 +33,6 @@ options:
     state: enabled
 
 blocks:
-- name: BLE_fd
-  id: variable
-  parameters:
-    comment: ''
-    value: '250000'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [280, 8.0]
-    rotation: 0
-    state: true
 - name: BLE_sym_length
   id: variable
   parameters:
@@ -219,23 +207,24 @@ blocks:
       \ sources on the input and randomly adds them together\naccording to a poisson\
       \ distribution. Internally normalizes inband noise power\nfrom settings and\
       \ then multiplies the amplitude according to a log normal distribution.\n\"\"\
-      \"\n\nimport numpy as np\nfrom gnuradio import gr\nimport pmt\n\nimport os\n\
-      from pathlib import Path\n\nclass blk(gr.sync_block):  # other base classes\
-      \ are basic_block, decim_block, interp_block\n    \"\"\"Embedded Python Block\
-      \ Noise Controller\"\"\"\n\n    def __init__(self, sampling_rate = 32000, noise_intensity\
-      \ = 1.0, noise_length = 1.0, target_Pi = 0, estimated_Pr = 0, F_of = 0):  #\
-      \ only default arguments here\n        \"\"\"\n        Parameters:\n       \
-      \ sampling rate (Hz): Needed to calculate length of noise frame and wait frame\n\
-      \        noise_intensity (arrivals/second): noise packet rate /s (can overlap\
-      \ up to 3 packets)\n        noise length (seconds): length of interference packet\
-      \ (if too large may just overlap constantly)\n        Es_Ni(dBm): Desired Es/Ni\
-      \ (Es is hard coded internally)\n        Pr(dB): estimate of received power\
-      \ from sending a digital normalized signal \n        F_of (Hz): offset of OSLA\
-      \ from center of BLE noise (-+). Used in in-band normalization calculation.\n\
+      \"\n\nimport numpy as np\nfrom gnuradio import gr\nimport pmt\nimport threading\
+      \  \n\n\nimport os\nfrom pathlib import Path\n\nclass blk(gr.sync_block):  #\
+      \ other base classes are basic_block, decim_block, interp_block\n    \"\"\"\
+      Embedded Python Block Noise Controller\"\"\"\n\n    def __init__(self, sampling_rate\
+      \ = 32000, noise_intensity = 1.0, noise_length = 1.0, target_Pi = 0, estimated_Pr\
+      \ = 0, F_of = 0):  # only default arguments here\n        \"\"\"\n        Parameters:\n\
+      \        sampling rate (Hz): Needed to calculate length of noise frame and wait\
+      \ frame\n        noise_intensity (arrivals/second): noise packet rate /s (can\
+      \ overlap up to 3 packets)\n        noise length (seconds): length of interference\
+      \ packet (if too large may just overlap constantly)\n        Es_Ni(dBm): Desired\
+      \ Es/Ni (Es is hard coded internally)\n        Pr(dB): estimate of received\
+      \ power from sending a digital normalized signal \n        F_of (Hz): offset\
+      \ of OSLA from center of BLE noise (-+). Used in in-band normalization calculation.\n\
       \        analog_gain (dB): To prevent saturation, set analog gain accordingly\n\
-      \        \"\"\"\n\n        gr.sync_block.__init__(\n            self,\n    \
-      \        name='Noise Controller',   # will show up in GRC\n            in_sig=[np.complex64,np.complex64,np.complex64],\n\
-      \            out_sig=[np.complex64]\n        )\n \n        \n        #n_counters[0]:\
+      \        \"\"\"\n        self._lock = threading.Lock() \n\n        gr.sync_block.__init__(\n\
+      \            self,\n            name='Noise Controller',   # will show up in\
+      \ GRC\n            in_sig=[np.complex64,np.complex64,np.complex64],\n      \
+      \      out_sig=[np.complex64]\n        )\n \n        \n        #n_counters[0]:\
       \ state of interferer\n        #n_counters[1]: noise clk(how long its been on)\n\
       \        #n_counters[2]: gain of interferer (decided on log normal distribution)\n\
       \        #n_counters[3]: last n_samples of a frame that should include noise\n\
@@ -252,8 +241,10 @@ blocks:
       \n        # self.Pr = Pr\n        ########################\n        #Normalize\
       \ In-Band Gain#\n        ########################\n\n        #generate normalizer\
       \ gain from LUT\n        #run locally from grc_graphs folder\n        # Hardcoded\
-      \ full path to PSD file (use forward slashes for safety)\n        PSD_path =\
-      \ 'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/gaussian_PSD.csv'\n\
+      \ full path to PSD file (use forward slashes for safety)\n        #PSD_path\
+      \ =  os.path.join(os.path.dirname(__file__), \"../../matlab/psd/awgn_psd.csv\"\
+      ) #'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/gaussian_PSD.csv'\n\
+      \        PSD_path = 'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/psd/awgn_psd.csv'\n\
       \        print(f\"[NoiseController] Loading hardcoded PSD file: {PSD_path}\"\
       )\n\n        PSD = None  # prevent undefined var\n\n        try:\n         \
       \   PSD_file = Path(PSD_path)\n            if not PSD_file.is_file():\n    \
@@ -263,11 +254,11 @@ blocks:
       PSD file must be at least 2D with one column.\")\n\n            print(f\"[NoiseController]\
       \ PSD loaded with shape {PSD.shape}\")\n\n        except Exception as e:\n \
       \           raise RuntimeError(f\"[NoiseController ERROR] Failed to load PSD:\
-      \ {e}\")\n\n\n        fbin_width = 100\n        #define gain to have normalized\
-      \ in band power\n        #With this gain, we will have normalized digital power\
-      \ and receive ~Pr that we measured\n        PSD_i_low  = int(np.round((len(PSD)/2)\
-      \ + (F_of/fbin_width) - (self.BW/fbin_width)/2) - 1)\n        PSD_i_high = int(np.round((len(PSD)/2)\
-      \ + (F_of/fbin_width) + (self.BW/fbin_width)/2))    \n\n        self.G = np.sqrt(1/(fbin_width*np.sum(PSD[PSD_i_low:PSD_i_high,0])))\n\
+      \ {e}\")\n\n\n        df = 100\n        fs_psd = 10000000\n        #define gain\
+      \ to have normalized in band power\n        #With this gain, we will have normalized\
+      \ digital power and receive ~Pr that we measured\n        PSD_i_low  = int(np.round((len(PSD)/2)\
+      \ + (F_of/df) - (self.BW/df)/2) - 1)\n        PSD_i_high = int(np.round((len(PSD)/2)\
+      \ + (F_of/df) + (self.BW/df)/2))    \n\n        self.G = np.sqrt(1/(df*np.sum(PSD[PSD_i_low:PSD_i_high,0]*fs_psd)))\n\
       \        \n        ##############################\n        #set up interferer\
       \ parameters#\n        ##############################\n        #phase shift\n\
       \        self.theta = np.random.uniform(size=len(self.n_counters))*2j*np.pi\n\
@@ -279,24 +270,29 @@ blocks:
       \n        self.DebugPortName = 'Debug'\n        self.message_port_register_out(pmt.intern(self.DebugPortName))\n\
       \    \n    #Update packet generation parameters using the input parameters \
       \   \n    def update_params(self, enabled, target_Pi, estimated_Pr):\n     \
-      \   self.enabled = enabled\n        mu_linear = 1/(self.pkt_intensity*self.pkt_len)*np.exp((self.lognormVar*(np.log(10))**2)/200)\n\
-      \        self.mu = target_Pi + 10*np.log10(mu_linear)\n        self.Pr = estimated_Pr\n\
-      \n    def work(self, input_items, output_items):\n        #gate activity of\
-      \ block using enabled flag\n        if not self.enabled:\n            # TODO:\
-      \ check what needs to be returned here\n            return 0\n\n        self.arrival_clk\
-      \ = self.arrival_clk + len(output_items[0])\n        self.idx = next((i for\
-      \ i,j in enumerate(self.n_counters) if not j[0]),None)\n        if (self.idx\
-      \ == None) and (self.arrival_clk >= self.wait_frame):\n            self.full\
-      \ = True\n        '''\n        #use this to send messages from the debug port\n\
-      \            PMT_msg = pmt.from_bool(self.state)\n            self.message_port_pub(pmt.intern(self.DebugPortName),\
-      \ PMT_msg)\n        '''\n\n        #run arrival clk and signal when packet should\
-      \ start transmitting\n        if ((self.arrival_clk >= self.wait_frame) and\
-      \ not self.full):\n            self.arrival_clk = self.arrival_clk - self.wait_frame\n\
-      \            self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))\n\
+      \   with self._lock:\n            self.enabled = enabled\n            mu_linear\
+      \ = 1/(self.pkt_intensity*self.pkt_len)*np.exp((self.lognormVar*(np.log(10))**2)/200)\n\
+      \            self.mu = target_Pi + 10*np.log10(mu_linear)\n            self.Pr\
+      \ = estimated_Pr\n\n    def work(self, input_items, output_items):\n       \
+      \ with self._lock:\n            enabled = self.enabled\n            mu = self.mu\n\
+      \            Pr = self.Pr\n        # use 'enabled', `mu` and `Pr` instead of\
+      \ self.mu/self.Pr in the rest of the function\n        \n        #gate activity\
+      \ of block using enabled flag\n        if not enabled:\n            # Work output\
+      \ the number of output items produced. Return 0 to pause downstream blocks.\n\
+      \            return 0\n\n        self.arrival_clk = self.arrival_clk + len(output_items[0])\n\
+      \        self.idx = next((i for i,j in enumerate(self.n_counters) if not j[0]),None)\n\
+      \        if (self.idx == None) and (self.arrival_clk >= self.wait_frame):\n\
+      \            self.full = True\n        '''\n        #use this to send messages\
+      \ from the debug port\n            PMT_msg = pmt.from_bool(self.state)\n   \
+      \         self.message_port_pub(pmt.intern(self.DebugPortName), PMT_msg)\n \
+      \       '''\n\n        #run arrival clk and signal when packet should start\
+      \ transmitting\n        if ((self.arrival_clk >= self.wait_frame) and not self.full):\n\
+      \            self.arrival_clk = self.arrival_clk - self.wait_frame\n       \
+      \     self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))\n\
       \            #Mark Interferer to start\n            self.n_counters[self.idx][0]\
       \ = True\n            #generate gain value from parameters\n            P =\
-      \ np.random.normal(loc=self.mu, scale=self.lognormVar)\n            self.n_counters[self.idx][2]\
-      \ = self.G*np.sqrt(10**((P-self.Pr)/10))\n            #generate new phase offset\n\
+      \ np.random.normal(loc=mu, scale=self.lognormVar)\n            self.n_counters[self.idx][2]\
+      \ = self.G*np.sqrt(10**((P-Pr)/10))\n            #generate new phase offset\n\
       \            self.theta[self.idx] = np.random.uniform()*2j*np.pi\n         \
       \   self.n_counters[self.idx][3] = self.arrival_clk\n            \n        \
       \    \n            #if next wait_frame occurs in same window\n            self.idx\
@@ -306,19 +302,19 @@ blocks:
       \             self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))\n\
       \                #Mark Interferer to start\n                self.n_counters[self.idx][0]\
       \ = True\n                #generate gain value from parameters\n           \
-      \     P = np.random.normal(loc=self.mu, scale=self.lognormVar)\n           \
-      \     self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))\n\
-      \                #generate new phase offset\n                self.theta[self.idx]\
-      \ = np.random.uniform()*2j*np.pi\n                self.n_counters[self.idx][3]\
-      \ = self.arrival_clk\n\n                #if all three interferers occur in the\
-      \ same window\n                self.idx = next((i for i,j in enumerate(self.n_counters)\
-      \ if not j[0]),None)\n                if ((self.arrival_clk >= self.wait_frame)\
-      \ and (self.idx != None)):\n                    self.arrival_clk = self.arrival_clk\
-      \ - self.wait_frame\n                    self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))\n\
+      \     P = np.random.normal(loc=mu, scale=self.lognormVar)\n                self.n_counters[self.idx][2]\
+      \ = self.G*np.sqrt(10**((P-Pr)/10))\n                #generate new phase offset\n\
+      \                self.theta[self.idx] = np.random.uniform()*2j*np.pi\n     \
+      \           self.n_counters[self.idx][3] = self.arrival_clk\n\n            \
+      \    #if all three interferers occur in the same window\n                self.idx\
+      \ = next((i for i,j in enumerate(self.n_counters) if not j[0]),None)\n     \
+      \           if ((self.arrival_clk >= self.wait_frame) and (self.idx != None)):\n\
+      \                    self.arrival_clk = self.arrival_clk - self.wait_frame\n\
+      \                    self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))\n\
       \                    #Mark Interferer to start\n                    self.n_counters[self.idx][0]\
       \ = True\n                    #generate gain value from parameters\n       \
-      \             P = np.random.normal(loc=self.mu, scale=self.lognormVar)\n   \
-      \                 self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))\n\
+      \             P = np.random.normal(loc=mu, scale=self.lognormVar)\n        \
+      \            self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-Pr)/10))\n\
       \                    #generate new phase offset\n                    self.theta[self.idx]\
       \ = np.random.uniform()*2j*np.pi\n                    self.n_counters[self.idx][3]\
       \ = self.arrival_clk\n            \n            #PMT_msg = pmt.to_pmt(self.wait_frame)\n\
@@ -329,8 +325,8 @@ blocks:
       \         self.wait_frame = round(((-1/self.pkt_intensity)*np.log(np.random.uniform())*self.sampling_rate))\n\
       \            #Mark Interferer to start\n            self.n_counters[self.idx][0]\
       \ = True\n            #generate gain value from parameters\n            P =\
-      \ np.random.normal(loc=self.mu, scale=self.lognormVar)\n            self.n_counters[self.idx][2]\
-      \ = self.G*np.sqrt(10**((P-self.Pr)/10))\n            #generate new phase offset\n\
+      \ np.random.normal(loc=mu, scale=self.lognormVar)\n            self.n_counters[self.idx][2]\
+      \ = self.G*np.sqrt(10**((P-Pr)/10))\n            #generate new phase offset\n\
       \            self.theta[self.idx] = np.random.uniform()*2j*np.pi\n         \
       \   self.full = False\n\n            \n        output_items[0][:] = 0\n    \
       \    for i in range(len(self.n_counters)):\n            if(self.n_counters[i][0]):\n\
@@ -712,6 +708,23 @@ blocks:
     bus_source: false
     bus_structure: null
     coordinate: [840, 272.0]
+    rotation: 0
+    state: true
+- name: use_Socket
+  id: parameter
+  parameters:
+    alias: ''
+    comment: ''
+    hide: none
+    label: 1 = use socket. 0 = use pr and pi set by input
+    short_id: ''
+    type: intx
+    value: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [1192, 8.0]
     rotation: 0
     state: true
 
