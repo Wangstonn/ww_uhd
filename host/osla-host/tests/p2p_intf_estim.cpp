@@ -952,8 +952,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //noise estimation-----------------------------------------------------------------------------------------------------------------------
     std::cout << "Running noise estimation..." << std::endl;
     double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2,16), "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
-    std::cout << "Estimated var= " << var << std::endl;
-    double noise_rss_dbw = estim::CalcNoiseRssDbw(var);
+    std::cout << "Estimated var (should be around 7700 if there is no interference)= " << var << std::endl;
+
     // Feedback estimation ------------------------------------------------------------------------------------------------------------------
     std::cout << "Running fb estimation..." << std::endl;
     std::complex<double> h_hat_fb;
@@ -1016,10 +1016,14 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // double rss_dbW = 20*log10(std::abs(h_hat_fwd) * std::pow(2,-13)) - 41.81 - 10*log10(50); //50 ohm resistor at end
 // * std::pow(2,4)
 
+    double N0_dbm = estim::CalcN0dbm(EsN0, rss_dbm);
+
+
     std::cout << std::dec << "D_test= " << D_test << ", ";
     std::cout << "D_hat_fwd= " << D_hat_fwd << ", ";
     std::cout << "EsN0= " << EsN0 << ", ";
     std::cout << "Estimation rss_adc (dbm)= " << rss_dbm << ", ";
+    std::cout << "Estimation N0 (dbm)= " << N0_dbm << ", ";
     std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd) << " arg= " << std::arg(h_hat_fwd) << std::endl;
 
     //Gain Control--------------------------------------------------------------------------------------------------------------------------
@@ -1078,9 +1082,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << "Current signal level h: " <<  abs(h) << std::endl;
 
     //Interference adjustment
-    double target_intf_rss_dbm = noise_rss_dbw + target_EsN0-target_EsNi;
-    std::cout << "Load interferer with target interference rss (dbm)= " << target_intf_rss_dbm << std::endl;
-    estim::send_message(serverSock, true, intf_rss_dbm, target_intf_rss_dbm);
+    double target_Ni_dbm = N0_dbm + target_EsN0-target_EsNi;
+    std::cout << "Load interferer with target interference rss (dbm)= " << target_Ni_dbm << std::endl;
+    estim::send_message(serverSock, true, intf_rss_dbm, target_Ni_dbm); //Interferer must have a calibration error.
     std::this_thread::sleep_for(std::chrono::milliseconds(5000)); //Need to sleep for at least 500 ms before tx is active
     // while(true) {
     //     estim::send_message(serverSock, false, 0, 0); //deactivate interferer

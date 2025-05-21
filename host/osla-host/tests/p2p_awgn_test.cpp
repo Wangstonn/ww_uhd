@@ -241,6 +241,8 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     var = 7740;
     std::cout << "!!!!!!!Using var= " << var << std::endl;
     // double noise_rss_dbw = estim::CalcNoiseRssDbw(var);
+    std::cout << "Estimated var (should be around 7700 if there is no interference)= " << var << std::endl;
+
 
     // Feedback estimation
     // ------------------------------------------------------------------------------------------------------------------
@@ -307,11 +309,13 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
 
     double EsN0    = estim::CalcChipEsN0(h_hat_fwd, var);
     double rss_dbm = estim::CalcRssdbW(h_hat_fwd) + 30;
+    double N0_dbm = estim::CalcN0dbm(EsN0, rss_dbm);
 
     std::cout << std::dec << "D_test= " << D_test << ", ";
     std::cout << "D_hat_fwd= " << D_hat_fwd << ", ";
     std::cout << "EsN0= " << EsN0 << ", ";
     std::cout << "Estimation rss_adc (dbm)= " << rss_dbm << ", ";
+    std::cout << "Estimation N0 (dbm)= " << N0_dbm << ", ";
     std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd)
               << " arg= " << std::arg(h_hat_fwd) << std::endl;
 

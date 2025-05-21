@@ -85,7 +85,8 @@ double EstimChipNoise(const uhd::usrp::multi_usrp::sptr tx_usrp,
     const int NCapSamps,
     const uint32_t rx_ch_sel_bits,
     const std::string& file = "");
-double CalcNoiseRssDbw(double chip_var);
+// double CalcNoiseRssDbw(double chip_var);
+double CalcN0dbm(double EsN0_db, double rss_dbm);
 double CalcRssdbW(std::complex<double> h_hat);
 double CalcSNR(const std::complex<double>& h_hat, const double var);
 double CalcEsN0(const std::complex<double>& h_hat, const int osr, const double var);

@@ -858,39 +858,65 @@ double EstimChipNoise(const uhd::usrp::multi_usrp::sptr tx_usrp,
     return var;
 }
 
+// /**
+//  * @brief Estimates and prints noise parameters based on chip variance.
+//  *
+//  * This function computes and logs three values based on the input chip variance (`var`):
+//  *  - Estimated chip variance
+//  *  - Received noise power in dBm (`rx_noise_dbW`)
+//  *  - Estimated noise spectral density `N0` in dB (assumes 5 MHz bandwidth and 336 chips)
+//  *
+//  * The calculations take into account:
+//  *  - ADC gain of 41.81 dB from antenna to digital domain
+//  *  - ADC full-scale swing of 2V with 14-bit resolution
+//  *  - A 50-ohm load for power normalization
+//  *  - Oversampling ratio defined by `estim::kFwOsr`
+//  *
+//  * @param var The measured chip power variance (should reflect the power of received noise
+//  * samples).
+//  */
+// double CalcNoiseRssDbw(double chip_var)
+// {
+//     //THIS FUNCTION IS NOT CORRECT. IT ASSUMES THE NOISE VARIANCE IS AT THE ANTENNA, NOT THE INTERNALS OF THE RECEIVER. DO NOT USE
+//     // Gain from antenna to ADC is 41.81 dB, ADC swing is 2V, 14-bit resolution
+//     double noise_rss_dbw =
+//         10 * std::log10(chip_var)
+//         + 20 * std::log10(1.0 / estim::kFwOsr) // find the power in this chip
+//         + 20 * std::log10(std::pow(2, -13)) - estim::rx_gain
+//         - 10 * std::log10(50); // 50-ohm termination
+
+//     std::cout << "rx_noise (dbW)= " << noise_rss_dbw << std::endl;
+
+//     // Estimated N0 for a 5 MHz bandwidth and 336 chips. The noise equaivalent bandwidth (i.e. the power of the filter is 1 / (5.0e-9 * 336.0))
+//     double estimated_N0 = -10 * std::log10(1 / (2.0* 5.0e-9 * 336.0)) + noise_rss_dbw + 30;
+//     std::cout << "Estimated N0 (dbm)= " << estimated_N0 << std::endl;
+
+//     return noise_rss_dbw;
+// }
+
 /**
- * @brief Estimates and prints noise parameters based on chip variance.
+ * @brief Estimate the noise spectral density \( N_0 \) in dBm.
  *
- * This function computes and logs three values based on the input chip variance (`var`):
- *  - Estimated chip variance
- *  - Received noise power in dBm (`rx_noise_dbW`)
- *  - Estimated noise spectral density `N0` in dB (assumes 5 MHz bandwidth and 336 chips)
+ * This function computes the estimated noise power spectral density \( N_0 \) 
+ * in dBm based on the received signal strength (RSS) in dBm and the 
+ * energy-per-symbol to noise ratio (Es/N0) in dB.
  *
- * The calculations take into account:
- *  - ADC gain of 41.81 dB from antenna to digital domain
- *  - ADC full-scale swing of 2V with 14-bit resolution
- *  - A 50-ohm load for power normalization
- *  - Oversampling ratio defined by `estim::kFwOsr`
+ * The underlying assumption is that the signal occupies a bandwidth determined 
+ * by 336 chips over 32 symbols, each with a chip period of 5 ns.
+ * The formula used is:
+ * \[
+ * N_0\text{(dBm)} = \text{RSS(dBm)} + 10 \log_{10}(32 \cdot 336 \cdot 5 \cdot 10^{-9}) - \text{Es/N0(dB)}
+ * \]
  *
- * @param var The measured chip power variance (should reflect the power of received noise
- * samples).
+ * @param EsN0_db  The Es/N0 value in dB.
+ * @param rss_dbm  The received signal strength in dBm.
+ * @return The estimated \( N_0 \) in dBm.
  */
-double CalcNoiseRssDbw(double chip_var)
+double CalcN0dbm(double EsN0_db, double rss_dbm)
 {
-    // Gain from antenna to ADC is 41.81 dB, ADC swing is 2V, 14-bit resolution
-    double noise_rss_dbw =
-        10 * std::log10(chip_var)
-        + 20 * std::log10(1.0 / estim::kFwOsr) // find the power in this chip
-        + 20 * std::log10(std::pow(2, -13)) - estim::rx_gain
-        - 10 * std::log10(50); // 50-ohm termination
-
-    std::cout << "rx_noise (dbW)= " << noise_rss_dbw << std::endl;
-
-    // Estimated N0 for a 5 MHz bandwidth and 336 chips. The noise equaivalent bandwidth (i.e. the power of the filter is 1 / (5.0e-9 * 336.0))
-    double estimated_N0 = -10 * std::log10(1 / (2.0* 5.0e-9 * 336.0)) + noise_rss_dbw + 30;
-    std::cout << "Estimated N0 (dbm)= " << estimated_N0 << std::endl;
-
-    return noise_rss_dbw;
+    double N0_dbm = rss_dbm + 10 * std::log10((32.0 * 336.0 * 5.0e-9)) - EsN0_db;
+    std::cout << "Estimated N0 (dbm)= " << N0_dbm << std::endl;
+    return N0_dbm;
 }
 
 /**

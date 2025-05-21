@@ -242,8 +242,8 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     // noise estimation-----------------------------------------------------------------------------------------------------------------------
     std::cout << "Running noise estimation..." << std::endl;
     double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2, 16), "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
-    std::cout << "Estimated var= " << var << std::endl;
-    double noise_rss_dbw = estim::CalcNoiseRssDbw(var);
+    std::cout << "Estimated var (should be around 7700 if there is no interference)= " << var << std::endl;
+    // double noise_rss_dbw = estim::CalcNoiseRssDbw(var);
 
     // double var = 0;
     // double noise_rss_dbw = 0;
@@ -325,11 +325,13 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
 
     double EsN0    = estim::CalcChipEsN0(h_hat_fwd, var);
     double rss_dbm = estim::CalcRssdbW(h_hat_fwd) + 30;
+    double N0_dbm = estim::CalcN0dbm(EsN0, rss_dbm);
 
     std::cout << std::dec << "D_test= " << D_test << ", ";
     std::cout << "D_hat_fwd= " << D_hat_fwd << ", ";
     std::cout << "EsN0= " << EsN0 << ", ";
     std::cout << "Estimation rss_adc (dbm)= " << rss_dbm << ", ";
+    std::cout << "Estimation N0 (dbm)= " << N0_dbm << ", ";
     std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd)
               << " arg= " << std::arg(h_hat_fwd) << std::endl;
 
@@ -390,9 +392,9 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     std::cout << "Current signal level h: " << abs(h) << std::endl;
 
     //Interference adjustment
-    double target_intf_rss_dbm = noise_rss_dbw+30 + target_EsN0-target_EsNi;
-    std::cout << "Load interferer with target interference rss (dbm)= " << target_intf_rss_dbm << std::endl;
-    estim::send_message(serverSock, true, intf_rss_dbm, target_intf_rss_dbm-30); //Interferer must have a calibration error.
+    double target_Ni_dbm = N0_dbm + target_EsN0-target_EsNi;
+    std::cout << "Load interferer with target interference rss (dbm)= " << target_Ni_dbm << std::endl;
+    estim::send_message(serverSock, true, intf_rss_dbm, target_Ni_dbm); //Interferer must have a calibration error.
     std::this_thread::sleep_for(std::chrono::milliseconds(5000)); //Need to sleep for at least 500 ms before tx is active
 
     // Test setup------------------------------------------------------------------
@@ -1351,7 +1353,7 @@ for(int test_iter = 0; test_iter<10;test_iter++) {
     bool is_fixed_length = false;
     bool is_intf_mode    = false; //test_iter % 2 == 0;
 
-    int kTargetErrs = 100; // 500;
+    int kTargetErrs = 200; // 500;
     const int kMaxBits  = 1e6; // 1e7;
 
     if (is_fixed_length || !is_intf_mode) {
