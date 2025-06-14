@@ -42,7 +42,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [304, 8.0]
+    coordinate: [304, 12.0]
     rotation: 0
     state: true
 - name: TX_ID
@@ -54,19 +54,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [696, 8.0]
-    rotation: 0
-    state: true
-- name: ch_gain
-  id: variable
-  parameters:
-    comment: ''
-    value: '20'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [560, 8.0]
+    coordinate: [776, 8.0]
     rotation: 0
     state: true
 - name: samp_rate
@@ -78,7 +66,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [208, 8.0]
+    coordinate: [200, 12.0]
     rotation: 0
     state: enabled
 - name: analog_const_source_x_0
@@ -95,7 +83,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [64, 224.0]
+    coordinate: [16, 208.0]
     rotation: 0
     state: true
 - name: blocks_freqshift_cc_0
@@ -112,7 +100,24 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [344, 216.0]
+    coordinate: [296, 200.0]
+    rotation: 0
+    state: true
+- name: ch_gain
+  id: parameter
+  parameters:
+    alias: ''
+    comment: ''
+    hide: none
+    label: Analog Antenna Gain (dB)
+    short_id: ''
+    type: eng_float
+    value: '20'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [568, 8.0]
     rotation: 0
     state: true
 - name: import_0
@@ -247,7 +252,7 @@ blocks:
     center_freq8: '0'
     center_freq9: '0'
     clock_rate: 0e0
-    clock_source0: internal
+    clock_source0: external
     clock_source1: ''
     clock_source2: ''
     clock_source3: ''
@@ -405,7 +410,7 @@ blocks:
     start_time: '-1.0'
     stream_args: ''
     stream_chans: '[]'
-    sync: none
+    sync: sync
     time_source0: ''
     time_source1: ''
     time_source2: ''
@@ -419,7 +424,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [696, 152.0]
+    coordinate: [648, 136.0]
     rotation: 0
     state: true
 

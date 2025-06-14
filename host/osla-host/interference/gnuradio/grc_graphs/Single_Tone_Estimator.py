@@ -29,20 +29,20 @@ import threading
 
 class Single_Tone_Estimator(gr.top_block):
 
-    def __init__(self, tx_freq=2.2e9):
+    def __init__(self, ch_gain=20, tx_freq=2.2e9):
         gr.top_block.__init__(self, "Single_Tone_Estimator", catch_exceptions=True)
         self.flowgraph_started = threading.Event()
 
         ##################################################
         # Parameters
         ##################################################
+        self.ch_gain = ch_gain
         self.tx_freq = tx_freq
 
         ##################################################
         # Variables
         ##################################################
         self.samp_rate = samp_rate = 10000000
-        self.ch_gain = ch_gain = 20
         self.TX_ID = TX_ID = "addr=192.168.10.2"
         self.F_IF = F_IF = 595238
 
@@ -59,9 +59,9 @@ class Single_Tone_Estimator(gr.top_block):
             ),
             "",
         )
-        self.uhd_usrp_sink_0.set_clock_source('internal', 0)
+        self.uhd_usrp_sink_0.set_clock_source('external', 0)
         self.uhd_usrp_sink_0.set_samp_rate(samp_rate)
-        # No synchronization enforced.
+        self.uhd_usrp_sink_0.set_time_unknown_pps(uhd.time_spec(0))
 
         self.uhd_usrp_sink_0.set_center_freq(tx_freq, 0)
         self.uhd_usrp_sink_0.set_antenna("TX/RX", 0)
@@ -78,6 +78,13 @@ class Single_Tone_Estimator(gr.top_block):
         self.connect((self.blocks_freqshift_cc_0, 0), (self.uhd_usrp_sink_0, 0))
 
 
+    def get_ch_gain(self):
+        return self.ch_gain
+
+    def set_ch_gain(self, ch_gain):
+        self.ch_gain = ch_gain
+        self.uhd_usrp_sink_0.set_gain(self.ch_gain, 0)
+
     def get_tx_freq(self):
         return self.tx_freq
 
@@ -92,13 +99,6 @@ class Single_Tone_Estimator(gr.top_block):
         self.samp_rate = samp_rate
         self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_IF/self.samp_rate)
         self.uhd_usrp_sink_0.set_samp_rate(self.samp_rate)
-
-    def get_ch_gain(self):
-        return self.ch_gain
-
-    def set_ch_gain(self, ch_gain):
-        self.ch_gain = ch_gain
-        self.uhd_usrp_sink_0.set_gain(self.ch_gain, 0)
 
     def get_TX_ID(self):
         return self.TX_ID
@@ -118,6 +118,9 @@ class Single_Tone_Estimator(gr.top_block):
 def argument_parser():
     parser = ArgumentParser()
     parser.add_argument(
+        "--ch-gain", dest="ch_gain", type=eng_float, default=eng_notation.num_to_str(float(20)),
+        help="Set Analog Antenna Gain (dB) [default=%(default)r]")
+    parser.add_argument(
         "--tx-freq", dest="tx_freq", type=eng_float, default=eng_notation.num_to_str(float(2.2e9)),
         help="Set Analog Front end Tx frequency [default=%(default)r]")
     return parser
@@ -126,7 +129,7 @@ def argument_parser():
 def main(top_block_cls=Single_Tone_Estimator, options=None):
     if options is None:
         options = argument_parser().parse_args()
-    tb = top_block_cls(tx_freq=options.tx_freq)
+    tb = top_block_cls(ch_gain=options.ch_gain, tx_freq=options.tx_freq)
 
     def sig_handler(sig=None, frame=None):
         tb.stop()
