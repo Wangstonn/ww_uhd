@@ -48,7 +48,7 @@ int connectToServerSock()
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family      = AF_INET;
     server_addr.sin_port        = htons(12345);
-    server_addr.sin_addr.s_addr = inet_addr("141.213.15.85"); // AA4.eecs.umich.edu
+    server_addr.sin_addr.s_addr = inet_addr("141.213.15.219"); // <- hsklabu01 AA4.eecs.umich.edu 141.213.15.85
 
     if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("connect");
@@ -484,38 +484,29 @@ double IntfChEstim(const uhd::usrp::multi_usrp::sptr tx_usrp,
     mmio::WrMmio(tx_usrp, mmio::kDestChipCapEn, 0x0); // capture samples
     std::uint32_t mode_bits{0x0}; // sync mode
 
-    mmio::StartTx(
-        tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, 0x0, 0x0);
+    mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, 0x0, 0x0);
 
     // Make sure dest is done recording before reading
     while (true) {
         mmio::ClearAddrBuffer(tx_usrp);
-        if ((mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr) & mmio::kCapIdxMask)
-            == mmio::kCapMaxNumSamps - 1) // Dest has finished recording
+        if ((mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr) & mmio::kCapIdxMask)== mmio::kCapMaxNumSamps - 1) // Dest has finished recording
             break;
     }
     mmio::ClearAddrBuffer(tx_usrp);
 
     // Read data
-    std::vector<std::complex<double>> cap_samps =
-        mmio::ReadSampleMem(tx_usrp, 0b1, NCapSamps, file);
+    std::vector<std::complex<double>> cap_samps = mmio::ReadSampleMem(tx_usrp, 0b1, NCapSamps, file);
     int N_w = static_cast<int>(cap_samps.size()); // number of captured samples
 
-    std::vector<std::complex<double>> rx_if(N_w); // downconverted rx
+    std::vector<double> rx_if_envelope(N_w); // downconverted rx
     const double pi = std::acos(-1);
     for (int n = 0; n < N_w; ++n) {
-        rx_if[n] = cap_samps[n]
-                   * std::exp(std::complex<double>(0,
-                       -2 * pi / estim::kFwOsr
-                           * n)); // The phase measurement will be off because the two
-                                  // sinusoids are not synced yet
+        rx_if_envelope[n] = std::abs(cap_samps[n] * std::exp(std::complex<double>(0, -2 * pi / estim::kFwOsr * n))); 
     }
 
-    std::complex<double> h_hat =
-        std::accumulate(rx_if.begin(), rx_if.end(), std::complex<double>(0, 0))
-        / static_cast<double>(N_w);
-    std::cout << "h_hat mag: " << std::abs(h_hat) << std::endl;
-    double rss_dbm = CalcRssdbW(h_hat) + 30; // convert to dbm
+    double h_hat_mag = std::accumulate(rx_if_envelope.begin(), rx_if_envelope.end(), double(0)) / static_cast<double>(N_w);
+    std::cout << "h_hat mag: " << h_hat_mag << std::endl;
+    double rss_dbm = CalcRssdbW(std::complex<double>(h_hat_mag,0)) + 30; // convert to dbm
 
     return rss_dbm;
 }

@@ -86,7 +86,7 @@ class AWGN_Interference(gr.top_block):
             ),
             "",
         )
-        self.uhd_usrp_sink_0.set_clock_source('external', 0)
+        self.uhd_usrp_sink_0.set_clock_source('internal', 0)
         self.uhd_usrp_sink_0.set_samp_rate(samp_rate)
         self.uhd_usrp_sink_0.set_time_unknown_pps(uhd.time_spec(0))
 
@@ -219,7 +219,7 @@ def main(top_block_cls=AWGN_Interference, options=None):
     tb.flowgraph_started.set()
     if tb.use_Socket:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.bind(('141.213.15.85', SERVER_PORT))
+        server_socket.bind(('0.0.0.0', SERVER_PORT)) #141.213.15.85 AA4.eecs.umich.edu
         server_socket.listen(1)
         print(f"Server is listening on port {SERVER_PORT}...")
 

@@ -1343,7 +1343,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 for(int test_iter = 0; test_iter<10;test_iter++) {
     std::cout << "Running test " << test_iter << std::endl;
     std::vector<double> EsN0_dbs = {4}; //{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
-    std::vector<double> EsNi_dbs = {35, 30, 25, 20, 15, 10, 5, 0, -5, -10, -15};    //{-15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35}; //{10,15,20,25,30,35};//{0,1,2,3,4,5,6,7}; {3,5,6};//
+    std::vector<double> EsNi_dbs = {-15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35}; //{10,15,20,25,30,35};//{0,1,2,3,4,5,6,7}; {3,5,6};//
     std::vector<double> bers(EsNi_dbs.size(), 0.0);
     std::vector<int> num_errs(EsNi_dbs.size(), 0);
     std::vector<int> num_bits(EsNi_dbs.size(), 0);
@@ -1351,13 +1351,13 @@ for(int test_iter = 0; test_iter<10;test_iter++) {
     std::vector<double> avg_sym_len(EsNi_dbs.size(), 0.0);
 
     bool is_fixed_length = false;
-    bool is_intf_mode    = false; //test_iter % 2 == 0;
+    bool is_intf_mode    = false;
 
     int kTargetErrs = 200; // 500;
     const int kMaxBits  = 1e6; // 1e7;
 
     if (is_fixed_length || !is_intf_mode) {
-        kTargetErrs = 1000;
+        kTargetErrs = 10000;
     }
     
 
@@ -1367,7 +1367,7 @@ for(int test_iter = 0; test_iter<10;test_iter++) {
     if (test_iter == 0 && init_calibration) {
         std::cout << "Estimating Interferer strength..." << std::endl;
 
-        intf_rss_dbm = estim::IntfChEstim(dest_tx_usrp, std::pow(2,15), "../../data/interf_cal_samps.dat");
+        intf_rss_dbm = estim::IntfChEstim(dest_tx_usrp, std::pow(2,15), "../../data/interf_cal_samps.dat")+22.97-113;
 
         std::cout << "Interference rss (dbm)= " << intf_rss_dbm << std::endl;
         std::cout << "Waiting to end sinusoid. Press any key when ready to move on..." << std::endl;

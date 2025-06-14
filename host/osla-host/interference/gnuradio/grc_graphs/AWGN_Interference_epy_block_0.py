@@ -48,17 +48,6 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         #######################
         #Calculate desired P_I#
         #######################
-
-        #Bandwidth of OSLA signal hardcoded here
-        #336 samples/chip
-        #32 chips/symbol
-        #200000000 samples/second
-        #W = 1/R
-        Ts = 336*32/200000000
-        self.BW = 2/Ts
-        
-        #calculate desired interference power to be used in log normal distribution
-        self.lognormVar = 10
         #Es = -171
         #N_I = Es-Es_Ni
         #self.mu = N_I - 10*np.log10(noise_rate*noise_length*np.exp((self.lognormVar*(np.log(10))**2)/200)) + 10*np.log10(self.BW)
@@ -93,15 +82,24 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         except Exception as e:
             raise RuntimeError(f"[NoiseController ERROR] Failed to load PSD: {e}")
 
+        #Bandwidth of OSLA signal hardcoded here
+        #336 samples/chip
+        #32 chips/symbol
+        #200000000 samples/second
+        #W = 1/R
+        Ts = 336*32/200000000
+        self.BW = 2/Ts
 
-        df = 100
-        fs_psd = 10000000
+        df = 100 #resolution of psd file
+        fs_psd = 10000000 #sampling rate used in psd file
         #define gain to have normalized in band power
         #With this gain, we will have normalized digital power and receive ~Pr that we measured
         PSD_i_low  = int(np.round((len(PSD)/2) + (F_of/df) - (self.BW/df)/2) - 1)
         PSD_i_high = int(np.round((len(PSD)/2) + (F_of/df) + (self.BW/df)/2))    
 
         self.G = np.sqrt(1/(df*np.sum(PSD[PSD_i_low:PSD_i_high,0]*fs_psd)))
+        
+        self.lognormVar = 10 #variance of log normal distribution
         
         ##############################
         #set up interferer parameters#
