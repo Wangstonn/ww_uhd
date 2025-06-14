@@ -33,18 +33,6 @@ options:
     state: enabled
 
 blocks:
-- name: CH_gain
-  id: variable
-  parameters:
-    comment: ''
-    value: '20'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [944, 12.0]
-    rotation: 0
-    state: true
 - name: F_IF
   id: variable
   parameters:
@@ -54,7 +42,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [304, 12.0]
+    coordinate: [304, 8.0]
     rotation: 0
     state: true
 - name: TX_ID
@@ -66,7 +54,19 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [760, 12.0]
+    coordinate: [696, 8.0]
+    rotation: 0
+    state: true
+- name: ch_gain
+  id: variable
+  parameters:
+    comment: ''
+    value: '20'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [560, 8.0]
     rotation: 0
     state: true
 - name: samp_rate
@@ -78,7 +78,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [200, 12.0]
+    coordinate: [208, 8.0]
     rotation: 0
     state: enabled
 - name: analog_const_source_x_0
@@ -95,7 +95,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [296, 236.0]
+    coordinate: [64, 224.0]
     rotation: 0
     state: true
 - name: blocks_freqshift_cc_0
@@ -112,24 +112,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [576, 228.0]
-    rotation: 0
-    state: true
-- name: ch_gain
-  id: parameter
-  parameters:
-    alias: ''
-    comment: ''
-    hide: none
-    label: Analog Antenna Gain (dB)
-    short_id: ''
-    type: eng_float
-    value: '20'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [624, 356.0]
+    coordinate: [344, 216.0]
     rotation: 0
     state: true
 - name: import_0
@@ -151,23 +134,6 @@ blocks:
     alias: ''
     comment: ''
     hide: none
-    label: Analog Antenna TX Frequency
-    short_id: ''
-    type: eng_float
-    value: 2.4e9
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [944, 356.0]
-    rotation: 0
-    state: true
-- name: tx_freq
-  id: parameter
-  parameters:
-    alias: ''
-    comment: ''
-    hide: none
     label: Analog Front end Tx frequency
     short_id: ''
     type: eng_float
@@ -176,7 +142,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [520, 36.0]
+    coordinate: [408, 8.0]
     rotation: 0
     state: true
 - name: uhd_usrp_sink_0
@@ -281,7 +247,7 @@ blocks:
     center_freq8: '0'
     center_freq9: '0'
     clock_rate: 0e0
-    clock_source0: external
+    clock_source0: internal
     clock_source1: ''
     clock_source2: ''
     clock_source3: ''
@@ -292,7 +258,7 @@ blocks:
     comment: ''
     dev_addr: TX_ID
     dev_args: ''
-    gain0: CH_gain
+    gain0: ch_gain
     gain1: '0'
     gain10: '0'
     gain11: '0'
@@ -439,7 +405,7 @@ blocks:
     start_time: '-1.0'
     stream_args: ''
     stream_chans: '[]'
-    sync: sync
+    sync: none
     time_source0: ''
     time_source1: ''
     time_source2: ''
@@ -453,7 +419,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [928, 164.0]
+    coordinate: [696, 152.0]
     rotation: 0
     state: true
 
@@ -463,3 +429,4 @@ connections:
 
 metadata:
   file_format: 1
+  grc_version: 3.10.12.0
