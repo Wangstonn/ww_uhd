@@ -64,7 +64,7 @@ blocks:
     alias: ''
     append: 'False'
     comment: ''
-    file: /tmp/samnolan/c16_noise_10M.bin
+    file: ./data/c16_noise_10M.bin
     type: short
     unbuffered: 'False'
     vlen: '2'
