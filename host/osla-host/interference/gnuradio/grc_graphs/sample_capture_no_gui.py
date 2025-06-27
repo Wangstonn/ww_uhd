@@ -63,7 +63,7 @@ class sample_capture_no_gui(gr.top_block):
         self.uhd_usrp_source_0_0.set_antenna("TX/RX", 0)
         self.uhd_usrp_source_0_0.set_bandwidth(160000000, 0)
         self.uhd_usrp_source_0_0.set_gain(0, 0)
-        self.blocks_head_0 = blocks.head(gr.sizeof_short*2, (capture_t*samp_rate))
+        self.blocks_head_0 = blocks.head(gr.sizeof_short*2, (int(capture_t*samp_rate)))
         self.blocks_file_sink_0 = blocks.file_sink(gr.sizeof_short*2, '/tmp/samnolan/c16_noise_10M.bin', False)
         self.blocks_file_sink_0.set_unbuffered(False)
 
@@ -80,7 +80,7 @@ class sample_capture_no_gui(gr.top_block):
 
     def set_capture_t(self, capture_t):
         self.capture_t = capture_t
-        self.blocks_head_0.set_length((self.capture_t*self.samp_rate))
+        self.blocks_head_0.set_length((int(self.capture_t*self.samp_rate)))
 
     def get_tx_freq(self):
         return self.tx_freq
@@ -94,7 +94,7 @@ class sample_capture_no_gui(gr.top_block):
 
     def set_samp_rate(self, samp_rate):
         self.samp_rate = samp_rate
-        self.blocks_head_0.set_length((self.capture_t*self.samp_rate))
+        self.blocks_head_0.set_length((int(self.capture_t*self.samp_rate)))
         self.uhd_usrp_source_0_0.set_samp_rate(self.samp_rate)
 
     def get_RX_ID(self):
