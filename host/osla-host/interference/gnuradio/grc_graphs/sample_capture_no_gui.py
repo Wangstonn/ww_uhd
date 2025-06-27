@@ -27,19 +27,19 @@ import threading
 
 class sample_capture_no_gui(gr.top_block):
 
-    def __init__(self, tx_freq=2.2e9):
+    def __init__(self, capture_t=4, tx_freq=2.2e9):
         gr.top_block.__init__(self, "sample capture", catch_exceptions=True)
         self.flowgraph_started = threading.Event()
 
         ##################################################
         # Parameters
         ##################################################
+        self.capture_t = capture_t
         self.tx_freq = tx_freq
 
         ##################################################
         # Variables
         ##################################################
-        self.time_s = time_s = 4
         self.samp_rate = samp_rate = 10000000
         self.RX_ID = RX_ID = "addr=192.168.10.2"
 
@@ -63,7 +63,7 @@ class sample_capture_no_gui(gr.top_block):
         self.uhd_usrp_source_0_0.set_antenna("TX/RX", 0)
         self.uhd_usrp_source_0_0.set_bandwidth(160000000, 0)
         self.uhd_usrp_source_0_0.set_gain(0, 0)
-        self.blocks_head_0 = blocks.head(gr.sizeof_short*2, (time_s*samp_rate))
+        self.blocks_head_0 = blocks.head(gr.sizeof_short*2, (capture_t*samp_rate))
         self.blocks_file_sink_0 = blocks.file_sink(gr.sizeof_short*2, '/tmp/samnolan/c16_noise_10M.bin', False)
         self.blocks_file_sink_0.set_unbuffered(False)
 
@@ -75,6 +75,13 @@ class sample_capture_no_gui(gr.top_block):
         self.connect((self.uhd_usrp_source_0_0, 0), (self.blocks_head_0, 0))
 
 
+    def get_capture_t(self):
+        return self.capture_t
+
+    def set_capture_t(self, capture_t):
+        self.capture_t = capture_t
+        self.blocks_head_0.set_length((self.capture_t*self.samp_rate))
+
     def get_tx_freq(self):
         return self.tx_freq
 
@@ -82,19 +89,12 @@ class sample_capture_no_gui(gr.top_block):
         self.tx_freq = tx_freq
         self.uhd_usrp_source_0_0.set_center_freq(self.tx_freq, 0)
 
-    def get_time_s(self):
-        return self.time_s
-
-    def set_time_s(self, time_s):
-        self.time_s = time_s
-        self.blocks_head_0.set_length((self.time_s*self.samp_rate))
-
     def get_samp_rate(self):
         return self.samp_rate
 
     def set_samp_rate(self, samp_rate):
         self.samp_rate = samp_rate
-        self.blocks_head_0.set_length((self.time_s*self.samp_rate))
+        self.blocks_head_0.set_length((self.capture_t*self.samp_rate))
         self.uhd_usrp_source_0_0.set_samp_rate(self.samp_rate)
 
     def get_RX_ID(self):
@@ -108,6 +108,9 @@ class sample_capture_no_gui(gr.top_block):
 def argument_parser():
     parser = ArgumentParser()
     parser.add_argument(
+        "--capture-t", dest="capture_t", type=eng_float, default=eng_notation.num_to_str(float(4)),
+        help="Set capture time duration [default=%(default)r]")
+    parser.add_argument(
         "--tx-freq", dest="tx_freq", type=eng_float, default=eng_notation.num_to_str(float(2.2e9)),
         help="Set Analog Front end Tx frequency [default=%(default)r]")
     return parser
@@ -116,7 +119,7 @@ def argument_parser():
 def main(top_block_cls=sample_capture_no_gui, options=None):
     if options is None:
         options = argument_parser().parse_args()
-    tb = top_block_cls(tx_freq=options.tx_freq)
+    tb = top_block_cls(capture_t=options.capture_t, tx_freq=options.tx_freq)
 
     def sig_handler(sig=None, frame=None):
         tb.stop()
