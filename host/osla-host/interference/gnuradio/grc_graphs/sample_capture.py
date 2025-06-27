@@ -28,7 +28,7 @@ import threading
 
 
 
-class Reciever(gr.top_block, Qt.QWidget):
+class sample_capture(gr.top_block, Qt.QWidget):
 
     def __init__(self, tx_freq=2.2e9):
         gr.top_block.__init__(self, "Not titled yet", catch_exceptions=True)
@@ -51,7 +51,7 @@ class Reciever(gr.top_block, Qt.QWidget):
         self.top_grid_layout = Qt.QGridLayout()
         self.top_layout.addLayout(self.top_grid_layout)
 
-        self.settings = Qt.QSettings("gnuradio/flowgraphs", "Reciever")
+        self.settings = Qt.QSettings("gnuradio/flowgraphs", "sample_capture")
 
         try:
             geometry = self.settings.value("geometry")
@@ -162,7 +162,7 @@ class Reciever(gr.top_block, Qt.QWidget):
 
 
     def closeEvent(self, event):
-        self.settings = Qt.QSettings("gnuradio/flowgraphs", "Reciever")
+        self.settings = Qt.QSettings("gnuradio/flowgraphs", "sample_capture")
         self.settings.setValue("geometry", self.saveGeometry())
         self.stop()
         self.wait()
@@ -208,7 +208,7 @@ def argument_parser():
     return parser
 
 
-def main(top_block_cls=Reciever, options=None):
+def main(top_block_cls=sample_capture, options=None):
     if options is None:
         options = argument_parser().parse_args()
 

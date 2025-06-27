@@ -11,7 +11,7 @@ options:
     gen_linking: dynamic
     generate_options: qt_gui
     hier_block_src_path: '.:'
-    id: Reciever
+    id: sample_capture
     max_nouts: '0'
     output_language: python
     placement: (0,0)
@@ -84,7 +84,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [744, 268.0]
+    coordinate: [600, 160.0]
     rotation: 0
     state: true
 - name: blocks_head_0
@@ -102,7 +102,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [520, 284.0]
+    coordinate: [424, 176.0]
     rotation: 0
     state: true
 - name: blocks_interleaved_short_to_complex_0
@@ -120,7 +120,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [656, 452.0]
+    coordinate: [600, 288.0]
     rotation: 0
     state: true
 - name: blocks_vector_to_stream_0
@@ -138,7 +138,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [432, 448.0]
+    coordinate: [424, 288.0]
     rotation: 0
     state: true
 - name: import_0
@@ -248,7 +248,24 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [896, 548.0]
+    coordinate: [800, 280.0]
+    rotation: 0
+    state: true
+- name: tx_freq
+  id: parameter
+  parameters:
+    alias: ''
+    comment: ''
+    hide: none
+    label: Analog Front end Tx frequency
+    short_id: ''
+    type: eng_float
+    value: 2.2e9
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [736, 16.0]
     rotation: 0
     state: true
 - name: uhd_usrp_source_0_0
@@ -320,7 +337,7 @@ blocks:
     bw7: '0'
     bw8: '0'
     bw9: '0'
-    center_freq0: '2400000000'
+    center_freq0: tx_freq
     center_freq1: '0'
     center_freq10: '0'
     center_freq11: '0'
@@ -684,7 +701,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [216, 228.0]
+    coordinate: [120, 132.0]
     rotation: 0
     state: true
 
@@ -697,3 +714,4 @@ connections:
 
 metadata:
   file_format: 1
+  grc_version: 3.10.12.0
