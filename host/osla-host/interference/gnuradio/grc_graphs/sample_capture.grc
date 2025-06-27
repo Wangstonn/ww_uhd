@@ -83,7 +83,7 @@ blocks:
     comment: ''
     maxoutbuf: '0'
     minoutbuf: '0'
-    num_items: capture_t*samp_rate
+    num_items: int(capture_t*samp_rate)
     type: short
     vlen: '2'
   states:

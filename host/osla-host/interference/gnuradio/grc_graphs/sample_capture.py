@@ -146,7 +146,7 @@ class sample_capture(gr.top_block, Qt.QWidget):
         self.top_layout.addWidget(self._qtgui_time_sink_x_0_win)
         self.blocks_vector_to_stream_0 = blocks.vector_to_stream(gr.sizeof_short*2, 1)
         self.blocks_interleaved_short_to_complex_0 = blocks.interleaved_short_to_complex(True, False,1.0)
-        self.blocks_head_0 = blocks.head(gr.sizeof_short*2, (capture_t*samp_rate))
+        self.blocks_head_0 = blocks.head(gr.sizeof_short*2, (int(capture_t*samp_rate)))
         self.blocks_file_sink_0 = blocks.file_sink(gr.sizeof_short*2, '/tmp/samnolan/c16_noise_10M.bin', False)
         self.blocks_file_sink_0.set_unbuffered(False)
 
@@ -174,7 +174,7 @@ class sample_capture(gr.top_block, Qt.QWidget):
 
     def set_capture_t(self, capture_t):
         self.capture_t = capture_t
-        self.blocks_head_0.set_length((self.capture_t*self.samp_rate))
+        self.blocks_head_0.set_length((int(self.capture_t*self.samp_rate)))
 
     def get_tx_freq(self):
         return self.tx_freq
@@ -188,7 +188,7 @@ class sample_capture(gr.top_block, Qt.QWidget):
 
     def set_samp_rate(self, samp_rate):
         self.samp_rate = samp_rate
-        self.blocks_head_0.set_length((self.capture_t*self.samp_rate))
+        self.blocks_head_0.set_length((int(self.capture_t*self.samp_rate)))
         self.qtgui_time_sink_x_0.set_samp_rate(self.samp_rate)
         self.uhd_usrp_source_0_0.set_samp_rate(self.samp_rate)
 
