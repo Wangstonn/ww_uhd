@@ -25,7 +25,7 @@ import threading
 
 
 
-class receiver_cmd_line(gr.top_block):
+class sample_capture_no_gui(gr.top_block):
 
     def __init__(self, tx_freq=2.2e9):
         gr.top_block.__init__(self, "sample capture", catch_exceptions=True)
@@ -113,7 +113,7 @@ def argument_parser():
     return parser
 
 
-def main(top_block_cls=receiver_cmd_line, options=None):
+def main(top_block_cls=sample_capture_no_gui, options=None):
     if options is None:
         options = argument_parser().parse_args()
     tb = top_block_cls(tx_freq=options.tx_freq)
