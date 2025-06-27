@@ -6,51 +6,39 @@
 #
 # GNU Radio Python Flow Graph
 # Title: Not titled yet
-# GNU Radio version: 3.10.1.1
-
-from packaging.version import Version as StrictVersion
-
-if __name__ == '__main__':
-    import ctypes
-    import sys
-    if sys.platform.startswith('linux'):
-        try:
-            x11 = ctypes.cdll.LoadLibrary('libX11.so')
-            x11.XInitThreads()
-        except:
-            print("Warning: failed to XInitThreads()")
+# GNU Radio version: 3.10.12.0
 
 from PyQt5 import Qt
 from gnuradio import qtgui
-from gnuradio.filter import firdes
-import sip
 from gnuradio import blocks
 from gnuradio import gr
+from gnuradio.filter import firdes
 from gnuradio.fft import window
 import sys
 import signal
+from PyQt5 import Qt
 from argparse import ArgumentParser
 from gnuradio.eng_arg import eng_float, intx
 from gnuradio import eng_notation
 from gnuradio import uhd
 import time
 import math
+import sip
+import threading
 
 
-
-from gnuradio import qtgui
 
 class Reciever(gr.top_block, Qt.QWidget):
 
-    def __init__(self):
+    def __init__(self, tx_freq=2.2e9):
         gr.top_block.__init__(self, "Not titled yet", catch_exceptions=True)
         Qt.QWidget.__init__(self)
         self.setWindowTitle("Not titled yet")
         qtgui.util.check_set_qss()
         try:
             self.setWindowIcon(Qt.QIcon.fromTheme('gnuradio-grc'))
-        except:
-            pass
+        except BaseException as exc:
+            print(f"Qt GUI: Could not set Icon: {str(exc)}", file=sys.stderr)
         self.top_scroll_layout = Qt.QVBoxLayout()
         self.setLayout(self.top_scroll_layout)
         self.top_scroll = Qt.QScrollArea()
@@ -63,15 +51,20 @@ class Reciever(gr.top_block, Qt.QWidget):
         self.top_grid_layout = Qt.QGridLayout()
         self.top_layout.addLayout(self.top_grid_layout)
 
-        self.settings = Qt.QSettings("GNU Radio", "Reciever")
+        self.settings = Qt.QSettings("gnuradio/flowgraphs", "Reciever")
 
         try:
-            if StrictVersion(Qt.qVersion()) < StrictVersion("5.0.0"):
-                self.restoreGeometry(self.settings.value("geometry").toByteArray())
-            else:
-                self.restoreGeometry(self.settings.value("geometry"))
-        except:
-            pass
+            geometry = self.settings.value("geometry")
+            if geometry:
+                self.restoreGeometry(geometry)
+        except BaseException as exc:
+            print(f"Qt GUI: Could not restore geometry: {str(exc)}", file=sys.stderr)
+        self.flowgraph_started = threading.Event()
+
+        ##################################################
+        # Parameters
+        ##################################################
+        self.tx_freq = tx_freq
 
         ##################################################
         # Variables
@@ -83,6 +76,7 @@ class Reciever(gr.top_block, Qt.QWidget):
         ##################################################
         # Blocks
         ##################################################
+
         self.uhd_usrp_source_0_0 = uhd.usrp_source(
             ",".join((RX_ID, '')),
             uhd.stream_args(
@@ -95,7 +89,7 @@ class Reciever(gr.top_block, Qt.QWidget):
         self.uhd_usrp_source_0_0.set_samp_rate(samp_rate)
         self.uhd_usrp_source_0_0.set_time_unknown_pps(uhd.time_spec(0))
 
-        self.uhd_usrp_source_0_0.set_center_freq(2400000000, 0)
+        self.uhd_usrp_source_0_0.set_center_freq(tx_freq, 0)
         self.uhd_usrp_source_0_0.set_antenna("TX/RX", 0)
         self.uhd_usrp_source_0_0.set_bandwidth(160000000, 0)
         self.uhd_usrp_source_0_0.set_gain(0, 0)
@@ -152,7 +146,7 @@ class Reciever(gr.top_block, Qt.QWidget):
         self.top_layout.addWidget(self._qtgui_time_sink_x_0_win)
         self.blocks_vector_to_stream_0 = blocks.vector_to_stream(gr.sizeof_short*2, 1)
         self.blocks_interleaved_short_to_complex_0 = blocks.interleaved_short_to_complex(True, False,1.0)
-        self.blocks_head_0 = blocks.head(gr.sizeof_short*2, time_s*samp_rate)
+        self.blocks_head_0 = blocks.head(gr.sizeof_short*2, (time_s*samp_rate))
         self.blocks_file_sink_0 = blocks.file_sink(gr.sizeof_short*2, '/tmp/samnolan/c16_noise_10M.bin', False)
         self.blocks_file_sink_0.set_unbuffered(False)
 
@@ -168,26 +162,33 @@ class Reciever(gr.top_block, Qt.QWidget):
 
 
     def closeEvent(self, event):
-        self.settings = Qt.QSettings("GNU Radio", "Reciever")
+        self.settings = Qt.QSettings("gnuradio/flowgraphs", "Reciever")
         self.settings.setValue("geometry", self.saveGeometry())
         self.stop()
         self.wait()
 
         event.accept()
 
+    def get_tx_freq(self):
+        return self.tx_freq
+
+    def set_tx_freq(self, tx_freq):
+        self.tx_freq = tx_freq
+        self.uhd_usrp_source_0_0.set_center_freq(self.tx_freq, 0)
+
     def get_time_s(self):
         return self.time_s
 
     def set_time_s(self, time_s):
         self.time_s = time_s
-        self.blocks_head_0.set_length(self.time_s*self.samp_rate)
+        self.blocks_head_0.set_length((self.time_s*self.samp_rate))
 
     def get_samp_rate(self):
         return self.samp_rate
 
     def set_samp_rate(self, samp_rate):
         self.samp_rate = samp_rate
-        self.blocks_head_0.set_length(self.time_s*self.samp_rate)
+        self.blocks_head_0.set_length((self.time_s*self.samp_rate))
         self.qtgui_time_sink_x_0.set_samp_rate(self.samp_rate)
         self.uhd_usrp_source_0_0.set_samp_rate(self.samp_rate)
 
@@ -199,17 +200,24 @@ class Reciever(gr.top_block, Qt.QWidget):
 
 
 
+def argument_parser():
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--tx-freq", dest="tx_freq", type=eng_float, default=eng_notation.num_to_str(float(2.2e9)),
+        help="Set Analog Front end Tx frequency [default=%(default)r]")
+    return parser
+
 
 def main(top_block_cls=Reciever, options=None):
+    if options is None:
+        options = argument_parser().parse_args()
 
-    if StrictVersion("4.5.0") <= StrictVersion(Qt.qVersion()) < StrictVersion("5.0.0"):
-        style = gr.prefs().get_string('qtgui', 'style', 'raster')
-        Qt.QApplication.setGraphicsSystem(style)
     qapp = Qt.QApplication(sys.argv)
 
-    tb = top_block_cls()
+    tb = top_block_cls(tx_freq=options.tx_freq)
 
     tb.start()
+    tb.flowgraph_started.set()
 
     tb.show()
 
