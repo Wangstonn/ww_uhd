@@ -34,6 +34,30 @@ options:
     state: enabled
 
 blocks:
+- name: BLE_fd
+  id: variable
+  parameters:
+    comment: BLE frequency deviation
+    value: '250000'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [320, 488.0]
+    rotation: 0
+    state: true
+- name: BLE_sym_length
+  id: variable
+  parameters:
+    comment: ''
+    value: '.000001'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [184, 560.0]
+    rotation: 0
+    state: enabled
 - name: F_If
   id: variable
   parameters:
@@ -43,7 +67,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [416, 8.0]
+    coordinate: [312, 8.0]
     rotation: 0
     state: true
 - name: F_Of
@@ -55,7 +79,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [352, 8.0]
+    coordinate: [248, 8.0]
     rotation: 0
     state: true
 - name: TX_ID
@@ -67,10 +91,10 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1016, 136.0]
+    coordinate: [848, 40.0]
     rotation: 0
     state: true
-- name: samp_rate
+- name: fs
   id: variable
   parameters:
     comment: ''
@@ -82,6 +106,18 @@ blocks:
     coordinate: [160, 8.0]
     rotation: 0
     state: enabled
+- name: sensitivity
+  id: variable
+  parameters:
+    comment: ''
+    value: 2*math.pi*BLE_fd/fs
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [184, 488.0]
+    rotation: 0
+    state: true
 - name: P_received
   id: parameter
   parameters:
@@ -97,7 +133,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [816, 8.0]
+    coordinate: [544, 8.0]
     rotation: 0
     state: true
 - name: P_target
@@ -114,7 +150,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [680, 8.0]
+    coordinate: [408, 8.0]
     rotation: 0
     state: true
 - name: analog_noise_source_x_0
@@ -136,6 +172,26 @@ blocks:
     coordinate: [8, 208.0]
     rotation: 0
     state: enabled
+- name: analog_random_source_x_0
+  id: analog_random_source_x
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    max: '2'
+    maxoutbuf: '0'
+    min: '0'
+    minoutbuf: '0'
+    num_samps: '100000'
+    repeat: 'True'
+    type: byte
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [8, 368.0]
+    rotation: 0
+    state: true
 - name: blocks_freqshift_cc_0
   id: blocks_freqshift_cc
   parameters:
@@ -145,29 +201,37 @@ blocks:
     freq: F_If
     maxoutbuf: '0'
     minoutbuf: '0'
-    sample_rate: samp_rate
+    sample_rate: fs
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [440, 216.0]
+    coordinate: [744, 224.0]
     rotation: 0
     state: true
-- name: blocks_message_debug_0
-  id: blocks_message_debug
+- name: blocks_selector_0
+  id: blocks_selector
   parameters:
     affinity: ''
     alias: ''
     comment: ''
-    en_uvec: 'True'
-    log_level: info
+    enabled: 'True'
+    input_index: selector
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    num_inputs: '2'
+    num_outputs: '1'
+    output_index: '0'
+    showports: 'True'
+    type: complex
+    vlen: '1'
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [736, 344.0]
+    coordinate: [344, 200.0]
     rotation: 0
-    state: true
+    state: enabled
 - name: ch_gain
   id: parameter
   parameters:
@@ -182,7 +246,28 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1016, 208.0]
+    coordinate: [992, 8.0]
+    rotation: 0
+    state: true
+- name: digital_gfsk_mod_0_0_0
+  id: digital_gfsk_mod
+  parameters:
+    affinity: ''
+    alias: ''
+    bt: '0.5'
+    comment: ''
+    do_unpack: 'False'
+    log: 'False'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    samples_per_symbol: round(BLE_sym_length*fs)
+    sensitivity: sensitivity
+    verbose: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [184, 368.0]
     rotation: 0
     state: true
 - name: epy_block_0
@@ -276,7 +361,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [240, 184.0]
+    coordinate: [584, 192.0]
     rotation: 0
     state: true
 - name: import_0
@@ -307,7 +392,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [968, 8.0]
+    coordinate: [696, 8.0]
     rotation: 0
     state: true
 - name: tx_freq
@@ -324,7 +409,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1016, 312.0]
+    coordinate: [1144, 8.0]
     rotation: 0
     state: true
 - name: uhd_usrp_sink_0
@@ -574,7 +659,7 @@ blocks:
     nchan: '1'
     num_mboards: '1'
     otw: ''
-    samp_rate: samp_rate
+    samp_rate: fs
     sd_spec0: ''
     sd_spec1: ''
     sd_spec2: ''
@@ -601,13 +686,16 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [720, 152.0]
+    coordinate: [976, 160.0]
     rotation: 0
     state: true
 
 connections:
-- [analog_noise_source_x_0, '0', epy_block_0, '0']
+- [analog_noise_source_x_0, '0', blocks_selector_0, '0']
+- [analog_random_source_x_0, '0', digital_gfsk_mod_0_0_0, '0']
 - [blocks_freqshift_cc_0, '0', uhd_usrp_sink_0, '0']
+- [blocks_selector_0, '0', epy_block_0, '0']
+- [digital_gfsk_mod_0_0_0, '0', blocks_selector_0, '1']
 - [epy_block_0, '0', blocks_freqshift_cc_0, '0']
 
 metadata:

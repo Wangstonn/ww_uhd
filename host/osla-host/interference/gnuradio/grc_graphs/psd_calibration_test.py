@@ -13,7 +13,8 @@
 from gnuradio import analog
 from gnuradio import blocks
 import math
-from gnuradio import blocks, gr
+import numpy
+from gnuradio import digital
 from gnuradio import gr
 from gnuradio.filter import firdes
 from gnuradio.fft import window
@@ -48,10 +49,13 @@ class psd_calibration_test(gr.top_block):
         ##################################################
         # Variables
         ##################################################
-        self.samp_rate = samp_rate = 10000000
+        self.fs = fs = 10000000
+        self.BLE_fd = BLE_fd = 250000
+        self.sensitivity = sensitivity = 2*math.pi*BLE_fd/fs
         self.TX_ID = TX_ID = "addr=192.168.10.2"
         self.F_Of = F_Of = 0
         self.F_If = F_If = 595238
+        self.BLE_sym_length = BLE_sym_length = .000001
 
         ##################################################
         # Blocks
@@ -67,7 +71,7 @@ class psd_calibration_test(gr.top_block):
             "",
         )
         self.uhd_usrp_sink_0.set_clock_source('external', 0)
-        self.uhd_usrp_sink_0.set_samp_rate(samp_rate)
+        self.uhd_usrp_sink_0.set_samp_rate(fs)
         self.uhd_usrp_sink_0.set_time_unknown_pps(uhd.time_spec(0))
 
         self.uhd_usrp_sink_0.set_center_freq(tx_freq, 0)
@@ -75,16 +79,28 @@ class psd_calibration_test(gr.top_block):
         self.uhd_usrp_sink_0.set_bandwidth(160000000, 0)
         self.uhd_usrp_sink_0.set_gain(ch_gain, 0)
         self.epy_block_0 = epy_block_0.blk(fs=10000000.0, P_received=-44.64, P_target=-126.84, bw=18500.0, fc=F_If + F_Of, selector=selector)
-        self.blocks_message_debug_0 = blocks.message_debug(True, gr.log_levels.info)
-        self.blocks_freqshift_cc_0 = blocks.rotator_cc(2.0*math.pi*F_If/samp_rate)
+        self.digital_gfsk_mod_0_0_0 = digital.gfsk_mod(
+            samples_per_symbol=(round(BLE_sym_length*fs)),
+            sensitivity=sensitivity,
+            bt=0.5,
+            verbose=False,
+            log=False,
+            do_unpack=False)
+        self.blocks_selector_0 = blocks.selector(gr.sizeof_gr_complex*1,selector,0)
+        self.blocks_selector_0.set_enabled(True)
+        self.blocks_freqshift_cc_0 = blocks.rotator_cc(2.0*math.pi*F_If/fs)
+        self.analog_random_source_x_0 = blocks.vector_source_b(list(map(int, numpy.random.randint(0, 2, 100000))), True)
         self.analog_noise_source_x_0 = analog.noise_source_c(analog.GR_GAUSSIAN, 1, 0)
 
 
         ##################################################
         # Connections
         ##################################################
-        self.connect((self.analog_noise_source_x_0, 0), (self.epy_block_0, 0))
+        self.connect((self.analog_noise_source_x_0, 0), (self.blocks_selector_0, 0))
+        self.connect((self.analog_random_source_x_0, 0), (self.digital_gfsk_mod_0_0_0, 0))
         self.connect((self.blocks_freqshift_cc_0, 0), (self.uhd_usrp_sink_0, 0))
+        self.connect((self.blocks_selector_0, 0), (self.epy_block_0, 0))
+        self.connect((self.digital_gfsk_mod_0_0_0, 0), (self.blocks_selector_0, 1))
         self.connect((self.epy_block_0, 0), (self.blocks_freqshift_cc_0, 0))
 
 
@@ -112,6 +128,7 @@ class psd_calibration_test(gr.top_block):
 
     def set_selector(self, selector):
         self.selector = selector
+        self.blocks_selector_0.set_input_index(self.selector)
 
     def get_tx_freq(self):
         return self.tx_freq
@@ -120,13 +137,27 @@ class psd_calibration_test(gr.top_block):
         self.tx_freq = tx_freq
         self.uhd_usrp_sink_0.set_center_freq(self.tx_freq, 0)
 
-    def get_samp_rate(self):
-        return self.samp_rate
+    def get_fs(self):
+        return self.fs
 
-    def set_samp_rate(self, samp_rate):
-        self.samp_rate = samp_rate
-        self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_If/self.samp_rate)
-        self.uhd_usrp_sink_0.set_samp_rate(self.samp_rate)
+    def set_fs(self, fs):
+        self.fs = fs
+        self.set_sensitivity(2*math.pi*self.BLE_fd/self.fs)
+        self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_If/self.fs)
+        self.uhd_usrp_sink_0.set_samp_rate(self.fs)
+
+    def get_BLE_fd(self):
+        return self.BLE_fd
+
+    def set_BLE_fd(self, BLE_fd):
+        self.BLE_fd = BLE_fd
+        self.set_sensitivity(2*math.pi*self.BLE_fd/self.fs)
+
+    def get_sensitivity(self):
+        return self.sensitivity
+
+    def set_sensitivity(self, sensitivity):
+        self.sensitivity = sensitivity
 
     def get_TX_ID(self):
         return self.TX_ID
@@ -145,7 +176,13 @@ class psd_calibration_test(gr.top_block):
 
     def set_F_If(self, F_If):
         self.F_If = F_If
-        self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_If/self.samp_rate)
+        self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_If/self.fs)
+
+    def get_BLE_sym_length(self):
+        return self.BLE_sym_length
+
+    def set_BLE_sym_length(self, BLE_sym_length):
+        self.BLE_sym_length = BLE_sym_length
 
 
 
