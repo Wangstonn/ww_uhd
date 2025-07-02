@@ -70,9 +70,9 @@ class psd_calibration_test(gr.top_block):
             ),
             "",
         )
-        self.uhd_usrp_sink_0.set_clock_source('external', 0)
+        self.uhd_usrp_sink_0.set_clock_source('internal', 0)
         self.uhd_usrp_sink_0.set_samp_rate(fs)
-        self.uhd_usrp_sink_0.set_time_unknown_pps(uhd.time_spec(0))
+        # No synchronization enforced.
 
         self.uhd_usrp_sink_0.set_center_freq(tx_freq, 0)
         self.uhd_usrp_sink_0.set_antenna("TX/RX", 0)
@@ -199,7 +199,7 @@ def argument_parser():
         "--ch-gain", dest="ch_gain", type=eng_float, default=eng_notation.num_to_str(float(20)),
         help="Set Analog Antenna Gain (dB) [default=%(default)r]")
     parser.add_argument(
-        "--selector", dest="selector", type=eng_float, default=eng_notation.num_to_str(float(0)),
+        "--selector", dest="selector", type=intx, default=0,
         help="Set selector (int): Selects which PSD file to load. 0 = AWGN PSD, 1 = BLE PSD [default=%(default)r]")
     parser.add_argument(
         "--tx-freq", dest="tx_freq", type=eng_float, default=eng_notation.num_to_str(float(2.2e9)),
