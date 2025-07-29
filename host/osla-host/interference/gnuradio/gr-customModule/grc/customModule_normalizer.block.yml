@@ -1,0 +1,81 @@
+id: customModule_normalizer
+label: normalizer
+category: '[customModule]'
+
+templates:
+  imports: from gnuradio import customModule
+  make: customModule.normalizer(${fs}, ${P_received}, ${P_target}, ${bw}, ${fc}, ${selector})
+
+#  Make one 'parameters' list entry for every parameter you want settable from the GUI.
+#     Keys include:
+#     * id (makes the value accessible as keyname, e.g. in the make entry)
+#     * label (label shown in the GUI)
+#     * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
+#     * default
+parameters:
+- id: fs
+  label: Sampling Frequency (Hz)
+  dtype: float
+  default: 10e6
+
+- id: P_received
+  label: Received Power (dB)
+  dtype: float
+  default: -44.64
+
+- id: P_target
+  label: Target Power (dB)
+  dtype: float
+  default: -126.84
+
+- id: bw
+  label: Bandwidth (Hz)
+  dtype: float
+  default: 18500.0
+
+- id: fc
+  label: Center Frequency (Hz)
+  dtype: float
+  default: 595000.0
+
+- id: selector
+  label: PSD File Selector (0 = AWGN, 1 = BLE)
+  dtype: int
+  default: 0
+
+#- id: ...
+#  label: ...
+#  dtype: ...
+
+#  Make one 'inputs' list entry per input and one 'outputs' list entry per output.
+#  Keys include:
+#      * label (an identifier for the GUI)
+#      * domain (optional - stream or message. Default is stream)
+#      * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
+#      * vlen (optional - data stream vector length. Default is 1)
+#      * optional (optional - set to 1 for optional inputs. Default is 0)
+inputs:
+- label: in0
+  domain: stream
+  dtype: complex
+
+#- label: ...
+#  domain: ...
+#  dtype: ...
+#  vlen: ...
+#  optional: ...
+
+outputs:
+- label: out0
+  domain: stream
+  dtype: complex
+
+#- label: ...
+#  domain: ...
+#  dtype: ...
+#  vlen: ...
+#  optional: ...
+
+#  'file_format' specifies the version of the GRC yml format used in the file
+#  and should usually not be changed.
+file_format: 1

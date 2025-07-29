@@ -33,7 +33,7 @@ import threading
 
 class psd_calibration_test(gr.top_block):
 
-    def __init__(self, P_received=(-44.64), P_target=(-126), ch_gain=20, selector=0, tx_freq=2.2e9):
+    def __init__(self, P_received=(  -72.51), P_target=(-100), ch_gain=0, selector=0, tx_freq=2.2e9):
         gr.top_block.__init__(self, "psd_calibration_test", catch_exceptions=True)
         self.flowgraph_started = threading.Event()
 
@@ -78,7 +78,7 @@ class psd_calibration_test(gr.top_block):
         self.uhd_usrp_sink_0.set_antenna("TX/RX", 0)
         self.uhd_usrp_sink_0.set_bandwidth(160000000, 0)
         self.uhd_usrp_sink_0.set_gain(ch_gain, 0)
-        self.epy_block_0 = epy_block_0.blk(fs=10000000.0, P_received=-44.64, P_target=-126.84, bw=18500.0, fc=F_If + F_Of, selector=selector)
+        self.epy_block_0 = epy_block_0.blk(fs=fs, P_received=P_received, P_target=P_target, bw=200e6/(336*32)*2, fc=F_Of, selector=selector)
         self.digital_gfsk_mod_0_0_0 = digital.gfsk_mod(
             samples_per_symbol=(round(BLE_sym_length*fs)),
             sensitivity=sensitivity,
@@ -109,12 +109,14 @@ class psd_calibration_test(gr.top_block):
 
     def set_P_received(self, P_received):
         self.P_received = P_received
+        self.epy_block_0.P_received = self.P_received
 
     def get_P_target(self):
         return self.P_target
 
     def set_P_target(self, P_target):
         self.P_target = P_target
+        self.epy_block_0.P_target = self.P_target
 
     def get_ch_gain(self):
         return self.ch_gain
@@ -144,6 +146,7 @@ class psd_calibration_test(gr.top_block):
         self.fs = fs
         self.set_sensitivity(2*math.pi*self.BLE_fd/self.fs)
         self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_If/self.fs)
+        self.epy_block_0.fs = self.fs
         self.uhd_usrp_sink_0.set_samp_rate(self.fs)
 
     def get_BLE_fd(self):
@@ -190,13 +193,13 @@ def argument_parser():
     description = 'Transmits constant interference for a target noise level. Used to verify the psd logic is correct.'
     parser = ArgumentParser(description=description)
     parser.add_argument(
-        "--P-received", dest="P_received", type=eng_float, default=eng_notation.num_to_str(float((-44.64))),
+        "--P-received", dest="P_received", type=eng_float, default=eng_notation.num_to_str(float((  -72.51))),
         help="Set P_received (float): Measured received power of unit power sinusoid at receiver in dBm. [default=%(default)r]")
     parser.add_argument(
-        "--P-target", dest="P_target", type=eng_float, default=eng_notation.num_to_str(float((-126))),
+        "--P-target", dest="P_target", type=eng_float, default=eng_notation.num_to_str(float((-100))),
         help="Set         P_target (float): Target power level for normalization in dBm. [default=%(default)r]")
     parser.add_argument(
-        "--ch-gain", dest="ch_gain", type=eng_float, default=eng_notation.num_to_str(float(20)),
+        "--ch-gain", dest="ch_gain", type=eng_float, default=eng_notation.num_to_str(float(0)),
         help="Set Analog Antenna Gain (dB) [default=%(default)r]")
     parser.add_argument(
         "--selector", dest="selector", type=intx, default=0,

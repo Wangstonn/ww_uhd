@@ -128,7 +128,7 @@ blocks:
       receiver in dBm.'
     short_id: ''
     type: eng_float
-    value: '  -72.51'
+    value: '-44.64'
   states:
     bus_sink: false
     bus_source: false
@@ -145,7 +145,7 @@ blocks:
     label: '        P_target (float): Target power level for normalization in dBm.'
     short_id: ''
     type: eng_float
-    value: '-100'
+    value: '-126'
   states:
     bus_sink: false
     bus_source: false
@@ -241,7 +241,7 @@ blocks:
     label: Analog Antenna Gain (dB)
     short_id: ''
     type: eng_float
-    value: '0'
+    value: '20'
   states:
     bus_sink: false
     bus_source: false
@@ -273,8 +273,8 @@ blocks:
 - name: epy_block_0
   id: epy_block
   parameters:
-    P_received: P_received
-    P_target: P_target
+    P_received: '-44.64'
+    P_target: '-126.84'
     _source_code: "\"\"\"\nEmbedded Python Blocks:\n\nThis block is a stand-alone\
       \ block that takes in 1 BLE interferer to test \nnormalizing in band noise capabilities\n\
       \n\"\"\"\n\nimport numpy as np\nfrom gnuradio import gr\n\nimport os # To load\
@@ -304,18 +304,13 @@ blocks:
       \            out_sig=[np.complex64]\n        )\n        # Persistent parameters\
       \ needed during work()\n        self.fs = fs\n        self.P_received = P_received\n\
       \        self.P_target = P_target\n\n        #generate normalizer gain from\
-      \ LUT\n        match selector:\n            case 0:\n                base_dir\
-      \ = os.path.abspath(os.path.join(os.getcwd(), \"..\", \"..\"))\n           \
-      \     PSD_path = os.path.join(base_dir, \"matlab\", \"psd\", \"awgn_psd.csv\"\
-      )\n                #PSD_path = os.path.join(os.path.dirname(__file__), \"../../matlab/psd/awgn_psd.csv\"\
+      \ LUT\n        match selector:\n            case 0:\n                #PSD_path\
+      \ = os.path.join(os.path.dirname(__file__), \"../../matlab/psd/awgn_psd.csv\"\
       ) #'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/gaussian_PSD.csv'\n\
-      \                #PSD_path = 'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/psd/awgn_psd.csv'\n\
-      \            case 1:\n                base_dir = os.path.abspath(os.path.join(os.getcwd(),\
-      \ \"..\", \"..\"))\n                PSD_path = os.path.join(base_dir, \"matlab\"\
-      , \"psd\", \"ble_psd.csv\")                \n#PSD_path = os.path.join(os.getcwd(),\
-      \ \"matlab\", \"psd\", \"ble_psd.csv\")\n                 #PSD_path = os.path.join(os.path.dirname(__file__),\
+      \                PSD_path = 'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/psd/awgn_psd.csv'\n\
+      \            case 1:\n                # PSD_path = os.path.join(os.path.dirname(__file__),\
       \ \"../../matlab/psd/ble_psd.csv\") #'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/gaussian_PSD.csv'\n\
-      \                #PSD_path = 'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/psd/ble_psd.csv'\n\
+      \                PSD_path = 'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/psd/ble_psd.csv'\n\
       \            case _:\n                raise ValueError(\"Selector must be 0\
       \ or 1, got {}\".format(selector))\n\n        PSD = None  # prevent undefined\
       \ var\n\n        try:\n            PSD_file = Path(PSD_path)\n            if\
@@ -329,17 +324,16 @@ blocks:
       \ to match the target received power\n        df = 100\n        #fs_psd = 10000000\n\
       \        PSD_i_low  = int(np.round((len(PSD)/2) + (fc/df) - (bw/df)/2) - 1)\n\
       \        PSD_i_high = int(np.round((len(PSD)/2) + (fc/df) + (bw/df)/2))    \n\
-      \n        # in band power = sum(PSD)*df*fs\n        P_band = df*np.sum(PSD[PSD_i_low:PSD_i_high,0])#*fs)\n\
-      \        self.G = np.sqrt(1/(P_band))\n        print(\"Gain: \", self.G*10**((self.P_target-self.P_received)/20))\n\
-      \n    def work(self, input_items, output_items):\n        output_items[0][:]\
-      \ = self.G*10**((self.P_target-self.P_received)/20)*input_items[0]\n       \
-      \ return len(output_items[0])\n"
+      \n        # in band power = sum(PSD)*df*fs\n        P_band = df*np.sum(PSD[PSD_i_low:PSD_i_high,0]*fs)\n\
+      \        self.G = np.sqrt(1/(P_band))\n\n\n    def work(self, input_items, output_items):\n\
+      \        output_items[0][:] = self.G*10**((self.P_target-self.P_received)/20)*input_items[0]\n\
+      \        return len(output_items[0])\n"
     affinity: ''
     alias: ''
-    bw: 200e6/(336*32)*2
+    bw: '18500.0'
     comment: ''
-    fc: F_Of
-    fs: fs
+    fc: F_If + F_Of
+    fs: '10000000.0'
     maxoutbuf: '0'
     minoutbuf: '0'
     selector: selector
@@ -367,9 +361,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [584, 192.0]
+    coordinate: [640, 368.0]
     rotation: 0
-    state: true
+    state: disabled
 - name: import_0
   id: import
   parameters:
@@ -393,7 +387,7 @@ blocks:
       PSD'
     short_id: ''
     type: intx
-    value: '0'
+    value: '1'
   states:
     bus_sink: false
     bus_source: false
@@ -700,9 +694,8 @@ connections:
 - [analog_noise_source_x_0, '0', blocks_selector_0, '0']
 - [analog_random_source_x_0, '0', digital_gfsk_mod_0_0_0, '0']
 - [blocks_freqshift_cc_0, '0', uhd_usrp_sink_0, '0']
-- [blocks_selector_0, '0', epy_block_0, '0']
+- [blocks_selector_0, '0', blocks_freqshift_cc_0, '0']
 - [digital_gfsk_mod_0_0_0, '0', blocks_selector_0, '1']
-- [epy_block_0, '0', blocks_freqshift_cc_0, '0']
 
 metadata:
   file_format: 1

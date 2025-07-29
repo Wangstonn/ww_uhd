@@ -5,14 +5,13 @@
 # SPDX-License-Identifier: GPL-3.0
 #
 # GNU Radio Python Flow Graph
-# Title: BLE_Interference
+# Title: AWGN_Interference
 # GNU Radio version: 3.10.12.0
 
+from gnuradio import analog
 from gnuradio import blocks
 import math
-import numpy
 from gnuradio import blocks, gr
-from gnuradio import digital
 from gnuradio import gr
 from gnuradio.filter import firdes
 from gnuradio.fft import window
@@ -23,7 +22,7 @@ from gnuradio.eng_arg import eng_float, intx
 from gnuradio import eng_notation
 from gnuradio import uhd
 import time
-import BLE_Interference_epy_block_0 as epy_block_0  # embedded python block
+import AWGN_Interference_epy_block_0 as epy_block_0  # embedded python block
 import threading
 
 import os
@@ -50,27 +49,25 @@ target_intf_rss_dbm: {self.target_intf_rss_dbm}
 """
 
 
-class BLE_Interference(gr.top_block):
+class AWGN_Interference(gr.top_block):
 
-    def __init__(self, ch_gain=0, P_target = -40, P_received = -72.52, tx_freq=2.2e9, use_Socket=1):
-        gr.top_block.__init__(self, "BLE_Interference", catch_exceptions=True)
+    def __init__(self, ch_gain=20, estPr=(-86.98), targPi=(-125), tx_freq=2.2e9, use_Socket=1):
+        gr.top_block.__init__(self, "AWGN_Interference", catch_exceptions=True)
         self.flowgraph_started = threading.Event()
 
         ##################################################
         # Parameters
         ##################################################
-        self.P_received = P_received
-        self.P_target = P_target
         self.ch_gain = ch_gain
+        self.estPr = estPr
+        self.targPi = targPi
         self.tx_freq = tx_freq
         self.use_Socket = use_Socket
 
         ##################################################
         # Variables
         ##################################################
-        self.fs = fs = 10000000
-        self.BLE_fd = BLE_fd = 250000
-        self.sensitivity = sensitivity = 2*math.pi*BLE_fd/fs
+        self.samp_rate = samp_rate = 10000000
         self.TX_ID = TX_ID = "addr=192.168.10.2"
         self.F_Of = F_Of = 0
         self.F_IF = F_IF = 595238
@@ -90,69 +87,31 @@ class BLE_Interference(gr.top_block):
             "",
         )
         self.uhd_usrp_sink_0.set_clock_source('internal', 0)
-        self.uhd_usrp_sink_0.set_samp_rate(fs)
-        # No synchronization enforced.
+        self.uhd_usrp_sink_0.set_samp_rate(samp_rate)
+        self.uhd_usrp_sink_0.set_time_unknown_pps(uhd.time_spec(0))
 
         self.uhd_usrp_sink_0.set_center_freq(tx_freq, 0)
         self.uhd_usrp_sink_0.set_antenna("TX/RX", 0)
         self.uhd_usrp_sink_0.set_bandwidth(160000000, 0)
         self.uhd_usrp_sink_0.set_gain(ch_gain, 0)
-        self.epy_block_0 = epy_block_0.blk(fs=fs, poisson_intensity=200, pkt_len=2e-3, P_target=P_target, P_received=P_received, fc=F_Of)
-        self.digital_gfsk_mod_0_0_0_1 = digital.gfsk_mod(
-            samples_per_symbol=(round(BLE_sym_length*fs)),
-            sensitivity=sensitivity,
-            bt=0.5,
-            verbose=False,
-            log=False,
-            do_unpack=False)
-        self.digital_gfsk_mod_0_0_0_0 = digital.gfsk_mod(
-            samples_per_symbol=(round(BLE_sym_length*fs)),
-            sensitivity=sensitivity,
-            bt=0.5,
-            verbose=False,
-            log=False,
-            do_unpack=False)
-        self.digital_gfsk_mod_0_0_0 = digital.gfsk_mod(
-            samples_per_symbol=(round(BLE_sym_length*fs)),
-            sensitivity=sensitivity,
-            bt=0.5,
-            verbose=False,
-            log=False,
-            do_unpack=False)
-        self.blocks_message_debug_0 = blocks.message_debug()
-        self.blocks_freqshift_cc_0 = blocks.rotator_cc(2.0*math.pi*F_IF/fs)
-        self.analog_random_source_x_0_1 = blocks.vector_source_b(list(map(int, numpy.random.randint(0, 2, 100000))), True)
-        self.analog_random_source_x_0_0 = blocks.vector_source_b(list(map(int, numpy.random.randint(0, 2, 100000))), True)
-        self.analog_random_source_x_0 = blocks.vector_source_b(list(map(int, numpy.random.randint(0, 2, 100000))), True)
+        self.epy_block_0 = epy_block_0.blk(sampling_rate=samp_rate, noise_intensity=200, noise_length=.002, target_Pi=targPi, estimated_Pr=estPr, F_of=F_Of)
+        self.blocks_message_debug_0 = blocks.message_debug(True, gr.log_levels.info)
+        self.blocks_freqshift_cc_0 = blocks.rotator_cc(2.0*math.pi*F_IF/samp_rate)
+        self.analog_noise_source_x_0_1 = analog.noise_source_c(analog.GR_GAUSSIAN, 1, 2)
+        self.analog_noise_source_x_0_0 = analog.noise_source_c(analog.GR_GAUSSIAN, 1, 1)
+        self.analog_noise_source_x_0 = analog.noise_source_c(analog.GR_GAUSSIAN, 1, 0)
 
 
         ##################################################
         # Connections
         ##################################################
         self.msg_connect((self.epy_block_0, 'Debug'), (self.blocks_message_debug_0, 'print'))
-        self.connect((self.analog_random_source_x_0, 0), (self.digital_gfsk_mod_0_0_0, 0))
-        self.connect((self.analog_random_source_x_0_0, 0), (self.digital_gfsk_mod_0_0_0_0, 0))
-        self.connect((self.analog_random_source_x_0_1, 0), (self.digital_gfsk_mod_0_0_0_1, 0))
+        self.connect((self.analog_noise_source_x_0, 0), (self.epy_block_0, 0))
+        self.connect((self.analog_noise_source_x_0_0, 0), (self.epy_block_0, 1))
+        self.connect((self.analog_noise_source_x_0_1, 0), (self.epy_block_0, 2))
         self.connect((self.blocks_freqshift_cc_0, 0), (self.uhd_usrp_sink_0, 0))
-        self.connect((self.digital_gfsk_mod_0_0_0, 0), (self.epy_block_0, 0))
-        self.connect((self.digital_gfsk_mod_0_0_0_0, 0), (self.epy_block_0, 1))
-        self.connect((self.digital_gfsk_mod_0_0_0_1, 0), (self.epy_block_0, 2))
         self.connect((self.epy_block_0, 0), (self.blocks_freqshift_cc_0, 0))
 
-
-    def get_P_received(self):
-        return self.P_received
-
-    def set_P_received(self, P_received):
-        self.P_received = P_received
-        self.epy_block_0.P_received = self.P_received
-
-    def get_P_target(self):
-        return self.P_target
-
-    def set_P_target(self, P_target):
-        self.P_target = P_target
-        self.epy_block_0.P_target = self.P_target
 
     def get_ch_gain(self):
         return self.ch_gain
@@ -160,6 +119,18 @@ class BLE_Interference(gr.top_block):
     def set_ch_gain(self, ch_gain):
         self.ch_gain = ch_gain
         self.uhd_usrp_sink_0.set_gain(self.ch_gain, 0)
+
+    def get_estPr(self):
+        return self.estPr
+
+    def set_estPr(self, estPr):
+        self.estPr = estPr
+
+    def get_targPi(self):
+        return self.targPi
+
+    def set_targPi(self, targPi):
+        self.targPi = targPi
 
     def get_tx_freq(self):
         return self.tx_freq
@@ -174,27 +145,14 @@ class BLE_Interference(gr.top_block):
     def set_use_Socket(self, use_Socket):
         self.use_Socket = use_Socket
 
-    def get_fs(self):
-        return self.fs
+    def get_samp_rate(self):
+        return self.samp_rate
 
-    def set_fs(self, fs):
-        self.fs = fs
-        self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_IF/self.fs)
-        self.epy_block_0.fs = self.fs
-        self.uhd_usrp_sink_0.set_samp_rate(self.fs)
-
-    def get_BLE_fd(self):
-        return self.BLE_fd
-
-    def set_BLE_fd(self, BLE_fd):
-        self.BLE_fd = BLE_fd
-        self.set_sensitivity(2*math.pi*self.BLE_fd/self.samp_rate)
-
-    def get_sensitivity(self):
-        return self.sensitivity
-
-    def set_sensitivity(self, sensitivity):
-        self.sensitivity = sensitivity
+    def set_samp_rate(self, samp_rate):
+        self.samp_rate = samp_rate
+        self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_IF/self.samp_rate)
+        self.epy_block_0.sampling_rate = self.samp_rate
+        self.uhd_usrp_sink_0.set_samp_rate(self.samp_rate)
 
     def get_TX_ID(self):
         return self.TX_ID
@@ -213,7 +171,7 @@ class BLE_Interference(gr.top_block):
 
     def set_F_IF(self, F_IF):
         self.F_IF = F_IF
-        self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_IF/self.fs)
+        self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_IF/self.samp_rate)
 
     def get_BLE_sym_length(self):
         return self.BLE_sym_length
@@ -226,14 +184,14 @@ class BLE_Interference(gr.top_block):
 def argument_parser():
     parser = ArgumentParser()
     parser.add_argument(
-        "--P-received", dest="P_received", type=eng_float, default=eng_notation.num_to_str(float((-72.52))),
-        help="Set P_received [default=%(default)r]")
-    parser.add_argument(
-        "--P-target", dest="P_target", type=eng_float, default=eng_notation.num_to_str(float((-40))),
-        help="Set P_target [default=%(default)r]")
-    parser.add_argument(
-        "--ch-gain", dest="ch_gain", type=eng_float, default=eng_notation.num_to_str(float(0)),
+        "--ch-gain", dest="ch_gain", type=eng_float, default=eng_notation.num_to_str(float(20)),
         help="Set Analog Antenna Gain (dB) [default=%(default)r]")
+    parser.add_argument(
+        "--estPr", dest="estPr", type=eng_float, default=eng_notation.num_to_str(float((-86.98))),
+        help="Set estimated_Pr [default=%(default)r]")
+    parser.add_argument(
+        "--targPi", dest="targPi", type=eng_float, default=eng_notation.num_to_str(float((-125))),
+        help="Set target_Pi [default=%(default)r]")
     parser.add_argument(
         "--tx-freq", dest="tx_freq", type=eng_float, default=eng_notation.num_to_str(float(2.2e9)),
         help="Set Analog Frontend Tx frequency [default=%(default)r]")
@@ -243,10 +201,10 @@ def argument_parser():
     return parser
 
 
-def main(top_block_cls=BLE_Interference, options=None):
+def main(top_block_cls=AWGN_Interference, options=None):
     if options is None:
         options = argument_parser().parse_args()
-    tb = top_block_cls(P_received=options.P_received, P_target=options.P_target, ch_gain=options.ch_gain, tx_freq=options.tx_freq, use_Socket=options.use_Socket)
+    tb = top_block_cls(ch_gain=options.ch_gain, estPr=options.estPr, targPi=options.targPi, tx_freq=options.tx_freq, use_Socket=options.use_Socket)
 
     def sig_handler(sig=None, frame=None):
         tb.stop()
@@ -286,10 +244,6 @@ def main(top_block_cls=BLE_Interference, options=None):
                         print(f"Closing connection to {client_socket.getpeername()}")
                         sel.unregister(client_socket)
                         client_socket.close()
-    else:
-        tb.flowgraph_started.wait()
-        print("Activating module without socket...")
-        tb.epy_block_0.update_params(True, tb.P_target, tb.P_received)
 
     tb.wait()
 

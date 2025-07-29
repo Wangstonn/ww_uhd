@@ -393,8 +393,10 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
 
     //Interference adjustment
     double target_Ni_dbm = N0_dbm + target_EsN0-target_EsNi;
-    std::cout << "Load interferer with target interference rss (dbm)= " << target_Ni_dbm << std::endl;
-    estim::send_message(serverSock, true, intf_rss_dbm, target_Ni_dbm); //Interferer must have a calibration error.
+    std::cout << "Load interferer with target interference Ni (dbm/Hz)= " << target_Ni_dbm << std::endl;
+    std::cout << "Load interferer with target interference Pi (dbm/Hz)= " << target_Pi_dbm << std::endl;
+    double target_Pi_dbm = target_Ni_dbm + 10*log10(2*200e6/(336*32))
+    estim::send_message(serverSock, true, intf_rss_dbm, target_Pi_dbm); //Interferer must have a calibration error.
     std::this_thread::sleep_for(std::chrono::milliseconds(5000)); //Need to sleep for at least 500 ms before tx is active
 
     // Test setup------------------------------------------------------------------
@@ -996,8 +998,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             0); // save_rx = 0 so that we dont create a huge file
     });
 
-    // Dest
-    // config-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    // Dest config-------------------------------------------------------------------------------------------------------------------------------------------------------------------
     //  create a usrp device
     std::cout << std::endl;
     std::cout << boost::format("Creating the dest transmit usrp device with: %s...")
@@ -1150,7 +1151,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                   << std::endl;
 
         // set the receive rf gain ubx range: 0-31.5dB
-        if (vm.count("rx-gain")) {
+        // if (vm.count("rx-gain")) {
             std::cout << boost::format("Setting RX Gain: %f dB...") % dest_rx_gain
                       << std::endl;
             dest_rx_usrp->set_rx_gain(dest_rx_gain, channel);
@@ -1158,7 +1159,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                              % dest_rx_usrp->get_rx_gain(channel)
                       << std::endl
                       << std::endl;
-        }
+        // }
 
         // set the receive analog frontend filter bandwidth
         if (vm.count("rx-bw")) {
@@ -1367,7 +1368,7 @@ for(int test_iter = 0; test_iter<10;test_iter++) {
     if (test_iter == 0 && init_calibration) {
         std::cout << "Estimating Interferer strength..." << std::endl;
 
-        intf_rss_dbm = estim::IntfChEstim(dest_tx_usrp, std::pow(2,15), "../../data/interf_cal_samps.dat")+22.97-113;
+        intf_rss_dbm = estim::IntfChEstim(dest_tx_usrp, std::pow(2,15), "../../data/interf_cal_samps.dat");
 
         std::cout << "Interference rss (dbm)= " << intf_rss_dbm << std::endl;
         std::cout << "Waiting to end sinusoid. Press any key when ready to move on..." << std::endl;

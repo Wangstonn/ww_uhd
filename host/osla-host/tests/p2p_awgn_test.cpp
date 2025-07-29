@@ -1339,7 +1339,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     
  for(int test_iter = 0; test_iter<10;test_iter++) {
     std::cout << "Running test " << test_iter << std::endl;
-    std::vector<double> EsN0_dbs = {5,4,3,2,1,0};//{4,0,1,2,3,5};//{0, 1, 2, 3, 4, 5, 6}; //{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
+    std::vector<double> EsN0_dbs = {0, 1, 2, 3, 4, 5, 6}; //{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
     std::vector<double> bers(EsN0_dbs.size(), 0.0);
     std::vector<int> num_errs(EsN0_dbs.size(), 0);
     std::vector<int> num_bits(EsN0_dbs.size(), 0);
@@ -1350,7 +1350,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     const int kMaxBits    = 1e6; // 1e7;
 
     bool is_fixed_length = false;
-    bool is_intf_mode    = true;
+    bool is_intf_mode    = false;
 
     // Include for file operations
     std::ofstream results_file("ber_results.txt");

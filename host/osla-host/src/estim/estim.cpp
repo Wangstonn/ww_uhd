@@ -21,9 +21,9 @@
 
 namespace estim {
 
-bool send_message(int sock, bool event, double intf_rss_dbm, double target_intf_rss_dbm)
+bool send_message(int sock, bool event, double P_received, double P_target)
 {
-    MSG_t msg = {event, intf_rss_dbm, target_intf_rss_dbm};
+    MSG_t msg = {event, P_received, P_target};
 
     int sent = send(sock, &msg, sizeof(msg), 0);
     if (sent < 0) {
@@ -930,7 +930,6 @@ double CalcN0dbm(double EsN0_db, double rss_dbm)
  */
 double CalcRssdbW(std::complex<double> h_hat)
 {
-    // rx_gain used to be 41.81 not sure why this changed
     double rss_dbW = 20 * log10(std::abs(h_hat) * std::pow(2, -13)) - estim::rx_gain
                      - 10 * log10(50); // 50 ohm resistor at end
     // std::cout << "Estimated rss (dbW)= " << rss_dbW << std::endl;

@@ -51,23 +51,23 @@ target_intf_rss_dbm: {self.target_intf_rss_dbm}
 
 class AWGN_Interference(gr.top_block):
 
-    def __init__(self, ch_gain=20, estPr=(-86.98), targPi=(-125), tx_freq=2.2e9, use_Socket=1):
+    def __init__(self, ch_gain=0, P_target = -40, P_received = -72.52, tx_freq=2.2e9, use_Socket=1):
         gr.top_block.__init__(self, "AWGN_Interference", catch_exceptions=True)
         self.flowgraph_started = threading.Event()
 
         ##################################################
         # Parameters
         ##################################################
+        self.P_received = P_received
+        self.P_target = P_target
         self.ch_gain = ch_gain
-        self.estPr = estPr
-        self.targPi = targPi
         self.tx_freq = tx_freq
         self.use_Socket = use_Socket
 
         ##################################################
         # Variables
         ##################################################
-        self.samp_rate = samp_rate = 10000000
+        self.fs = fs = 10000000
         self.TX_ID = TX_ID = "addr=192.168.10.2"
         self.F_Of = F_Of = 0
         self.F_IF = F_IF = 595238
@@ -87,16 +87,16 @@ class AWGN_Interference(gr.top_block):
             "",
         )
         self.uhd_usrp_sink_0.set_clock_source('internal', 0)
-        self.uhd_usrp_sink_0.set_samp_rate(samp_rate)
-        self.uhd_usrp_sink_0.set_time_unknown_pps(uhd.time_spec(0))
+        self.uhd_usrp_sink_0.set_samp_rate(fs)
+        # No synchronization enforced.
 
         self.uhd_usrp_sink_0.set_center_freq(tx_freq, 0)
         self.uhd_usrp_sink_0.set_antenna("TX/RX", 0)
         self.uhd_usrp_sink_0.set_bandwidth(160000000, 0)
         self.uhd_usrp_sink_0.set_gain(ch_gain, 0)
-        self.epy_block_0 = epy_block_0.blk(sampling_rate=samp_rate, noise_intensity=200, noise_length=.002, target_Pi=targPi, estimated_Pr=estPr, F_of=F_Of)
+        self.epy_block_0 = epy_block_0.blk(fs=fs, poisson_intensity=200, pkt_len=2e-3, P_target=P_target, P_received=P_received, fc=F_Of)
         self.blocks_message_debug_0 = blocks.message_debug(True, gr.log_levels.info)
-        self.blocks_freqshift_cc_0 = blocks.rotator_cc(2.0*math.pi*F_IF/samp_rate)
+        self.blocks_freqshift_cc_0 = blocks.rotator_cc(2.0*math.pi*F_IF/fs)
         self.analog_noise_source_x_0_1 = analog.noise_source_c(analog.GR_GAUSSIAN, 1, 2)
         self.analog_noise_source_x_0_0 = analog.noise_source_c(analog.GR_GAUSSIAN, 1, 1)
         self.analog_noise_source_x_0 = analog.noise_source_c(analog.GR_GAUSSIAN, 1, 0)
@@ -113,24 +113,26 @@ class AWGN_Interference(gr.top_block):
         self.connect((self.epy_block_0, 0), (self.blocks_freqshift_cc_0, 0))
 
 
+    def get_P_received(self):
+        return self.P_received
+
+    def set_P_received(self, P_received):
+        self.P_received = P_received
+        self.epy_block_0.P_received = self.P_received
+
+    def get_P_target(self):
+        return self.P_target
+
+    def set_P_target(self, P_target):
+        self.P_target = P_target
+        self.epy_block_0.P_target = self.P_target
+
     def get_ch_gain(self):
         return self.ch_gain
 
     def set_ch_gain(self, ch_gain):
         self.ch_gain = ch_gain
         self.uhd_usrp_sink_0.set_gain(self.ch_gain, 0)
-
-    def get_estPr(self):
-        return self.estPr
-
-    def set_estPr(self, estPr):
-        self.estPr = estPr
-
-    def get_targPi(self):
-        return self.targPi
-
-    def set_targPi(self, targPi):
-        self.targPi = targPi
 
     def get_tx_freq(self):
         return self.tx_freq
@@ -145,14 +147,14 @@ class AWGN_Interference(gr.top_block):
     def set_use_Socket(self, use_Socket):
         self.use_Socket = use_Socket
 
-    def get_samp_rate(self):
-        return self.samp_rate
+    def get_fs(self):
+        return self.fs
 
-    def set_samp_rate(self, samp_rate):
-        self.samp_rate = samp_rate
-        self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_IF/self.samp_rate)
-        self.epy_block_0.sampling_rate = self.samp_rate
-        self.uhd_usrp_sink_0.set_samp_rate(self.samp_rate)
+    def set_fs(self, fs):
+        self.fs = fs
+        self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_IF/self.fs)
+        self.epy_block_0.fs = self.fs
+        self.uhd_usrp_sink_0.set_samp_rate(self.fs)
 
     def get_TX_ID(self):
         return self.TX_ID
@@ -171,7 +173,7 @@ class AWGN_Interference(gr.top_block):
 
     def set_F_IF(self, F_IF):
         self.F_IF = F_IF
-        self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_IF/self.samp_rate)
+        self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_IF/self.fs)
 
     def get_BLE_sym_length(self):
         return self.BLE_sym_length
@@ -184,14 +186,14 @@ class AWGN_Interference(gr.top_block):
 def argument_parser():
     parser = ArgumentParser()
     parser.add_argument(
-        "--ch-gain", dest="ch_gain", type=eng_float, default=eng_notation.num_to_str(float(20)),
+        "--P-received", dest="P_received", type=eng_float, default=eng_notation.num_to_str(float((-72.52))),
+        help="Set P_received [default=%(default)r]")
+    parser.add_argument(
+        "--P-target", dest="P_target", type=eng_float, default=eng_notation.num_to_str(float((-40))),
+        help="Set P_target [default=%(default)r]")
+    parser.add_argument(
+        "--ch-gain", dest="ch_gain", type=eng_float, default=eng_notation.num_to_str(float(0)),
         help="Set Analog Antenna Gain (dB) [default=%(default)r]")
-    parser.add_argument(
-        "--estPr", dest="estPr", type=eng_float, default=eng_notation.num_to_str(float((-86.98))),
-        help="Set estimated_Pr [default=%(default)r]")
-    parser.add_argument(
-        "--targPi", dest="targPi", type=eng_float, default=eng_notation.num_to_str(float((-125))),
-        help="Set target_Pi [default=%(default)r]")
     parser.add_argument(
         "--tx-freq", dest="tx_freq", type=eng_float, default=eng_notation.num_to_str(float(2.2e9)),
         help="Set Analog Frontend Tx frequency [default=%(default)r]")
@@ -204,7 +206,7 @@ def argument_parser():
 def main(top_block_cls=AWGN_Interference, options=None):
     if options is None:
         options = argument_parser().parse_args()
-    tb = top_block_cls(ch_gain=options.ch_gain, estPr=options.estPr, targPi=options.targPi, tx_freq=options.tx_freq, use_Socket=options.use_Socket)
+    tb = top_block_cls(P_received=options.P_received, P_target=options.P_target, ch_gain=options.ch_gain, tx_freq=options.tx_freq, use_Socket=options.use_Socket)
 
     def sig_handler(sig=None, frame=None):
         tb.stop()
@@ -244,6 +246,10 @@ def main(top_block_cls=AWGN_Interference, options=None):
                         print(f"Closing connection to {client_socket.getpeername()}")
                         sel.unregister(client_socket)
                         client_socket.close()
+    else:
+        tb.flowgraph_started.wait()
+        print("Activating module without socket...")
+        tb.epy_block_0.update_params(True, tb.P_target, tb.P_received)
 
     tb.wait()
 
