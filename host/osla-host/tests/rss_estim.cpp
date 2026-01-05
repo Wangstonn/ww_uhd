@@ -35,9 +35,11 @@ namespace po = boost::program_options;
  * Signal handlers
  **********************************************************************/
 static bool stop_signal_called = false;
-void sig_int_handler(int)
+void sig_int_handler(int sigint)
 {
+    std::cout << "Killing da file sigint" << sigint << std::endl;
     stop_signal_called = true;
+    std::exit(sigint);
 }
 
 /***********************************************************************

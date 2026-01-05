@@ -34,7 +34,7 @@ import threading
 
 class psd_calibration_test(gr.top_block, Qt.QWidget):
 
-    def __init__(self, P_received=(-44.64), P_target=(-126), ch_gain=20, selector=0, tx_freq=2.2e9):
+    def __init__(self, P_received=(  -72.51), P_target=(-100), ch_gain=0, selector=0, tx_freq=2.2e9):
         gr.top_block.__init__(self, "psd_calibration_test", catch_exceptions=True)
         Qt.QWidget.__init__(self)
         self.setWindowTitle("psd_calibration_test")
@@ -99,48 +99,11 @@ class psd_calibration_test(gr.top_block, Qt.QWidget):
         self.qtgui_time_sink_x_0.set_update_time(0.10)
         self.qtgui_time_sink_x_0.set_y_axis(-1, 1)
 
-        self.qtgui_time_sink_x_0.set_y_label('Amplitude', "")
-
-        self.qtgui_time_sink_x_0.enable_tags(True)
-        self.qtgui_time_sink_x_0.set_trigger_mode(qtgui.TRIG_MODE_FREE, qtgui.TRIG_SLOPE_POS, 0.0, 0, 0, "")
-        self.qtgui_time_sink_x_0.enable_autoscale(False)
-        self.qtgui_time_sink_x_0.enable_grid(False)
-        self.qtgui_time_sink_x_0.enable_axis_labels(True)
-        self.qtgui_time_sink_x_0.enable_control_panel(False)
-        self.qtgui_time_sink_x_0.enable_stem_plot(False)
-
-
-        labels = ['Signal 1', 'Signal 2', 'Signal 3', 'Signal 4', 'Signal 5',
-            'Signal 6', 'Signal 7', 'Signal 8', 'Signal 9', 'Signal 10']
-        widths = [1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1]
-        colors = ['blue', 'red', 'green', 'black', 'cyan',
-            'magenta', 'yellow', 'dark red', 'dark green', 'dark blue']
-        alphas = [1.0, 1.0, 1.0, 1.0, 1.0,
-            1.0, 1.0, 1.0, 1.0, 1.0]
-        styles = [1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1]
-        markers = [-1, -1, -1, -1, -1,
-            -1, -1, -1, -1, -1]
-
-
-        for i in range(2):
-            if len(labels[i]) == 0:
-                if (i % 2 == 0):
-                    self.qtgui_time_sink_x_0.set_line_label(i, "Re{{Data {0}}}".format(i/2))
-                else:
-                    self.qtgui_time_sink_x_0.set_line_label(i, "Im{{Data {0}}}".format(i/2))
-            else:
-                self.qtgui_time_sink_x_0.set_line_label(i, labels[i])
-            self.qtgui_time_sink_x_0.set_line_width(i, widths[i])
-            self.qtgui_time_sink_x_0.set_line_color(i, colors[i])
-            self.qtgui_time_sink_x_0.set_line_style(i, styles[i])
-            self.qtgui_time_sink_x_0.set_line_marker(i, markers[i])
-            self.qtgui_time_sink_x_0.set_line_alpha(i, alphas[i])
-
-        self._qtgui_time_sink_x_0_win = sip.wrapinstance(self.qtgui_time_sink_x_0.qwidget(), Qt.QWidget)
-        self.top_layout.addWidget(self._qtgui_time_sink_x_0_win)
-        self.epy_block_0 = epy_block_0.blk(fs=10000000.0, P_received=-44.64, P_target=-126.84, bw=18500.0, fc=F_If + F_Of, selector=selector)
+        self.uhd_usrp_sink_0.set_center_freq(tx_freq, 0)
+        self.uhd_usrp_sink_0.set_antenna("TX/RX", 0)
+        self.uhd_usrp_sink_0.set_bandwidth(160000000, 0)
+        self.uhd_usrp_sink_0.set_gain(ch_gain, 0)
+        self.epy_block_0 = epy_block_0.blk(fs=fs, P_received=P_received, P_target=P_target, bw=200e6/(336*32)*2, fc=F_Of, selector=selector)
         self.digital_gfsk_mod_0_0_0 = digital.gfsk_mod(
             samples_per_symbol=(round(BLE_sym_length*fs)),
             sensitivity=sensitivity,
@@ -179,12 +142,14 @@ class psd_calibration_test(gr.top_block, Qt.QWidget):
 
     def set_P_received(self, P_received):
         self.P_received = P_received
+        self.epy_block_0.P_received = self.P_received
 
     def get_P_target(self):
         return self.P_target
 
     def set_P_target(self, P_target):
         self.P_target = P_target
+        self.epy_block_0.P_target = self.P_target
 
     def get_ch_gain(self):
         return self.ch_gain
@@ -212,7 +177,8 @@ class psd_calibration_test(gr.top_block, Qt.QWidget):
         self.fs = fs
         self.set_sensitivity(2*math.pi*self.BLE_fd/self.fs)
         self.blocks_freqshift_cc_0.set_phase_inc(2.0*math.pi*self.F_If/self.fs)
-        self.qtgui_time_sink_x_0.set_samp_rate(self.fs)
+        self.epy_block_0.fs = self.fs
+        self.uhd_usrp_sink_0.set_samp_rate(self.fs)
 
     def get_BLE_fd(self):
         return self.BLE_fd
@@ -258,13 +224,13 @@ def argument_parser():
     description = 'Transmits constant interference for a target noise level. Used to verify the psd logic is correct.'
     parser = ArgumentParser(description=description)
     parser.add_argument(
-        "--P-received", dest="P_received", type=eng_float, default=eng_notation.num_to_str(float((-44.64))),
+        "--P-received", dest="P_received", type=eng_float, default=eng_notation.num_to_str(float((  -72.51))),
         help="Set P_received (float): Measured received power of unit power sinusoid at receiver in dBm. [default=%(default)r]")
     parser.add_argument(
-        "--P-target", dest="P_target", type=eng_float, default=eng_notation.num_to_str(float((-126))),
+        "--P-target", dest="P_target", type=eng_float, default=eng_notation.num_to_str(float((-100))),
         help="Set         P_target (float): Target power level for normalization in dBm. [default=%(default)r]")
     parser.add_argument(
-        "--ch-gain", dest="ch_gain", type=eng_float, default=eng_notation.num_to_str(float(20)),
+        "--ch-gain", dest="ch_gain", type=eng_float, default=eng_notation.num_to_str(float(0)),
         help="Set Analog Antenna Gain (dB) [default=%(default)r]")
     parser.add_argument(
         "--selector", dest="selector", type=intx, default=0,

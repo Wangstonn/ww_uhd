@@ -602,8 +602,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //noise estimation
     std::cout << "Running noise estimation..." << std::endl;
     double var = estim::EstimChipNoise(tx_usrp, pow(2,16),rx_ch_sel_bits, "../../data/fwd_alb_noise_chips.dat"); // 
-    std::cout << "Estimated chip var= " << var << std::endl;
-    estim::CalcNoiseRssDbm(var);
+    std::cout << "Estimated var (should be around 7700 if there is no interference)= " << var << std::endl;
+
 
     //capture noise samples as well
     estim::EstimNoise(tx_usrp,pow(2,16), rx_ch_sel_bits, "../../data/fwd_alb_noise_samps.dat");

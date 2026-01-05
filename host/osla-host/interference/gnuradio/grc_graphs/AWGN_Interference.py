@@ -86,7 +86,7 @@ class AWGN_Interference(gr.top_block):
             ),
             "",
         )
-        self.uhd_usrp_sink_0.set_clock_source('external', 0)
+        self.uhd_usrp_sink_0.set_clock_source('internal', 0)
         self.uhd_usrp_sink_0.set_samp_rate(fs)
         # No synchronization enforced.
 

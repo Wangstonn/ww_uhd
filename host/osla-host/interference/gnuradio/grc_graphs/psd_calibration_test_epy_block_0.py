@@ -54,11 +54,16 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         #generate normalizer gain from LUT
         match selector:
             case 0:
+                base_dir = os.path.abspath(os.path.join(os.getcwd(), "..", ".."))
+                PSD_path = os.path.join(base_dir, "matlab", "psd", "awgn_psd.csv")
                 #PSD_path = os.path.join(os.path.dirname(__file__), "../../matlab/psd/awgn_psd.csv") #'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/gaussian_PSD.csv'
-                PSD_path = 'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/psd/awgn_psd.csv'
+                #PSD_path = 'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/psd/awgn_psd.csv'
             case 1:
-                # PSD_path = os.path.join(os.path.dirname(__file__), "../../matlab/psd/ble_psd.csv") #'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/gaussian_PSD.csv'
-                PSD_path = 'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/psd/ble_psd.csv'
+                base_dir = os.path.abspath(os.path.join(os.getcwd(), "..", ".."))
+                PSD_path = os.path.join(base_dir, "matlab", "psd", "ble_psd.csv")                
+#PSD_path = os.path.join(os.getcwd(), "matlab", "psd", "ble_psd.csv")
+                 #PSD_path = os.path.join(os.path.dirname(__file__), "../../matlab/psd/ble_psd.csv") #'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/gaussian_PSD.csv'
+                #PSD_path = 'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/psd/ble_psd.csv'
             case _:
                 raise ValueError("Selector must be 0 or 1, got {}".format(selector))
 
@@ -85,9 +90,9 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         PSD_i_high = int(np.round((len(PSD)/2) + (fc/df) + (bw/df)/2))    
 
         # in band power = sum(PSD)*df*fs
-        P_band = df*np.sum(PSD[PSD_i_low:PSD_i_high,0]*fs)
+        P_band = df*np.sum(PSD[PSD_i_low:PSD_i_high,0])#*fs)
         self.G = np.sqrt(1/(P_band))
-
+        print("Gain: ", self.G*10**((self.P_target-self.P_received)/20))
 
     def work(self, input_items, output_items):
         output_items[0][:] = self.G*10**((self.P_target-self.P_received)/20)*input_items[0]

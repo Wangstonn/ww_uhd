@@ -21,9 +21,9 @@
 
 namespace estim {
 
-bool send_message(int sock, bool event, double intf_rss_dbm, double target_intf_rss_dbm)
+bool send_message(int sock, bool event, double P_received, double P_target)
 {
-    MSG_t msg = {event, intf_rss_dbm, target_intf_rss_dbm};
+    MSG_t msg = {event, P_received, P_target};
 
     int sent = send(sock, &msg, sizeof(msg), 0);
     if (sent < 0) {
@@ -48,7 +48,7 @@ int connectToServerSock()
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family      = AF_INET;
     server_addr.sin_port        = htons(12345);
-    server_addr.sin_addr.s_addr = inet_addr("141.213.15.85"); // AA4.eecs.umich.edu
+    server_addr.sin_addr.s_addr = inet_addr("141.213.15.219"); // <- hsklabu01 AA4.eecs.umich.edu 141.213.15.85
 
     if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("connect");
@@ -484,38 +484,29 @@ double IntfChEstim(const uhd::usrp::multi_usrp::sptr tx_usrp,
     mmio::WrMmio(tx_usrp, mmio::kDestChipCapEn, 0x0); // capture samples
     std::uint32_t mode_bits{0x0}; // sync mode
 
-    mmio::StartTx(
-        tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, 0x0, 0x0);
+    mmio::StartTx(tx_usrp, mode_bits, rx_ch_sel_bits, tx_core_bits, gpio_start_sel_bits, 0x0, 0x0);
 
     // Make sure dest is done recording before reading
     while (true) {
         mmio::ClearAddrBuffer(tx_usrp);
-        if ((mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr) & mmio::kCapIdxMask)
-            == mmio::kCapMaxNumSamps - 1) // Dest has finished recording
+        if ((mmio::RdMmio(tx_usrp, mmio::kDestCapIdxAddr) & mmio::kCapIdxMask)== mmio::kCapMaxNumSamps - 1) // Dest has finished recording
             break;
     }
     mmio::ClearAddrBuffer(tx_usrp);
 
     // Read data
-    std::vector<std::complex<double>> cap_samps =
-        mmio::ReadSampleMem(tx_usrp, 0b1, NCapSamps, file);
+    std::vector<std::complex<double>> cap_samps = mmio::ReadSampleMem(tx_usrp, 0b1, NCapSamps, file);
     int N_w = static_cast<int>(cap_samps.size()); // number of captured samples
 
-    std::vector<std::complex<double>> rx_if(N_w); // downconverted rx
+    std::vector<double> rx_if_envelope(N_w); // downconverted rx
     const double pi = std::acos(-1);
     for (int n = 0; n < N_w; ++n) {
-        rx_if[n] = cap_samps[n]
-                   * std::exp(std::complex<double>(0,
-                       -2 * pi / estim::kFwOsr
-                           * n)); // The phase measurement will be off because the two
-                                  // sinusoids are not synced yet
+        rx_if_envelope[n] = std::abs(cap_samps[n] * std::exp(std::complex<double>(0, -2 * pi / estim::kFwOsr * n))); 
     }
 
-    std::complex<double> h_hat =
-        std::accumulate(rx_if.begin(), rx_if.end(), std::complex<double>(0, 0))
-        / static_cast<double>(N_w);
-    std::cout << "h_hat mag: " << std::abs(h_hat) << std::endl;
-    double rss_dbm = CalcRssdbW(h_hat) + 30; // convert to dbm
+    double h_hat_mag = std::accumulate(rx_if_envelope.begin(), rx_if_envelope.end(), double(0)) / static_cast<double>(N_w);
+    std::cout << "h_hat mag: " << h_hat_mag << std::endl;
+    double rss_dbm = CalcRssdbW(std::complex<double>(h_hat_mag,0)) + 30; // convert to dbm
 
     return rss_dbm;
 }
@@ -563,6 +554,7 @@ void ConfigDestIntfMitigation(const uhd::usrp::multi_usrp::sptr dest_tx_usrp,
             * chip_var); //*std::sqrt(std::norm(h_hat)); //*std::norm(h_hat);
     uint32_t llr_threshold_uint32 = static_cast<uint32_t>(
         std::round(llr_threshold * (std::pow(2, mmio::kDestLlrThresholdFrac))));
+        std::cout << std::hex << "llr_threshold: " << llr_threshold_uint32 << std::dec << std::endl;
     mmio::WrMmio(dest_tx_usrp, mmio::kDestThresholdAddr, llr_threshold_uint32); // 0x1
 
     double dest_if_chip_sig_energy_neg =
@@ -857,40 +849,65 @@ double EstimChipNoise(const uhd::usrp::multi_usrp::sptr tx_usrp,
     return var;
 }
 
+// /**
+//  * @brief Estimates and prints noise parameters based on chip variance.
+//  *
+//  * This function computes and logs three values based on the input chip variance (`var`):
+//  *  - Estimated chip variance
+//  *  - Received noise power in dBm (`rx_noise_dbW`)
+//  *  - Estimated noise spectral density `N0` in dB (assumes 5 MHz bandwidth and 336 chips)
+//  *
+//  * The calculations take into account:
+//  *  - ADC gain of 41.81 dB from antenna to digital domain
+//  *  - ADC full-scale swing of 2V with 14-bit resolution
+//  *  - A 50-ohm load for power normalization
+//  *  - Oversampling ratio defined by `estim::kFwOsr`
+//  *
+//  * @param var The measured chip power variance (should reflect the power of received noise
+//  * samples).
+//  */
+// double CalcNoiseRssDbw(double chip_var)
+// {
+//     //THIS FUNCTION IS NOT CORRECT. IT ASSUMES THE NOISE VARIANCE IS AT THE ANTENNA, NOT THE INTERNALS OF THE RECEIVER. DO NOT USE
+//     // Gain from antenna to ADC is 41.81 dB, ADC swing is 2V, 14-bit resolution
+//     double noise_rss_dbw =
+//         10 * std::log10(chip_var)
+//         + 20 * std::log10(1.0 / estim::kFwOsr) // find the power in this chip
+//         + 20 * std::log10(std::pow(2, -13)) - estim::rx_gain
+//         - 10 * std::log10(50); // 50-ohm termination
+
+//     std::cout << "rx_noise (dbW)= " << noise_rss_dbw << std::endl;
+
+//     // Estimated N0 for a 5 MHz bandwidth and 336 chips. The noise equaivalent bandwidth (i.e. the power of the filter is 1 / (5.0e-9 * 336.0))
+//     double estimated_N0 = -10 * std::log10(1 / (2.0* 5.0e-9 * 336.0)) + noise_rss_dbw + 30;
+//     std::cout << "Estimated N0 (dbm)= " << estimated_N0 << std::endl;
+
+//     return noise_rss_dbw;
+// }
+
 /**
- * @brief Estimates and prints noise parameters based on chip variance.
+ * @brief Estimate the noise spectral density \( N_0 \) in dBm.
  *
- * This function computes and logs three values based on the input chip variance (`var`):
- *  - Estimated chip variance
- *  - Received noise power in dBm (`rx_noise_dbW`)
- *  - Estimated noise spectral density `N0` in dB (assumes 5 MHz bandwidth and 336 chips)
+ * This function computes the estimated noise power spectral density \( N_0 \) 
+ * in dBm based on the received signal strength (RSS) in dBm and the 
+ * energy-per-symbol to noise ratio (Es/N0) in dB.
  *
- * The calculations take into account:
- *  - ADC gain of 41.81 dB from antenna to digital domain
- *  - ADC full-scale swing of 2V with 14-bit resolution
- *  - A 50-ohm load for power normalization
- *  - Oversampling ratio defined by `estim::kFwOsr`
+ * The underlying assumption is that the signal occupies a bandwidth determined 
+ * by 336 chips over 32 symbols, each with a chip period of 5 ns.
+ * The formula used is:
+ * \[
+ * N_0\text{(dBm)} = \text{RSS(dBm)} + 10 \log_{10}(32 \cdot 336 \cdot 5 \cdot 10^{-9}) - \text{Es/N0(dB)}
+ * \]
  *
- * @param var The measured chip power variance (should reflect the power of received noise
- * samples).
+ * @param EsN0_db  The Es/N0 value in dB.
+ * @param rss_dbm  The received signal strength in dBm.
+ * @return The estimated \( N_0 \) in dBm.
  */
-double CalcNoiseRssDbm(double chip_var)
+double CalcN0dbm(double EsN0_db, double rss_dbm)
 {
-    // Gain from antenna to ADC is 41.81 dB, ADC swing is 2V, 14-bit resolution
-    double noise_rss_dbm =
-        10 * std::log10(chip_var)
-        + 20 * std::log10(1.0 / estim::kFwOsr) // find the power in this chip
-        + 20 * std::log10(std::pow(2, -13)) - estim::rx_gain
-        - 10 * std::log10(50); // 50-ohm termination
-
-    std::cout << "rx_noise (dbm)= " << noise_rss_dbm << std::endl;
-
-    // Estimated N0 for a 5 MHz bandwidth and 336 chips
-    double estimated_N0 =
-        -10 * std::log10(1 / (2.0 * 5.0e-9 * 336.0)) + noise_rss_dbm + 30;
-    std::cout << "Estimated N0 (dbm)= " << estimated_N0 << std::endl;
-
-    return noise_rss_dbm;
+    double N0_dbm = rss_dbm + 10 * std::log10((32.0 * 336.0 * 5.0e-9)) - EsN0_db;
+    std::cout << "Estimated N0 (dbm)= " << N0_dbm << std::endl;
+    return N0_dbm;
 }
 
 /**
@@ -913,7 +930,6 @@ double CalcNoiseRssDbm(double chip_var)
  */
 double CalcRssdbW(std::complex<double> h_hat)
 {
-    // rx_gain used to be 41.81 not sure why this changed
     double rss_dbW = 20 * log10(std::abs(h_hat) * std::pow(2, -13)) - estim::rx_gain
                      - 10 * log10(50); // 50 ohm resistor at end
     // std::cout << "Estimated rss (dbW)= " << rss_dbW << std::endl;
@@ -941,10 +957,7 @@ double CalcEsN0(const std::complex<double>& h_hat, const int osr, const double v
  */
 double CalcChipEsN0(const std::complex<double>& h_hat, const double chip_var)
 {
-    double EsN0 =
-        10
-        * std::log10(estim::kNChips * std::pow(estim::kFwOsr * std::abs(h_hat), 2)
-                     / (chip_var * 2));
+    double EsN0 = 10 * std::log10(estim::kNChips * std::pow(estim::kFwOsr * std::abs(h_hat), 2) / (chip_var * 2));
     return EsN0;
 }
 

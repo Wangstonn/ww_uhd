@@ -13,8 +13,8 @@ constexpr int kNChips       = 32; // average number of chips per symbol
 constexpr int kSrcProcDelay = 4; // samples it takes to process data at source
 
 constexpr int kDestMovingSumM = 96;
-constexpr double kDestLlrThreshold = 9700; // unscaled llr threshold value. This will be scaled based on implementation.
-
+constexpr double kDestLlrThreshold = 9100; // unscaled llr threshold value. This will be scaled based on implementation.
+//10051 leads to 32.1 sym length
 // measurements---
 constexpr double rx_gain = 41.81; // gain of the receiver. used to be 41.81??? 18.237
 
@@ -85,7 +85,8 @@ double EstimChipNoise(const uhd::usrp::multi_usrp::sptr tx_usrp,
     const int NCapSamps,
     const uint32_t rx_ch_sel_bits,
     const std::string& file = "");
-double CalcNoiseRssDbm(double chip_var);
+// double CalcNoiseRssDbw(double chip_var);
+double CalcN0dbm(double EsN0_db, double rss_dbm);
 double CalcRssdbW(std::complex<double> h_hat);
 double CalcSNR(const std::complex<double>& h_hat, const double var);
 double CalcEsN0(const std::complex<double>& h_hat, const int osr, const double var);

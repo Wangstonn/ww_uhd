@@ -50,7 +50,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         self.P_target = P_target
         self.poisson_intensity = poisson_intensity
         self.pkt_len = pkt_len
-        self.lognormVar = 0#10 #variance of log normal distribution
+        self.lognormVar = 5#10 #variance of log normal distribution
 
         self.noise_frame = np.round((fs*self.pkt_len),0)
 
@@ -64,8 +64,8 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         
         #generate normalizer gain from LUT
         #run locally from grc_graphs folder
-        #PSD_path =  os.path.join(os.path.dirname(__file__), "../../matlab/psd/awgn_psd.csv") #'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/gaussian_PSD.csv'
-        PSD_path = 'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/psd/awgn_psd.csv'
+        PSD_path =  os.path.join(os.path.dirname(__file__), "../../matlab/psd/awgn_psd.csv") #'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/gaussian_PSD.csv'
+        # PSD_path = 'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/psd/awgn_psd.csv'
         print(f"[NoiseController] Loading hardcoded PSD file: {PSD_path}")
 
         PSD = None  # prevent undefined var
@@ -94,7 +94,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         PSD_i_high = int(np.round((len(PSD)/2) + (fc/df) + (self.BW/df)/2))    
 
         #in band power = sum(PSD)*df*fs
-        P_band = df*np.sum(PSD[PSD_i_low:PSD_i_high,0]*fs)
+        P_band = df*np.sum(PSD[PSD_i_low:PSD_i_high,0])#*fs)
         self.G = np.sqrt(1/(P_band))
         print("Gain: ", self.G*10**((self.P_target-self.P_received)/20))
 
@@ -105,7 +105,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
     def update_params(self, enabled, P_target, P_received):
         with self._lock:
             self.enabled = enabled
-            mu_linear = 1/(self.poisson_intensity*self.pkt_len)*np.exp((self.lognormVar*(np.log(10))**2)/200) #TODO: this should be division
+            mu_linear = 1/(self.poisson_intensity*self.pkt_len*np.exp((self.lognormVar*(np.log(10))**2)/200)) 
             self.mu = P_target + 10*np.log10(mu_linear)
             self.Pr = P_received
 

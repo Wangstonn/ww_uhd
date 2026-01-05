@@ -927,8 +927,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     //noise estimation-----------------------------------------------------------------------------------------------------------------------
     std::cout << "Running noise estimation..." << std::endl;
     double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2,16), "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
-    std::cout << "Estimated var= " << var << std::endl;
-    double noise_rss_dbw = estim::CalcNoiseRssDbm(var);
+    std::cout << "Estimated var (should be around 7700 if there is no interference)= " << var << std::endl;
 
     // //write a loop that sweepx rx gain from 0 to 30 in 5 db steps and prints the noise values estimated by the code above
     // for(int i = 0; i <= 0; i+=5){
@@ -1005,10 +1004,13 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // double rss_dbW = 20*log10(std::abs(h_hat_fwd) * std::pow(2,-13)) - 41.81 - 10*log10(50); //50 ohm resistor at end
 // * std::pow(2,4)
 
+    double N0_dbm = estim::CalcN0dbm(EsN0, rss_dbm);
+
     std::cout << std::dec << "D_test= " << D_test << ", ";
     std::cout << "D_hat_fwd= " << D_hat_fwd << ", ";
     std::cout << "EsN0= " << EsN0 << ", ";
     std::cout << "Estimation rss_adc (dbm)= " << rss_dbm << ", ";
+    std::cout << "Estimation N0 (dbm)= " << N0_dbm << ", ";
     std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd) << " arg= " << std::arg(h_hat_fwd) << std::endl;
 
     //Gain Control--------------------------------------------------------------------------------------------------------------------------

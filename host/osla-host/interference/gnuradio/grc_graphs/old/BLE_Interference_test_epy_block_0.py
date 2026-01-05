@@ -10,11 +10,13 @@ import numpy as np
 from gnuradio import gr
 import pmt
 
+import os
+from pathlib import Path
 
 class blk(gr.sync_block):  # other base classes are basic_block, decim_block, interp_block
     """Embedded Python Block Noise Controller"""
 
-    def __init__(self, sampling_rate = 32000, PSD_path = "", noise_intensity = 1.0, noise_length = 1.0, target_Pi = 0, estimated_Pr = 0, F_of = 0):  # only default arguments here
+    def __init__(self, sampling_rate = 32000, noise_intensity = 1.0, noise_length = 1.0, target_Pi = 0, estimated_Pr = 0, F_of = 0):  # only default arguments here
         """
         Parameters:
         sampling rate (Hz): Needed to calculate length of noise frame and wait frame
@@ -67,10 +69,25 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
 
         #generate normalizer gain from LUT
         #run locally from grc_graphs folder
+        # Hardcoded full path to PSD file (use forward slashes for safety)
+        PSD_path =  os.path.join(os.path.dirname(__file__), "../../matlab/BLEwaveform/BLE_PSD.csv") #'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/gaussian_PSD.csv'
+        print(f"[NoiseController] Loading hardcoded PSD file: {PSD_path}")
+
+        PSD = None  # prevent undefined var
+
         try:
-            PSD = np.genfromtxt(PSD_path,delimiter=',', dtype=np.double)
-        except FileNotFoundError:
-            print(f"Error: File not found at {file_path}")
+            PSD_file = Path(PSD_path)
+            if not PSD_file.is_file():
+                raise FileNotFoundError(f"File does not exist: {PSD_file}")
+            
+            PSD = np.genfromtxt(PSD_file, delimiter=',', dtype=np.double)
+            if PSD.ndim < 2 or PSD.shape[1] < 1:
+                raise ValueError("PSD file must be at least 2D with one column.")
+
+            print(f"[NoiseController] PSD loaded with shape {PSD.shape}")
+
+        except Exception as e:
+            raise RuntimeError(f"[NoiseController ERROR] Failed to load PSD: {e}")
 
 
         fbin_width = 100
@@ -108,14 +125,15 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
     #Update packet generation parameters using the input parameters    
     def update_params(self, enabled, target_Pi, estimated_Pr):
         self.enabled = enabled
-        mu_linear = 1/(self.pkt_intensity*self.pkt_len)*np.exp((self.lognormVar*(np.log(10))**2)/200)
-        self.mu = target_Pi + 10*np.log10(mu_linear)
+        mu_linear = 1/(self.pkt_intensity*self.pkt_len*np.exp((self.lognormVar*(np.log(10))**2)/200))
+        mu = target_Pi + 10*np.log10(mu_linear)
+        self.mu = mu
         self.Pr = estimated_Pr
 
     def work(self, input_items, output_items):
         #gate activity of block using enabled flag
         if not self.enabled:
-            # TODO: check what needs to be returned here
+            # Work output the number of output items produced. Return 0 to pause downstream blocks.
             return 0
 
         self.arrival_clk = self.arrival_clk + len(output_items[0])
@@ -135,7 +153,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
             #Mark Interferer to start
             self.n_counters[self.idx][0] = True
             #generate gain value from parameters
-            P = np.random.normal(loc=self.mu, scale=self.lognormVar)
+            P = np.random.normal(loc=self.mu, scale=np.sqrt(self.lognormVar)) #scale is the std deviation! need to take sqrt of variance!
             self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
             #generate new phase offset
             self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -150,7 +168,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
                 #Mark Interferer to start
                 self.n_counters[self.idx][0] = True
                 #generate gain value from parameters
-                P = np.random.normal(loc=self.mu, scale=self.lognormVar)
+                P = np.random.normal(loc=self.mu, scale=np.sqrt(self.lognormVar))
                 self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
                 #generate new phase offset
                 self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -164,7 +182,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
                     #Mark Interferer to start
                     self.n_counters[self.idx][0] = True
                     #generate gain value from parameters
-                    P = np.random.normal(loc=self.mu, scale=self.lognormVar)
+                    P = np.random.normal(loc=self.mu, scale=np.sqrt(self.lognormVar))
                     self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
                     #generate new phase offset
                     self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -180,7 +198,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
             #Mark Interferer to start
             self.n_counters[self.idx][0] = True
             #generate gain value from parameters
-            P = np.random.normal(loc=self.mu, scale=self.lognormVar)
+            P = np.random.normal(loc=self.mu, scale=np.sqrt(self.lognormVar))
             self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
             #generate new phase offset
             self.theta[self.idx] = np.random.uniform()*2j*np.pi

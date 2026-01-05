@@ -125,8 +125,9 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
     #Update packet generation parameters using the input parameters    
     def update_params(self, enabled, target_Pi, estimated_Pr):
         self.enabled = enabled
-        mu_linear = 1/(self.pkt_intensity*self.pkt_len)*np.exp((self.lognormVar*(np.log(10))**2)/200)
-        self.mu = target_Pi + 10*np.log10(mu_linear)
+        mu_linear = 1/(self.pkt_intensity*self.pkt_len*np.exp((self.lognormVar*(np.log(10))**2)/200))
+        mu = target_Pi + 10*np.log10(mu_linear)
+        self.mu = mu
         self.Pr = estimated_Pr
 
     def work(self, input_items, output_items):
@@ -152,7 +153,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
             #Mark Interferer to start
             self.n_counters[self.idx][0] = True
             #generate gain value from parameters
-            P = np.random.normal(loc=self.mu, scale=self.lognormVar)
+            P = np.random.normal(loc=self.mu, scale=np.sqrt(self.lognormVar)) #scale is the std deviation! need to take sqrt of variance!
             self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
             #generate new phase offset
             self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -167,7 +168,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
                 #Mark Interferer to start
                 self.n_counters[self.idx][0] = True
                 #generate gain value from parameters
-                P = np.random.normal(loc=self.mu, scale=self.lognormVar)
+                P = np.random.normal(loc=self.mu, scale=np.sqrt(self.lognormVar))
                 self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
                 #generate new phase offset
                 self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -181,7 +182,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
                     #Mark Interferer to start
                     self.n_counters[self.idx][0] = True
                     #generate gain value from parameters
-                    P = np.random.normal(loc=self.mu, scale=self.lognormVar)
+                    P = np.random.normal(loc=self.mu, scale=np.sqrt(self.lognormVar))
                     self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
                     #generate new phase offset
                     self.theta[self.idx] = np.random.uniform()*2j*np.pi
@@ -197,7 +198,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
             #Mark Interferer to start
             self.n_counters[self.idx][0] = True
             #generate gain value from parameters
-            P = np.random.normal(loc=self.mu, scale=self.lognormVar)
+            P = np.random.normal(loc=self.mu, scale=np.sqrt(self.lognormVar))
             self.n_counters[self.idx][2] = self.G*np.sqrt(10**((P-self.Pr)/10))
             #generate new phase offset
             self.theta[self.idx] = np.random.uniform()*2j*np.pi

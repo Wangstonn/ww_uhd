@@ -64,7 +64,7 @@ class sample_capture_no_gui(gr.top_block):
         self.uhd_usrp_source_0_0.set_bandwidth(160000000, 0)
         self.uhd_usrp_source_0_0.set_gain(0, 0)
         self.blocks_head_0 = blocks.head(gr.sizeof_short*2, (int(capture_t*samp_rate)))
-        self.blocks_file_sink_0 = blocks.file_sink(gr.sizeof_short*2, './data/c16_noise_10M.bin', False)
+        self.blocks_file_sink_0 = blocks.file_sink(gr.sizeof_short*2, './data/c16_interf_10M.bin', False)
         self.blocks_file_sink_0.set_unbuffered(False)
 
 

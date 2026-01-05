@@ -73,7 +73,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         #generate normalizer gain from LUT
         #run locally from grc_graphs folder
         # Hardcoded full path to PSD file (use forward slashes for safety)
-        PSD_path =  os.path.join(os.path.dirname(__file__), "../../matlab/psd/ble_psd.csv") #'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/gaussian_PSD.csv'
+        PSD_path =  os.path.join(os.path.dirname(__file__), "../../../matlab/psd/ble_psd.csv") #'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/gaussian_PSD.csv'
         # PSD_path = 'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/psd/awgn_psd.csv'
         print(f"[NoiseController] Loading hardcoded PSD file: {PSD_path}")
 

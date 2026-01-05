@@ -231,15 +231,18 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     mmio::InitBBCore(src_tx_usrp);
     mmio::InitBBCore(dest_tx_usrp);
 
-    // noise
-    // estimation-----------------------------------------------------------------------------------------------------------------------
+    // noise estimation-----------------------------------------------------------------------------------------------------------------------
     std::cout << "Running noise estimation..." << std::endl;
     double var = estim::P2PEstimChipNoise(src_tx_usrp,
         dest_tx_usrp,
         std::pow(2, 16),
         "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
     std::cout << "Estimated var= " << var << std::endl;
-    estim::CalcNoiseRssDbm(var);
+    var = 7740;
+    std::cout << "!!!!!!!Using var= " << var << std::endl;
+    // double noise_rss_dbw = estim::CalcNoiseRssDbw(var);
+    std::cout << "Estimated var (should be around 7700 if there is no interference)= " << var << std::endl;
+
 
     // Feedback estimation
     // ------------------------------------------------------------------------------------------------------------------
@@ -277,7 +280,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     // last 16 are transmission delay
     //  uint32_t sync_start_periods = (0x7FFF << 16) + 0x2FFF; //min is 0x000F
 
-    uint32_t sync_start_periods = (0x3FFF << 16) + 0x00FF; // 7F
+    uint32_t sync_start_periods = (0x7FFF << 16) + 0x00FF; // 7F
     if (is_intf_mode)
         sync_start_periods = (0x7FFF << 16) + 0x00FF; // min is 0x000F
 
@@ -291,11 +294,11 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
         auto ch_params = estim::P2PChEstim(src_tx_usrp,
             dest_tx_usrp,
             D_test,
-            std::pow(2, 15),
+            std::pow(2, 16),
             true,
             0x1,
             false,
-            "../../data/fwd_p2p_prmbl_samps0.dat"); // std::string("../../data/fwd_p2p_prmbl_samps")+std::to_string(j)+".dat"
+            ""); // ../../data/fwd_p2p_prmbl_samps0.dat
         D_hat_fwd      = ch_params.D_hat;
         h_hat_fwd      = ch_params.h_hat;
 
@@ -306,11 +309,13 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
 
     double EsN0    = estim::CalcChipEsN0(h_hat_fwd, var);
     double rss_dbm = estim::CalcRssdbW(h_hat_fwd) + 30;
+    double N0_dbm = estim::CalcN0dbm(EsN0, rss_dbm);
 
     std::cout << std::dec << "D_test= " << D_test << ", ";
     std::cout << "D_hat_fwd= " << D_hat_fwd << ", ";
     std::cout << "EsN0= " << EsN0 << ", ";
     std::cout << "Estimation rss_adc (dbm)= " << rss_dbm << ", ";
+    std::cout << "Estimation N0 (dbm)= " << N0_dbm << ", ";
     std::cout << "h_hat_fwd : abs= " << std::abs(h_hat_fwd)
               << " arg= " << std::arg(h_hat_fwd) << std::endl;
 
@@ -334,7 +339,6 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     uint16_t tx_amp = static_cast<uint16_t>(std::round(calculated_tx_amp));
     std::cout << std::hex << "tx_amp:" << tx_amp << std::endl;
     mmio::WrMmio(src_tx_usrp, mmio::kSrcTxAmpAddr, tx_amp);
-
     std::complex<double> h =
         h_hat_fwd
         * std::complex<double>(lin_digital_gain, 0); // update the channel coefficient
@@ -357,10 +361,8 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
                   << static_cast<unsigned int>(dest_num_bit_shift) << std::endl;
         h = h * std::pow(2, dest_num_bit_shift);
 
-        var = var
-              * std::pow(std::pow(2, dest_num_bit_shift),
-                  2); // update the noise level, since bit shifting multiplies by powers
-                      // of 2
+        var = var * std::pow(std::pow(2, dest_num_bit_shift), 2); 
+        // update the noise level, since bit shifting multiplies by powers of 2
         std::cout << "Adjusted chip noise var: " << var << std::endl;
 
         if (dest_num_bit_shift > 6) {
@@ -369,7 +371,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
                 << std::endl;
         }
     }
-    std::cout << "Current signal level: " << abs(h) << std::endl;
+    std::cout << "Current signal level h: " << abs(h) << std::endl;
 
     // Test setup------------------------------------------------------------------
     std::cout << "Performing compensation..." << std::endl;
@@ -381,7 +383,6 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     estim::SetSrcThreshold(src_tx_usrp, h_hat_fb);
 
     // Settings
-    bool fixed_length = 0;
     std::uint32_t dest_interf_mode_bit{0b0};
     std::uint32_t mode_bits{0b11};
 
@@ -390,9 +391,9 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
         dest_interf_mode_bit = 0b1;
     }
 
-    uint8_t fix_len_mode_bits = fixed_length ? 0b11 : 0b00;
+    uint8_t fix_len_mode_bits = is_fixed_length ? 0b11 : 0b00;
 
-    bool samp_cap = 0;
+    bool samp_cap = false;
     if (samp_cap) {
         mmio::WrMmio(
             dest_tx_usrp, mmio::kDestChipCapEn, 0x0); // capture chips for sample analysis
@@ -406,8 +407,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     // std::cout << "Dest read:" << std::endl;
     // mmio::ReadBBCore(dest_tx_usrp);
 
-    // Run
-    // test------------------------------------------------------------------------------------
+    // Run test------------------------------------------------------------------------------------
     std::cout << "Running BER test..." << std::endl;
     const int kMaxIter   = std::ceil(static_cast<double>(max_num_bits) / mmio::kPktLen);
     const int kTargetErr = target_errs;
@@ -503,8 +503,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
 
             // Symbol length statistics
             for (int i = 0; i < mmio::kPktLen; i++) {
-                uint32_t sym_len =
-                    mmio::RdMmio(src_tx_usrp, mmio::kSymLenAddr + i, false);
+                uint32_t sym_len = mmio::RdMmio(src_tx_usrp, mmio::kSymLenAddr + i, false);
                 avg_sym_len += sym_len;
             }
 
@@ -535,8 +534,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     BerResult ber_result;
     ber_result.num_bits = n_iters * mmio::kPktLen;
     ber_result.num_errs = n_errors;
-    ber_result.ber      = static_cast<double>(ber_result.num_errs)
-                     / static_cast<double>(ber_result.num_bits);
+    ber_result.ber      = static_cast<double>(ber_result.num_errs) / static_cast<double>(ber_result.num_bits);
     ber_result.rss_dbm     = rss_dbm;
     ber_result.avg_sym_len = avg_sym_len / static_cast<double>(n_iters * mmio::kPktLen);
 
@@ -579,13 +577,13 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
 {
     // transmit variables to be set by po
     std::string tx_args, wave_type, tx_ant, tx_subdev, ref, otw, tx_channels;
-    double tx_rate, tx_freq, tx_gain, wave_freq, tx_bw;
+    double tx_rate, fwd_freq, src_tx_gain, wave_freq, tx_bw;
     float ampl;
 
     // receive variables to be set by po
     std::string rx_args, file, type, rx_ant, rx_subdev, rx_channels;
     size_t total_num_samps, spb, save_file;
-    double rx_rate, rx_freq, rx_gain, rx_bw;
+    double rx_rate, fb_freq, dest_tx_gain, rx_bw;
     double settling;
 
     // WW - optional user defined arguments
@@ -617,10 +615,10 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         ("output reg", po::value<uint32_t>(&output_reg)->default_value(0), "output reg")
 
         //afe params
-        ("tx-freq", po::value<double>(&tx_freq)->default_value(.915e9), "transmit RF center frequency in Hz")
-        ("rx-freq", po::value<double>(&rx_freq)->default_value(.915e9), "receive RF center frequency in Hz")
-        ("tx-gain", po::value<double>(&tx_gain)->default_value(0), "gain for the transmit RF chain")
-        ("rx-gain", po::value<double>(&rx_gain)->default_value(0), "gain for the receive RF chain")
+        ("fwd-freq", po::value<double>(&fwd_freq)->default_value(2.2e9), "fwd channel frequency in Hz") //2.35e9; //5.80e9;
+        ("fb-freq", po::value<double>(&fb_freq)->default_value(.800e9), "Feedback channel frequency in Hz")
+        ("src-tx-gain", po::value<double>(&src_tx_gain)->default_value(0), "Soource tx gain for the transmit RF chain")
+        ("dest-tx-gain", po::value<double>(&dest_tx_gain)->default_value(31.5), "gain for the Feedback tx RF chain")
         ("tx-bw", po::value<double>(&tx_bw)->default_value(160e6), "analog transmit filter bandwidth in Hz")
         ("rx-bw", po::value<double>(&rx_bw)->default_value(160e6), "analog receive filter bandwidth in Hz")
         
@@ -650,28 +648,28 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         return ~0;
     }
 
-    // USRP
-    // initialization------------------------------------------------------------------------------------------------------------------------
-    std::string src_args  = "type=x300,addr=192.168.110.2"; // top
-    std::string dest_args = "type=x300,addr=192.168.10.2"; // bottom
-    ref                   = "external"; // octoclock
-    double fwd_freq       = 2.2e9; // 5.80e9;
-    double fb_freq        = .96e9; //.915e9;
-    double src_tx_gain    = 0;
-    double dest_tx_gain   = 20;
+    //USRP initialization------------------------------------------------------------------------------------------------------------------------
+    std::string src_args = "type=x300,addr=192.168.110.2"; //top
+    std::string dest_args = "type=x300,addr=192.168.10.2"; //bottom
+    ref = "external"; //octoclock
+    // double fwd_freq = 2.35e9; //5.80e9;
+    // double fb_freq = .800e9; //.915e9;
+    // double src_tx_gain = 0;
+    // double dest_tx_gain = 31.5;
+    std::cout << "fwd freq: " << fwd_freq << std::endl;
+    std::cout << "fb freq: " << fb_freq << std::endl;
 
-    double src_rx_gain  = 0;
+    double src_rx_gain = 0;
     double dest_rx_gain = 0;
 
-    double src_tx_freq  = fwd_freq;
+    double src_tx_freq = fwd_freq;
     double dest_rx_freq = fwd_freq;
     double src_rx_freq  = fb_freq;
     double dest_tx_freq = fb_freq;
 
 
-    // Src
-    // Config-----------------------------------------------------------------------------------------------------------------
-    //  create a usrp device
+    //Src Config-----------------------------------------------------------------------------------------------------------------
+    // create a usrp device
     std::cout << std::endl;
     std::cout << boost::format("Creating the src transmit usrp device with: %s...")
                      % src_args
@@ -747,12 +745,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
               << std::endl
               << std::endl;
 
-    // set the transmit center frequency
-    if (not vm.count("tx-freq")) {
-        std::cerr << "Please specify the transmit center frequency with --tx-freq"
-                  << std::endl;
-        return ~0;
-    }
+    // // set the transmit center frequency
+    // if (not vm.count("tx-freq")) {
+    //     std::cerr << "Please specify the transmit center frequency with --tx-freq"
+    //               << std::endl;
+    //     return ~0;
+    // }
 
     for (size_t ch = 0; ch < src_tx_channel_nums.size(); ch++) {
         size_t src_channel = src_tx_channel_nums[ch];
@@ -770,9 +768,8 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                   << std::endl
                   << std::endl;
 
-        // std::cout << tx_usrp->get_rx_gain_range(channel).step() << std::endl;
-        //  set the rf gain, ubx range: 0-31.5dB
-        if (vm.count("tx-gain")) {
+    //std::cout << tx_usrp->get_rx_gain_range(channel).step() << std::endl;
+    // set the rf gain, ubx range: 0-31.5dB
             std::cout << boost::format("Setting TX Gain: %f dB...") % src_tx_gain
                       << std::endl;
             src_tx_usrp->set_tx_gain(src_tx_gain, src_channel);
@@ -780,7 +777,6 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                              % src_tx_usrp->get_tx_gain(src_channel)
                       << std::endl
                       << std::endl;
-        }
 
 
         // set the analog frontend filter bandwidth
@@ -805,12 +801,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             std::cout << "Configuring RX Channel " << src_channel << std::endl;
         }
 
-        // set the receive center frequency
-        if (not vm.count("rx-freq")) {
-            std::cerr << "Please specify the center frequency with --rx-freq"
-                      << std::endl;
-            return ~0;
-        }
+        // // set the receive center frequency
+        // if (not vm.count("rx-freq")) {
+        //     std::cerr << "Please specify the center frequency with --rx-freq"
+        //               << std::endl;
+        //     return ~0;
+        // }
         std::cout << boost::format("Setting RX Freq: %f MHz...") % (src_rx_freq / 1e6)
                   << std::endl;
         uhd::tune_request_t rx_tune_request(src_rx_freq);
@@ -823,7 +819,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                   << std::endl;
 
         // set the receive rf gain ubx range: 0-31.5dB
-        if (vm.count("rx-gain")) {
+        // if (vm.count("rx-gain")) {
             std::cout << boost::format("Setting RX Gain: %f dB...") % src_rx_gain
                       << std::endl;
             src_rx_usrp->set_rx_gain(src_rx_gain, src_channel);
@@ -831,7 +827,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                              % src_rx_usrp->get_rx_gain(src_channel)
                       << std::endl
                       << std::endl;
-        }
+        // }
 
         // set the receive analog frontend filter bandwidth
         if (vm.count("rx-bw")) {
@@ -973,16 +969,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // Start tx and streaming
     //  start transmit worker thread
     std::thread src_transmit_thread([&]() {
-        transmit_worker(src_buff,
-            wave_table,
-            src_tx_stream,
-            src_md,
-            src_step,
-            src_index,
-            src_num_channels); // this sets tx_streamer which gates tx
+        transmit_worker(src_buff, wave_table, src_tx_stream, src_md, src_step, src_index, src_num_channels); //this sets tx_streamer which gates tx
     });
-    std::this_thread::sleep_for(std::chrono::milliseconds(
-        500)); // Need to sleep for at least 500 ms before tx is active
+    std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Need to sleep for at least 500 ms before tx is active
 
     // recv to file - supposedly sets registers on adc but I cant find anything about
     // that. However, given how transmit_worker sets the tx settings (tx_running), its
@@ -1082,12 +1071,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
               << std::endl
               << std::endl;
 
-    // set the transmit center frequency
-    if (not vm.count("tx-freq")) {
-        std::cerr << "Please specify the transmit center frequency with --tx-freq"
-                  << std::endl;
-        return ~0;
-    }
+    // // set the transmit center frequency
+    // if (not vm.count("tx-freq")) {
+    //     std::cerr << "Please specify the transmit center frequency with --tx-freq"
+    //               << std::endl;
+    //     return ~0;
+    // }
 
     for (size_t ch = 0; ch < dest_tx_channel_nums.size(); ch++) {
         size_t channel = dest_tx_channel_nums[ch];
@@ -1105,9 +1094,9 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                   << std::endl
                   << std::endl;
 
-        // std::cout << tx_usrp->get_rx_gain_range(channel).step() << std::endl;
-        //  set the rf gain, ubx range: 0-31.5dB
-        if (vm.count("tx-gain")) {
+        //std::cout << tx_usrp->get_rx_gain_range(channel).step() << std::endl;
+        // set the rf gain, ubx range: 0-31.5dB
+        // if (vm.count("tx-gain")) {
             std::cout << boost::format("Setting TX Gain: %f dB...") % dest_tx_gain
                       << std::endl;
             dest_tx_usrp->set_tx_gain(dest_tx_gain, channel);
@@ -1115,7 +1104,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
                              % dest_tx_usrp->get_tx_gain(channel)
                       << std::endl
                       << std::endl;
-        }
+        // }
 
 
         // set the analog frontend filter bandwidth
@@ -1140,12 +1129,12 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
             std::cout << "Configuring RX Channel " << channel << std::endl;
         }
 
-        // set the receive center frequency
-        if (not vm.count("rx-freq")) {
-            std::cerr << "Please specify the center frequency with --rx-freq"
-                      << std::endl;
-            return ~0;
-        }
+        // // set the receive center frequency
+        // if (not vm.count("rx-freq")) {
+        //     std::cerr << "Please specify the center frequency with --rx-freq"
+        //               << std::endl;
+        //     return ~0;
+        // }
         std::cout << boost::format("Setting RX Freq: %f MHz...") % (dest_rx_freq / 1e6)
                   << std::endl;
         uhd::tune_request_t rx_tune_request(dest_rx_freq);
@@ -1344,8 +1333,13 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     /**
         p2p awgn test performs ber testing for awgn channel
     */
-
-    std::vector<double> EsN0_dbs = {1,2,3,4,5};//{0, 1, 2, 3, 4, 5, 6}; //{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
+   // reset device
+    mmio::InitBBCore(src_tx_usrp);
+    mmio::InitBBCore(dest_tx_usrp);
+    
+ for(int test_iter = 0; test_iter<10;test_iter++) {
+    std::cout << "Running test " << test_iter << std::endl;
+    std::vector<double> EsN0_dbs = {0, 1, 2, 3, 4, 5, 6}; //{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
     std::vector<double> bers(EsN0_dbs.size(), 0.0);
     std::vector<int> num_errs(EsN0_dbs.size(), 0);
     std::vector<int> num_bits(EsN0_dbs.size(), 0);
@@ -1361,7 +1355,14 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // Include for file operations
     std::ofstream results_file("ber_results.txt");
     if (!results_file.is_open()) {
-        std::cout << "Error: Unable to open results file for writing." << std::endl;
+        std::cerr << "Error: Unable to open results file for writing." << std::endl;
+        return EXIT_FAILURE;
+    }
+    results_file << "% New Test Run-----------------------------------------" << std::endl;
+
+    std::ofstream full_results_file("full_results.txt", std::ios::app);
+    if (!full_results_file.is_open()) {
+        std::cerr << "Error: Unable to open results file for writing." << std::endl;
         return EXIT_FAILURE;
     }
 
@@ -1380,6 +1381,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         rss_dbms[i]          = ber_result.rss_dbm;
         avg_sym_len[i]       = ber_result.avg_sym_len;
 
+        // Write results to both the file and stdout
         std::string esn0_dbs_str    = estim::generateMatlabArray(EsN0_dbs, "EsN0_dbs");
         std::string bers_str        = estim::generateMatlabArray(bers, "bers");
         std::string num_bits_str    = estim::generateMatlabArray(num_bits, "num_bits");
@@ -1388,6 +1390,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         std::string avg_sym_len_str = estim::generateMatlabArray(avg_sym_len, "avg_sym_len");
     
         // Print to stdout
+        std::cout << "is_fixed_length = " << is_fixed_length <<  ", is_intf_mode = " << is_intf_mode << std::endl;
         std::cout << esn0_dbs_str;
         std::cout << bers_str;
         std::cout << num_bits_str;
@@ -1396,12 +1399,14 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
         std::cout << avg_sym_len_str;
     
         // Write to file
+        results_file << "is_fixed_length = " << is_fixed_length <<  ", is_intf_mode = " << is_intf_mode << std::endl;
         results_file << esn0_dbs_str;
         results_file << bers_str;
         results_file << num_bits_str;
         results_file << num_errs_str;
         results_file << rss_dbms_str;
-        results_file << avg_sym_len_str;
+        results_file << avg_sym_len_str << std::endl;
+
     }
 
     // Write results to both the file and stdout
@@ -1413,6 +1418,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::string avg_sym_len_str = estim::generateMatlabArray(avg_sym_len, "avg_sym_len");
 
     // Print to stdout
+    std::cout << "is_fixed_length = " << is_fixed_length <<  ", is_intf_mode = " << is_intf_mode << std::endl;
     std::cout << esn0_dbs_str;
     std::cout << bers_str;
     std::cout << num_bits_str;
@@ -1421,6 +1427,7 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << avg_sym_len_str;
 
     // Write to file
+    results_file << "is_fixed_length = " << is_fixed_length <<  ", is_intf_mode = " << is_intf_mode << std::endl;
     results_file << esn0_dbs_str;
     results_file << bers_str;
     results_file << num_bits_str;
@@ -1428,11 +1435,22 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     results_file << rss_dbms_str;
     results_file << avg_sym_len_str;
 
+    full_results_file << "is_fixed_length = " << is_fixed_length <<  ", is_intf_mode = " << is_intf_mode << std::endl;
+    full_results_file << esn0_dbs_str;
+    full_results_file << bers_str;
+    full_results_file << num_bits_str;
+    full_results_file << num_errs_str;
+    full_results_file << rss_dbms_str;
+    full_results_file << avg_sym_len_str;
+
+
     // Close the file
+    full_results_file.close();
+    std::cout << "Full Results written to full_results.txt" << std::endl;
     results_file.close();
 
     std::cout << "Results written to ber_results.txt" << std::endl;
-
+    }
     //////////////////////////////////////////////////////////////////////////////////////////////////
 
     // clean up transmit worker
