@@ -224,7 +224,7 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     double EsN0_db,
     double EsNi_db,
     int serverSock, 
-    double intf_rss_dbm,
+    double P_measured_dbm,
     int const target_errs,
     const int max_num_bits,
     bool is_fixed_length,
@@ -243,6 +243,8 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     std::cout << "Running noise estimation..." << std::endl;
     double var = estim::P2PEstimChipNoise(src_tx_usrp, dest_tx_usrp, std::pow(2, 16), "../../data/fwd_p2p_noise_chips.dat"); //../../data/fwd_p2p_noise_samps.dat
     std::cout << "Estimated var (should be around 7700 if there is no interference)= " << var << std::endl;
+    var = 7200;
+    std::cout << "Using var = " << var << " for further estimations" << std::endl;
     // double noise_rss_dbw = estim::CalcNoiseRssDbw(var);
 
     // double var = 0;
@@ -394,9 +396,11 @@ BerResult BerTest(uhd::usrp::multi_usrp::sptr src_tx_usrp,
     //Interference adjustment
     double target_Ni_dbm = N0_dbm + target_EsN0-target_EsNi;
     std::cout << "Load interferer with target interference Ni (dbm/Hz)= " << target_Ni_dbm << std::endl;
+
+    double target_Pi_dbm = target_Ni_dbm + 10*log10(2*200e6/(336.0*32.0));
     std::cout << "Load interferer with target interference Pi (dbm/Hz)= " << target_Pi_dbm << std::endl;
-    double target_Pi_dbm = target_Ni_dbm + 10*log10(2*200e6/(336*32))
-    estim::send_message(serverSock, true, intf_rss_dbm, target_Pi_dbm); //Interferer must have a calibration error.
+
+    estim::send_message(serverSock, true, P_measured_dbm, target_Pi_dbm-3.32); //Interferer must have a calibration error.
     std::this_thread::sleep_for(std::chrono::milliseconds(5000)); //Need to sleep for at least 500 ms before tx is active
 
     // Test setup------------------------------------------------------------------
@@ -1341,10 +1345,10 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
    mmio::InitBBCore(src_tx_usrp);
    mmio::InitBBCore(dest_tx_usrp);
    
-for(int test_iter = 0; test_iter<10;test_iter++) {
+for(int test_iter = 0; test_iter<5;test_iter++) {
     std::cout << "Running test " << test_iter << std::endl;
     std::vector<double> EsN0_dbs = {4}; //{4,5,6,7};//{0,1,2,3,4,5,6,7}; {3,5,6};//
-    std::vector<double> EsNi_dbs = {-15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35}; //{10,15,20,25,30,35};//{0,1,2,3,4,5,6,7}; {3,5,6};//
+    std::vector<double> EsNi_dbs = {-15,-10,-5,0,5,10, 15, 20, 25, 30, 35}; //{20, 25, 30, 35};//{10,15,20,25,30,35};//{0,1,2,3,4,5,6,7}; {3,5,6};//
     std::vector<double> bers(EsNi_dbs.size(), 0.0);
     std::vector<int> num_errs(EsNi_dbs.size(), 0);
     std::vector<int> num_bits(EsNi_dbs.size(), 0);
@@ -1352,25 +1356,25 @@ for(int test_iter = 0; test_iter<10;test_iter++) {
     std::vector<double> avg_sym_len(EsNi_dbs.size(), 0.0);
 
     bool is_fixed_length = false;
-    bool is_intf_mode    = false;
+    bool is_intf_mode    = true;
 
-    int kTargetErrs = 200; // 500;
+    int kTargetErrs = 300; // 500;
     const int kMaxBits  = 1e6; // 1e7;
 
     if (is_fixed_length || !is_intf_mode) {
-        kTargetErrs = 10000;
+        kTargetErrs = 50000;
     }
     
 
     // Interference Calibration---------------------------------------------------------------------------------------------------------------------------
     bool init_calibration = true;
-    double intf_rss_dbm = -76.2641; //87.3152;
+    double P_measured_dbm = -76.2641; //87.3152;
     if (test_iter == 0 && init_calibration) {
         std::cout << "Estimating Interferer strength..." << std::endl;
 
-        intf_rss_dbm = estim::IntfChEstim(dest_tx_usrp, std::pow(2,15), "../../data/interf_cal_samps.dat");
+        P_measured_dbm = estim::IntfChEstim(dest_tx_usrp, std::pow(2,15), "../../data/interf_cal_samps.dat");
 
-        std::cout << "Interference rss (dbm)= " << intf_rss_dbm << std::endl;
+        std::cout << "Interference rss (dbm)= " << P_measured_dbm << std::endl;
         std::cout << "Waiting to end sinusoid. Press any key when ready to move on..." << std::endl;
         while (true) {
             if (std::cin.get()) 
@@ -1402,7 +1406,7 @@ for(int test_iter = 0; test_iter<10;test_iter++) {
             EsN0_dbs[0],
             EsNi_dbs[i],
             serverSock, 
-            intf_rss_dbm,
+            P_measured_dbm,
             kTargetErrs,
             kMaxBits,
             is_fixed_length,
