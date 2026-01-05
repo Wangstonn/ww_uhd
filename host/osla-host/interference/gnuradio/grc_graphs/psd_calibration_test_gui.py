@@ -26,15 +26,15 @@ from PyQt5 import Qt
 from argparse import ArgumentParser
 from gnuradio.eng_arg import eng_float, intx
 from gnuradio import eng_notation
-import psd_calibration_test_epy_block_0 as epy_block_0  # embedded python block
+import psd_calibration_test_gui_epy_block_0 as epy_block_0  # embedded python block
 import sip
 import threading
 
 
 
-class psd_calibration_test(gr.top_block, Qt.QWidget):
+class psd_calibration_test_gui(gr.top_block, Qt.QWidget):
 
-    def __init__(self, P_received=(-44.64), P_target=(-126), ch_gain=20, selector=0, tx_freq=2.2e9):
+    def __init__(self, P_received=(-41.64), P_target=(-126), ch_gain=20, selector=1, tx_freq=2.2e9):
         gr.top_block.__init__(self, "psd_calibration_test", catch_exceptions=True)
         Qt.QWidget.__init__(self)
         self.setWindowTitle("psd_calibration_test")
@@ -55,7 +55,7 @@ class psd_calibration_test(gr.top_block, Qt.QWidget):
         self.top_grid_layout = Qt.QGridLayout()
         self.top_layout.addLayout(self.top_grid_layout)
 
-        self.settings = Qt.QSettings("gnuradio/flowgraphs", "psd_calibration_test")
+        self.settings = Qt.QSettings("gnuradio/flowgraphs", "psd_calibration_test_gui")
 
         try:
             geometry = self.settings.value("geometry")
@@ -140,7 +140,7 @@ class psd_calibration_test(gr.top_block, Qt.QWidget):
 
         self._qtgui_time_sink_x_0_win = sip.wrapinstance(self.qtgui_time_sink_x_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_time_sink_x_0_win)
-        self.epy_block_0 = epy_block_0.blk(fs=10000000.0, P_received=-44.64, P_target=-126.84, bw=18500.0, fc=F_If + F_Of, selector=selector)
+        self.epy_block_0 = epy_block_0.blk(fs=10000000.0, P_received=-44.64, P_target=0, bw=18500.0, fc=F_If + F_Of, selector=selector)
         self.digital_gfsk_mod_0_0_0 = digital.gfsk_mod(
             samples_per_symbol=(round(BLE_sym_length*fs)),
             sensitivity=sensitivity,
@@ -167,7 +167,7 @@ class psd_calibration_test(gr.top_block, Qt.QWidget):
 
 
     def closeEvent(self, event):
-        self.settings = Qt.QSettings("gnuradio/flowgraphs", "psd_calibration_test")
+        self.settings = Qt.QSettings("gnuradio/flowgraphs", "psd_calibration_test_gui")
         self.settings.setValue("geometry", self.saveGeometry())
         self.stop()
         self.wait()
@@ -258,7 +258,7 @@ def argument_parser():
     description = 'Transmits constant interference for a target noise level. Used to verify the psd logic is correct.'
     parser = ArgumentParser(description=description)
     parser.add_argument(
-        "--P-received", dest="P_received", type=eng_float, default=eng_notation.num_to_str(float((-44.64))),
+        "--P-received", dest="P_received", type=eng_float, default=eng_notation.num_to_str(float((-41.64))),
         help="Set P_received (float): Measured received power of unit power sinusoid at receiver in dBm. [default=%(default)r]")
     parser.add_argument(
         "--P-target", dest="P_target", type=eng_float, default=eng_notation.num_to_str(float((-126))),
@@ -267,7 +267,7 @@ def argument_parser():
         "--ch-gain", dest="ch_gain", type=eng_float, default=eng_notation.num_to_str(float(20)),
         help="Set Analog Antenna Gain (dB) [default=%(default)r]")
     parser.add_argument(
-        "--selector", dest="selector", type=intx, default=0,
+        "--selector", dest="selector", type=intx, default=1,
         help="Set selector (int): Selects which PSD file to load. 0 = AWGN PSD, 1 = BLE PSD [default=%(default)r]")
     parser.add_argument(
         "--tx-freq", dest="tx_freq", type=eng_float, default=eng_notation.num_to_str(float(2.2e9)),
@@ -275,7 +275,7 @@ def argument_parser():
     return parser
 
 
-def main(top_block_cls=psd_calibration_test, options=None):
+def main(top_block_cls=psd_calibration_test_gui, options=None):
     if options is None:
         options = argument_parser().parse_args()
 

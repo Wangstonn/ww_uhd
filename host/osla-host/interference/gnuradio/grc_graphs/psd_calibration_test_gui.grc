@@ -1,0 +1,523 @@
+options:
+  parameters:
+    author: Winston Wang
+    catch_exceptions: 'True'
+    category: '[GRC Hier Blocks]'
+    cmake_opt: ''
+    comment: ''
+    copyright: ''
+    description: Transmits constant interference for a target noise level. Used to
+      verify the psd logic is correct.
+    gen_cmake: 'On'
+    gen_linking: dynamic
+    generate_options: qt_gui
+    hier_block_src_path: '.:'
+    id: psd_calibration_test_gui
+    max_nouts: '0'
+    output_language: python
+    placement: (0,0)
+    qt_qss_theme: ''
+    realtime_scheduling: ''
+    run: 'True'
+    run_command: '{python} -u {filename}'
+    run_options: prompt
+    sizing_mode: fixed
+    thread_safe_setters: ''
+    title: psd_calibration_test
+    window_size: (1000,1000)
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [8, 8]
+    rotation: 0
+    state: enabled
+
+blocks:
+- name: BLE_fd
+  id: variable
+  parameters:
+    comment: BLE frequency deviation
+    value: '250000'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [320, 488.0]
+    rotation: 0
+    state: true
+- name: BLE_sym_length
+  id: variable
+  parameters:
+    comment: ''
+    value: '.000001'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [184, 560.0]
+    rotation: 0
+    state: enabled
+- name: F_If
+  id: variable
+  parameters:
+    comment: ''
+    value: '595238'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [312, 8.0]
+    rotation: 0
+    state: true
+- name: F_Of
+  id: variable
+  parameters:
+    comment: ''
+    value: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [248, 8.0]
+    rotation: 0
+    state: true
+- name: TX_ID
+  id: variable
+  parameters:
+    comment: ''
+    value: '"addr=192.168.10.2"'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [848, 40.0]
+    rotation: 0
+    state: true
+- name: fs
+  id: variable
+  parameters:
+    comment: ''
+    value: '10000000'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [160, 8.0]
+    rotation: 0
+    state: enabled
+- name: sensitivity
+  id: variable
+  parameters:
+    comment: ''
+    value: 2*math.pi*BLE_fd/fs
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [184, 488.0]
+    rotation: 0
+    state: true
+- name: P_received
+  id: parameter
+  parameters:
+    alias: ''
+    comment: ''
+    hide: none
+    label: 'P_received (float): Measured received power of unit power sinusoid at
+      receiver in dBm.'
+    short_id: ''
+    type: eng_float
+    value: '-41.64'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [544, 8.0]
+    rotation: 0
+    state: true
+- name: P_target
+  id: parameter
+  parameters:
+    alias: ''
+    comment: ''
+    hide: none
+    label: '        P_target (float): Target power level for normalization in dBm.'
+    short_id: ''
+    type: eng_float
+    value: '-126'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [408, 8.0]
+    rotation: 0
+    state: true
+- name: analog_noise_source_x_0
+  id: analog_noise_source_x
+  parameters:
+    affinity: ''
+    alias: ''
+    amp: '1'
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    noise_type: analog.GR_GAUSSIAN
+    seed: '0'
+    type: complex
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [8, 208.0]
+    rotation: 0
+    state: enabled
+- name: analog_random_source_x_0
+  id: analog_random_source_x
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    max: '2'
+    maxoutbuf: '0'
+    min: '0'
+    minoutbuf: '0'
+    num_samps: '100000'
+    repeat: 'True'
+    type: byte
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [8, 368.0]
+    rotation: 0
+    state: true
+- name: blocks_freqshift_cc_0
+  id: blocks_freqshift_cc
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    freq: F_If
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    sample_rate: fs
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [744, 224.0]
+    rotation: 0
+    state: true
+- name: blocks_selector_0
+  id: blocks_selector
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    enabled: 'True'
+    input_index: selector
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    num_inputs: '2'
+    num_outputs: '1'
+    output_index: '0'
+    showports: 'True'
+    type: complex
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [344, 200.0]
+    rotation: 0
+    state: enabled
+- name: ch_gain
+  id: parameter
+  parameters:
+    alias: ''
+    comment: ''
+    hide: none
+    label: Analog Antenna Gain (dB)
+    short_id: ''
+    type: eng_float
+    value: '20'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [992, 8.0]
+    rotation: 0
+    state: true
+- name: digital_gfsk_mod_0_0_0
+  id: digital_gfsk_mod
+  parameters:
+    affinity: ''
+    alias: ''
+    bt: '0.5'
+    comment: ''
+    do_unpack: 'False'
+    log: 'False'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    samples_per_symbol: round(BLE_sym_length*fs)
+    sensitivity: sensitivity
+    verbose: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [184, 368.0]
+    rotation: 0
+    state: true
+- name: epy_block_0
+  id: epy_block
+  parameters:
+    P_received: '-44.64'
+    P_target: '0'
+    _source_code: "\"\"\"\nEmbedded Python Blocks:\n\nThis block is a stand-alone\
+      \ block that takes in 1 BLE interferer to test \nnormalizing in band noise capabilities\n\
+      \n\"\"\"\n\nimport numpy as np\nfrom gnuradio import gr\n\nimport os # To load\
+      \ PSD file\nfrom pathlib import Path\n\nclass blk(gr.sync_block):  # other base\
+      \ classes are basic_block, decim_block, interp_block\n    \"\"\"\n    GNU Radio\
+      \ block to normalize an input complex signal to a target power level\n    based\
+      \ on a known power spectral density (PSD) profile.\n\n    This block computes\
+      \ a gain factor that scales the input signal such that\n    its power matches\
+      \ a desired target power (in dBm), assuming the received power\n    is known.\
+      \ The gain is computed using the in-band power extracted from a PSD\n    file\
+      \ generated (e.g., via MATLAB's pwelch). The PSD is used to model the spectral\n\
+      \    shape of additive noise or interference. Currently the pwelch bin size,\
+      \ df, is set to 100 Hz.\n\n    Parameters:\n        fs (float): Sampling frequency\
+      \ in Hz. Used to scale PSD from digital to analog units.\n        P_received\
+      \ (float): Measured received power of unit power sinusoid at receiver in dBm.\n\
+      \        P_target (float): Target power level for normalization in dBm.\n  \
+      \      bw (float): Bandwidth over which to compute power, in Hz.\n        fc\
+      \ (float): Center frequency of interest within the PSD, in Hz.\n        selector\
+      \ (int): Selects which PSD file to load.\n                        0 = AWGN PSD\
+      \ (awgn_psd.csv)\n                        1 = BLE PSD (ble_psd.csv)\n\n    Raises:\n\
+      \        RuntimeError: If PSD file cannot be found or loaded properly.\n   \
+      \     ValueError: If selector is not 0 or 1.\n    \"\"\"\n    def __init__(self,\
+      \ fs=10e6, P_received=-44.64, P_target=-126.84, bw=18.5e3, fc=595e3, selector=0):\n\
+      \        \"\"\"arguments to this function show up as parameters in GRC\"\"\"\
+      \n        \n        gr.sync_block.__init__(\n            self,\n           \
+      \ name='Normalizer',   # will show up in GRC\n            in_sig=[np.complex64],\n\
+      \            out_sig=[np.complex64]\n        )\n        # Persistent parameters\
+      \ needed during work()\n        self.fs = fs\n        self.P_received = P_received\n\
+      \        self.P_target = P_target\n\n        #generate normalizer gain from\
+      \ LUT\n        match selector:\n            case 0:\n                #PSD_path\
+      \ = os.path.join(os.path.dirname(__file__), \"../../matlab/psd/awgn_psd.csv\"\
+      ) #'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/gaussian_PSD.csv'\n\
+      \                PSD_path = 'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/psd/awgn_psd.csv'\n\
+      \            case 1:\n                # PSD_path = os.path.join(os.path.dirname(__file__),\
+      \ \"../../matlab/psd/ble_psd.csv\") #'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/BLEwaveform/gaussian_PSD.csv'\n\
+      \                PSD_path = 'C:/Users/wangston/My Drive/OSLA/bpsk/ww_uhd/host/osla-host/interference/matlab/psd/ble_psd.csv'\n\
+      \            case _:\n                raise ValueError(\"Selector must be 0\
+      \ or 1, got {}\".format(selector))\n\n        PSD = None  # prevent undefined\
+      \ var\n\n        try:\n            PSD_file = Path(PSD_path)\n            if\
+      \ not PSD_file.is_file():\n                raise FileNotFoundError(f\"File does\
+      \ not exist: {PSD_file}\")\n            \n            PSD = np.genfromtxt(PSD_file,\
+      \ delimiter=',', dtype=np.double)\n            if PSD.ndim < 2 or PSD.shape[1]\
+      \ < 1:\n                raise ValueError(\"PSD file must be at least 2D with\
+      \ one column.\")\n\n            print(f\"[NoiseController] PSD loaded with shape\
+      \ {PSD.shape}\")\n\n        except Exception as e:\n            raise RuntimeError(f\"\
+      [NoiseController ERROR] Failed to load PSD: {e}\")\n\n        # Scale signal\
+      \ to match the target received power\n        df = 100\n        #fs_psd = 10000000\n\
+      \        PSD_i_low  = int(np.round((len(PSD)/2) + (fc/df) - (bw/df)/2) - 1)\n\
+      \        PSD_i_high = int(np.round((len(PSD)/2) + (fc/df) + (bw/df)/2))    \n\
+      \n        # in band power = sum(PSD)*df*fs\n        P_band = df*np.sum(PSD[PSD_i_low:PSD_i_high,0]*fs)\n\
+      \        self.G = np.sqrt(1/(P_band))\n\n\n    def work(self, input_items, output_items):\n\
+      \        output_items[0][:] = self.G*10**((self.P_target-self.P_received)/20)*input_items[0]\n\
+      \        return len(output_items[0])\n"
+    affinity: ''
+    alias: ''
+    bw: '18500.0'
+    comment: ''
+    fc: F_If + F_Of
+    fs: '10000000.0'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    selector: selector
+  states:
+    _io_cache: '(''Normalizer'', ''blk'', [(''fs'', ''10000000.0''), (''P_received'',
+      ''-44.64''), (''P_target'', ''-126.84''), (''bw'', ''18500.0''), (''fc'', ''595000.0''),
+      (''selector'', ''0'')], [(''0'', ''complex'', 1)], [(''0'', ''complex'', 1)],
+      "\n    GNU Radio block to normalize an input complex signal to a target power
+      level\n    based on a known power spectral density (PSD) profile.\n\n    This
+      block computes a gain factor that scales the input signal such that\n    its
+      power matches a desired target power (in dBm), assuming the received power\n    is
+      known. The gain is computed using the in-band power extracted from a PSD\n    file
+      generated (e.g., via MATLAB''s pwelch). The PSD is used to model the spectral\n    shape
+      of additive noise or interference. Currently the pwelch bin size, df, is set
+      to 100 Hz.\n\n    Parameters:\n        fs (float): Sampling frequency in Hz.
+      Used to scale PSD from digital to analog units.\n        P_received (float):
+      Measured received power of unit power sinusoid at receiver in dBm.\n        P_target
+      (float): Target power level for normalization in dBm.\n        bw (float): Bandwidth
+      over which to compute power, in Hz.\n        fc (float): Center frequency of
+      interest within the PSD, in Hz.\n        selector (int): Selects which PSD file
+      to load.\n                        0 = AWGN PSD (awgn_psd.csv)\n                        1
+      = BLE PSD (ble_psd.csv)\n\n    Raises:\n        RuntimeError: If PSD file cannot
+      be found or loaded properly.\n        ValueError: If selector is not 0 or 1.\n    ",
+      [''P_received'', ''P_target'', ''fs''])'
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [544, 192.0]
+    rotation: 0
+    state: enabled
+- name: import_0
+  id: import
+  parameters:
+    alias: ''
+    comment: ''
+    imports: import math
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [8, 144.0]
+    rotation: 0
+    state: true
+- name: qtgui_time_sink_x_0
+  id: qtgui_time_sink_x
+  parameters:
+    affinity: ''
+    alias: ''
+    alpha1: '1.0'
+    alpha10: '1.0'
+    alpha2: '1.0'
+    alpha3: '1.0'
+    alpha4: '1.0'
+    alpha5: '1.0'
+    alpha6: '1.0'
+    alpha7: '1.0'
+    alpha8: '1.0'
+    alpha9: '1.0'
+    autoscale: 'False'
+    axislabels: 'True'
+    color1: blue
+    color10: dark blue
+    color2: red
+    color3: green
+    color4: black
+    color5: cyan
+    color6: magenta
+    color7: yellow
+    color8: dark red
+    color9: dark green
+    comment: ''
+    ctrlpanel: 'False'
+    entags: 'True'
+    grid: 'False'
+    gui_hint: ''
+    label1: Signal 1
+    label10: Signal 10
+    label2: Signal 2
+    label3: Signal 3
+    label4: Signal 4
+    label5: Signal 5
+    label6: Signal 6
+    label7: Signal 7
+    label8: Signal 8
+    label9: Signal 9
+    legend: 'True'
+    marker1: '-1'
+    marker10: '-1'
+    marker2: '-1'
+    marker3: '-1'
+    marker4: '-1'
+    marker5: '-1'
+    marker6: '-1'
+    marker7: '-1'
+    marker8: '-1'
+    marker9: '-1'
+    name: '""'
+    nconnections: '1'
+    size: '1024'
+    srate: fs
+    stemplot: 'False'
+    style1: '1'
+    style10: '1'
+    style2: '1'
+    style3: '1'
+    style4: '1'
+    style5: '1'
+    style6: '1'
+    style7: '1'
+    style8: '1'
+    style9: '1'
+    tr_chan: '0'
+    tr_delay: '0'
+    tr_level: '0.0'
+    tr_mode: qtgui.TRIG_MODE_FREE
+    tr_slope: qtgui.TRIG_SLOPE_POS
+    tr_tag: '""'
+    type: complex
+    update_time: '0.10'
+    width1: '1'
+    width10: '1'
+    width2: '1'
+    width3: '1'
+    width4: '1'
+    width5: '1'
+    width6: '1'
+    width7: '1'
+    width8: '1'
+    width9: '1'
+    ylabel: Amplitude
+    ymax: '1'
+    ymin: '-1'
+    yunit: '""'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [1008, 216.0]
+    rotation: 0
+    state: true
+- name: selector
+  id: parameter
+  parameters:
+    alias: ''
+    comment: ''
+    hide: none
+    label: 'selector (int): Selects which PSD file to load. 0 = AWGN PSD, 1 = BLE
+      PSD'
+    short_id: ''
+    type: intx
+    value: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [696, 8.0]
+    rotation: 0
+    state: true
+- name: tx_freq
+  id: parameter
+  parameters:
+    alias: ''
+    comment: ''
+    hide: none
+    label: Analog Frontend Tx frequency
+    short_id: ''
+    type: eng_float
+    value: 2.2e9
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [1144, 8.0]
+    rotation: 0
+    state: true
+
+connections:
+- [analog_noise_source_x_0, '0', blocks_selector_0, '0']
+- [analog_random_source_x_0, '0', digital_gfsk_mod_0_0_0, '0']
+- [blocks_freqshift_cc_0, '0', qtgui_time_sink_x_0, '0']
+- [blocks_selector_0, '0', epy_block_0, '0']
+- [digital_gfsk_mod_0_0_0, '0', blocks_selector_0, '1']
+- [epy_block_0, '0', blocks_freqshift_cc_0, '0']
+
+metadata:
+  file_format: 1
+  grc_version: 3.10.12.0

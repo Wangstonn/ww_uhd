@@ -9,7 +9,7 @@ AdcFrac = 2;
 fwd_file = "../data/interf_cal_samps.dat";
 
 % fwd_file = "../data/dest_interf_samps.dat";
-fwd_file = "../data/fb_p2p_prmbl_samps.dat";
+% fwd_file = "../data/fb_p2p_prmbl_samps.dat";
 
 %% Plot the samples
 % Read data

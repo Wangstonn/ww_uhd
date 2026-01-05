@@ -1,76 +1,179 @@
-f = fopen('../../gnuradio/log/4_3_25/c16_wire_continuous-125dB_10M.bin', 'rb');
-values = fread(f, Inf,'short');
-d = values(1:2:end) + values(2:2:end)*1j;
-%%
-%plot time domain 100ms
-%mix down these points
-Fs = 10e6;
-t = (1/Fs)*(0:size(d)-1);
+%% interf test - calibrate interferer power
+%
+% Description:
+%   Loads sinusoid calibration data and estimates the power. This
+%   calibrates the interferer to verify power measurments using ___ code
+%
+% Author: Winston Wang
+% Date: 6-23
+
+clear all; close all;
+fid = fopen('../../gnuradio/grc_graphs/data/c16_noise_10M.bin', 'rb');
+data = fread(fid, Inf,'short');
+fclose(fid);
+d = data(2:2:end) + data(1:2:end)*1j;
+d = d';
+fs = 10e6;
+%% Plotting
+t = (1/fs)*(0:size(d,2)-1);
+plot_idx = 1:(round(4e-5*fs));
 figure(); 
-plot(t(1:1e6)*1e3,real(d(1:1e6)));
+plot(t(plot_idx),real(d(plot_idx)));
 title('Experimental Interference Time-Domain');
-xlabel('time (ms)');
+xlabel('time (s)');
 ylabel("real(Amplitude)");
 
-%Plot fft of 1e6 points
-figure();
-L = length(d(1:1e6-1));
-plot(Fs/L*(-L/2:L/2-1),abs(fftshift(fft(d(1:1e6-1)/L))));
-title("fft Spectrum of captured samples")
-xlabel("f (Hz)")
-ylabel("|fft(X)|")
+t = (1/fs)*(0:size(d,2)-1);
+plot_idx = 1:(round(1e-2*fs));
+figure(); 
+plot(t(plot_idx),real(d(plot_idx)));
+title('Experimental Interference Time-Domain');
+xlabel('time (s)');
+ylabel("real(Amplitude)");
 
-%%
-%Plot fft of all points
-figure();
-Fs = 10e6;
-L = length(d);
-plot(Fs/L*(-L/2:L/2-1),abs(fftshift(fft(d/L))));
-title("fft Spectrum of captured samples")
-xlabel("f (Hz)")
-ylabel("|fft(X)|")
-
-
-%mix down these points
-
-%%
-t = (1/Fs)*(0:size(d)-1);
-Fif = 200e6/336;
-
-%downconvert
-x_t = exp(-1j*2*pi*Fif*t);
-
-d_dcon = x_t.'.*d;
-
-%Create moving average filter
-%%
-%Create moving average filter
-% mbw = 200e6/(32*336);
-% mduration = 1/mbw;
-% mfilter = ones(1,round(mduration*Fs));
-% mfilter = mfilter/length(mfilter);
-% 
-% mfilter_padded = [mfilter zeros(1,length(d_dcon) - 1)];
-% fmf = fft(mfilter_padded);
-% 
+% %Plot fft of 1e6 points
 % figure();
-% Fs = 10e6;
-% L = length(fmf);
-% plot(Fs/L*(-L/2:L/2-1),(abs(fftshift(fmf/length(fmf)))));
-% title("fft Spectrum of average filter")
+% L = length(d(1:1e6-1));
+% plot(fs/L*(-L/2:L/2-1),10*log10(abs(fftshift(fft(d(1:1e6-1)/L)))));
+% title("fft Spectrum of captured samples")
+% xlabel("f (Hz)")
+% ylabel("|fft(X)|")
+
+%% Analysis
+this.kIntfPktLen = 2e-3;
+this.kClkPeriod = 5e-9;%-9
+this.kArrivalMu = 5e-3;
+this.kLognormVar = 0; %db,10
+this.OSR = 336;
+this.T = 32;
+kIfFreq = 1/(this.OSR*this.kClkPeriod);
+
+fc = kIfFreq;
+BW = 2/(this.T*this.OSR*this.kClkPeriod);
+% resolution = 100;
+% % fr = 1.3*1e6;
+% % idx = fr/resolution;
+% [sxx, f] = pwelch(noise_vec,500,0,Fs/resolution,Fs,'centered');
+nfft = 2^17;              % Large enough for high frequency resolution
+df = fs/nfft;
+% binsInBw = bw/df
+
+window = hamming(nfft);   % Use full-length window (optional: try shorter)
+noverlap = nfft/2;        % 50% overlap
+
+[Pxx, F] = pwelch(d, window, noverlap, nfft, fs);
+% Shift frequency and PSD so that 0 Hz is centered
+Pxx_shifted = fftshift(Pxx);
+F_shifted = linspace(-fs/2, fs/2, length(Pxx));
+
+% Plot PSD in dB
+figure;
+plot(F_shifted/1e3, 10*log10(Pxx_shifted)-137-20*log10(4)+30, 'LineWidth', 1.2);
+xlabel('Frequency (kHz)');
+ylabel('PSD (dBm/Hz)');
+title('Welch Power Spectral Density Estimate');
+grid on;
+% xlim([fc - BW, fc + BW]/1e3);  % Zoom around target band
+
+% Highlight target band
+hold on;
+yl = ylim;
+fill([fc-BW/2 fc+BW/2 fc+BW/2 fc-BW/2]/1e3, ...
+     [yl(1) yl(1) yl(2) yl(2)], ...
+     [0.9 0.9 1], 'EdgeColor', 'none', 'FaceAlpha', 0.3);
+
+legend('PSD estimate', 'Target band');
+
+% Find low/high bin indices for integration
+midpoint = floor(length(Pxx_shifted)/2);
+PSD_i_low  = round(midpoint + (kIfFreq)/df - (BW/df)/2);
+PSD_i_high = round(midpoint + (kIfFreq)/df + (BW/df)/2);
+
+%Ni/N0 can be visually determined by looking at value in peak of psd and
+%noise floor
+% NiN0 = -this.kEsNidb + this.fw_EsN0_db
+
+% calcs--------------------------------------------------------
+measured_in_band_power = df*sum(Pxx_shifted(PSD_i_low : PSD_i_high))
+measured_N0 = measured_in_band_power/BW
+
+measured_in_band_power_dbm = 10*log10(measured_in_band_power)-137-20*log10(4)+30
+measured_N0_dbm = 10*log10(measured_N0)-137-20*log10(4)+30
+
+avg_total_var = mean(abs(d).^2)/2 %interference plus noise total variance
+% noise_var
+% targetAvgEsNi = this.kEsNidb
+% avgEsNi = 10*log10(Es./(measured_N0-2*noise_var))
+
+
+% noise_vec_if = noise_vec .* exp(1i*-2*pi/this.OSR*(1:length(noise_vec)));
+% 
+% % Reshape noise_vec to have 336 rows (each column is a separate chunk)
+% reshaped_vec = reshape(noise_vec_if(1:floor(length(noise_vec_if)/336)*336), 336, []);
+% 
+% % Sum each column
+% chip_vec = sum(reshaped_vec,1);
+% 
+% % Calculate the energy
+% chip_energy = sum(abs(chip_vec).^2)
+% 
+% figure;
+% plot(real(chip_vec));
+
+
+
+% 
+% %%
+% %Plot fft of all points
+% figure();
+% fs = 10e6;
+% L = length(d);
+% plot(fs/L*(-L/2:L/2-1),abs(fftshift(fft(d/L))));
+% title("fft Spectrum of captured samples")
 % xlabel("f (Hz)")
 % ylabel("|fft(X)|")
 % 
-% d_dcon_padded = [d_dcon.' zeros(1,length(mfilter) - 1)];
-% fw = fft(d_dcon_padded);
-% filtered_noise = ifft(fmf.*fw);
-% P_av_filtered  = 10*log10(sum(abs(filtered_noise).^2)/length(filtered_noise))-137;
-
-%%
-%do pwelch to obtain average in-band power
-Ts = 336*32/200000000;
-BW = 2/Ts;
-
-[sxx,f] = pwelch(d_dcon,500,0,Fs/100,Fs,'centered');
-p_idx = (f >= -BW/2) & (f <= BW/2);
-disp(10*log10(sum(sxx(p_idx))*100)-137);
+% 
+% %mix down these points
+% 
+% %%
+% t = (1/fs)*(0:size(d)-1);
+% f_if = 200e6/336;
+% 
+% %downconvert
+% x_t = exp(-1j*2*pi*f_if*t);
+% 
+% d_dcon = x_t.'.*d;
+% 
+% %Create moving average filter
+% %%
+% %Create moving average filter
+% % mbw = 200e6/(32*336);
+% % mduration = 1/mbw;
+% % mfilter = ones(1,round(mduration*Fs));
+% % mfilter = mfilter/length(mfilter);
+% % 
+% % mfilter_padded = [mfilter zeros(1,length(d_dcon) - 1)];
+% % fmf = fft(mfilter_padded);
+% % 
+% % figure();
+% % Fs = 10e6;
+% % L = length(fmf);
+% % plot(Fs/L*(-L/2:L/2-1),(abs(fftshift(fmf/length(fmf)))));
+% % title("fft Spectrum of average filter")
+% % xlabel("f (Hz)")
+% % ylabel("|fft(X)|")
+% % 
+% % d_dcon_padded = [d_dcon.' zeros(1,length(mfilter) - 1)];
+% % fw = fft(d_dcon_padded);
+% % filtered_noise = ifft(fmf.*fw);
+% % P_av_filtered  = 10*log10(sum(abs(filtered_noise).^2)/length(filtered_noise))-137;
+% 
+% %%
+% %do pwelch to obtain average in-band power
+% Ts = 336*32/200000000;
+% BW = 2/Ts;
+% 
+% [sxx,fid] = pwelch(d_dcon,500,0,fs/100,fs,'centered');
+% p_idx = (fid >= -BW/2) & (fid <= BW/2);
+% disp(10*log10(sum(sxx(p_idx))*100)-137);

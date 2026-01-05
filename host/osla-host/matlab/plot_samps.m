@@ -1,7 +1,10 @@
-%% Sample acquisition visualization
+%% plot_samps - plot samples
+%
+% Description:
+%   Loads samples and visualizes them
+%
 % Author: Winston Wang
-% email: wangston@umich.edu
-% 12/13/23
+% Date: 6-23
 
 clearvars; close all; fclose('all');
 AdcFrac = 6;
